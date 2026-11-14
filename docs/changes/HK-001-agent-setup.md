@@ -11,7 +11,7 @@ branch: "codex/fix-agent-skills"
 base_ref: "23ba9c9"
 owner: "Cody (implemented by Codex)"
 created_at: "2026-11-14T15:00:00-06:00"
-updated_at: "2026-11-14T15:46:00-06:00"
+updated_at: "2026-11-14T15:49:00-06:00"
 plan_version_at_start: 2
 feature_ids: []
 contract_ids: []
@@ -66,6 +66,7 @@ None beyond the user's explicit setup-repair and local-commit authorization. App
 | --- | --- | --- |
 | 23ba9c9 | Existing skill links/setup | Absolute links and Claude-only junction workaround confirmed |
 | 23ba9c944896+dirty repair tree | Native adapters, scripts, tests, docs | Portable discovery, guarded migration and shared tools; implementation snapshot committed with this note |
+| e9bb9667ab10a371f64550f2b025f00dbf88567c | Complete implementation commit | Exact implementation from the passing verification run; committed locally on codex/fix-agent-skills |
 
 | Check | Revision/artifact | Environment | Expected | Observed | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -78,6 +79,7 @@ None beyond the user's explicit setup-repair and local-commit authorization. App
 | Migration and Git portability | Same implementation; tests/agent-skills.test.ts | Isolated temporary Git repositories, paths with spaces, Windows junctions | Both core.symlinks settings clone cleanly; legacy migration preserves target and clears flags | All 8 tests pass, including old-junction preparation followed by applying the file-to-directory repair commit | pass |
 | Skill-creator quick_validate.py | All 24 new native SKILL.md files | Python 3.13 | Valid frontmatter and names | All 24 report Skill is valid | pass |
 | Patch and submodule | Central repair tree; toolkit d34da50829c5ded6c3e38bf0415d82b7419a983e | Git for Windows | No whitespace defects or toolkit edits | git diff --check exit 0; toolkit status empty and HEAD equals pin | pass |
+| Actual repository clone | e9bb9667ab10a371f64550f2b025f00dbf88567c | Disposable local Windows clone with core.symlinks=false; toolkit initialized from local source at d34da50829c5ded6c3e38bf0415d82b7419a983e | Both skill sets usable without local links or dependencies; sync leaves Git clean | skills:check: 24 entrypoints, 0 pending; skills:sync: 0 changed; all 24 Git modes 100644; status empty; temporary clone removed | pass |
 
 **Known limitations / not tested:** active worktrees intentionally untouched. Native Codex/Claude UI discovery was not reloaded/tested; the checks establish filesystem layout, metadata and canonical link resolution. Claude CLI is not installed on PATH in this environment. Existing sessions may need restarting. No Linux/macOS native run was performed; Git checkout was tested on Windows with both symlink settings. The toolkit's advertised bootstrap executable remains absent at this pin; project-owned commands follow its documented adapter format. Initial sandbox-only junction tests failed because link creation was denied; the normal-permission run passed. Temporary Git fixtures disable inherited commit signing/hooks in their own local config only. An initial migration test exposed that Git handles index flags separately; this was corrected and all gates then passed.
 
@@ -106,4 +108,4 @@ stable_release_including_change: null
 rollback: "Revert the local maintenance commit; no toolkit or active-worktree changes."
 ```
 
-**Integrator note:** Cody retains review/integration ownership and will manually apply the completed patch to each active worktree. No push is requested.
+**Integrator note:** Cody retains review/integration ownership and will manually apply the completed patch to each active worktree. Implementation is local commit `e9bb966`; this evidence-only follow-up adds the real-clone result without changing implementation. The central checkout remains on `codex/fix-agent-skills`, ready for review; `production` was not advanced. Follow `docs/AGENT_SETUP.md` to normalize legacy Windows entries before merging the repair branch. No active worktree was modified or used for validation. Nothing was pushed.
