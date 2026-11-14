@@ -34,7 +34,7 @@ if (lane) {
   });
 }
 checks.push(
-  { name: "Typecheck", cmd: ["npm", ["run", "-s", "typecheck"]], expected: "tsc --noEmit: 0 errors" },
+  { name: "Typecheck", cmd: ["npm", ["run", "-s", "typecheck"]], expected: "next typegen + tsc --noEmit: 0 errors" },
   { name: "Lint", cmd: ["npm", ["run", "-s", "lint"]], expected: "eslint: 0 errors" },
   { name: "Unit + conformance tests", cmd: ["npm", ["run", "-s", "test"]], expected: "vitest run: all pass" },
 );
