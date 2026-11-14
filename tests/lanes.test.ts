@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { classify, globToRegExp } from "../scripts/lib/lanes.mjs";
+import { classify, globToRegExp, matchesAny } from "../scripts/lib/lanes.mjs";
 import lanes from "@/lanes.json";
 import { REPO_ROOT } from "./helpers/fixtures";
 
@@ -16,6 +16,11 @@ describe("lane globs", () => {
     expect(re.test("app/projects/[projectId]/edit/page.tsx")).toBe(true);
     expect(re.test("app/projects/p/page.tsx")).toBe(false);
     expect(re.test("app/projects/page.tsx")).toBe(false);
+  });
+
+  it("ignore the machine-local skill junctions that lane:setup creates", () => {
+    expect((matchesAny as (p: string, g: string[]) => boolean)(".claude/skills/kickoff-project/SKILL.md", lanes.ignore)).toBe(true);
+    expect((matchesAny as (p: string, g: string[]) => boolean)(".claude/launch.json", lanes.ignore)).toBe(false);
   });
 
   it("classify owned, dependency, contract, other-lane and shared paths", () => {

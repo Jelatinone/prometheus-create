@@ -98,7 +98,7 @@ function check(laneKeyArg) {
     return 0;
   }
   const base = flag("base") ?? lanes.base;
-  const { mergeBase, files } = changedFiles(base);
+  const { mergeBase, files } = changedFiles(base, lanes.ignore);
   const rows = files.map((f) => ({ file: f, kind: classify(f, laneKey, lanes) }));
   const violations = rows.filter((r) => r.kind !== "owned" && r.kind !== "dependency");
   const deps = rows.filter((r) => r.kind === "dependency");

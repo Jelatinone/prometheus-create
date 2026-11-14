@@ -1,6 +1,7 @@
 {
   "$comment": "Canonical lane ownership for parallel agent work. Branch and task IDs must match PLAN.md section 5 (checked by tests/lanes.test.ts). A lane may edit only its `owns` globs plus its task note; package.json/package-lock.json edits are allowed but must be listed in the task note. Every other path is shared: change it only with integration-owner approval. Check a branch with `npm run lane:check`.",
   "base": "production",
+  "ignore": [".claude/skills/**"],
   "dependencyFiles": ["package.json", "package-lock.json"],
   "contractPaths": ["lib/contracts/**", "fixtures/contracts/**", "tests/conformance/**"],
   "lanes": {

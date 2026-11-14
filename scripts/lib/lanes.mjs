@@ -58,14 +58,18 @@ export function detectLane(lanes, branch = currentBranch()) {
   return null;
 }
 
-/** Files changed since the merge-base with `base`: committed, staged, unstaged and untracked. */
-export function changedFiles(base) {
+/**
+ * Files changed since the merge-base with `base`: committed, staged, unstaged
+ * and untracked, minus machine-local paths (lanes.json `ignore`, e.g. the
+ * .claude/skills junctions that lane:setup creates).
+ */
+export function changedFiles(base, ignore = []) {
   if (!tryGit(["rev-parse", "--verify", "--quiet", base]))
     throw new Error(`base ref "${base}" not found; pass --base <ref>`);
   const mergeBase = git(["merge-base", "HEAD", base]);
   const tracked = git(["diff", "--name-only", mergeBase]).split("\n");
   const untracked = git(["ls-files", "--others", "--exclude-standard"]).split("\n");
-  const files = [...new Set([...tracked, ...untracked])].filter(Boolean).sort();
+  const files = [...new Set([...tracked, ...untracked])].filter((f) => f && !matchesAny(f, ignore)).sort();
   return { mergeBase, files };
 }
 
