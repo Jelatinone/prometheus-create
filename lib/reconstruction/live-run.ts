@@ -14,8 +14,10 @@
  *   --timeout <s>     provider timeout per job (default 600)
  *   --out <dir>       output folder (default .verify/hk002-live/<timestamp>, git-ignored)
  *
- * Reads FAL_KEY from the environment or .env.local; never prints it. Runs in
- * memory (MemoryBackend) until the platform backend exists. Paid provider calls.
+ * Reads FAL_KEY (or FAL_API_KEY) from the environment or .env.local; never
+ * prints it. Runs in memory (MemoryBackend) until the platform backend exists.
+ * Paid: listed at $0.005 per sam-3/image mask and $0.02 per 3d-objects job; the
+ * run prints its estimated spend.
  * Written as CommonJS-compatible TypeScript so tsx can load the contracts index.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -23,8 +25,20 @@ import { resolve } from "node:path";
 import { MemoryBackend } from "@/lib/reference/memory-backend";
 import { CaptureIngestor, MemoryBlobStore, createCaptureProject, loadProjectAsset, probeImage, storeProjectAsset } from "@/lib/capture";
 import type { Result } from "@/lib/contracts";
-import { createLiveFalQueue } from "./fal-live";
+import { FAL_CREDITS_URL, FAL_LISTED_PRICE_USD } from "./fal-queue";
+import { createLiveFalQueue, falKeyFromEnv } from "./fal-live";
 import { runReconstruction, runSegmentation, type GlbConvention, type JobProgress } from "./runner";
+
+/** jobId -> model for every job that reached the provider (billable). */
+const submitted = new Map<string, string>();
+
+function estimatedSpend(): number {
+  return [...submitted.values()].reduce((sum, model) => sum + (FAL_LISTED_PRICE_USD[model] ?? 0), 0);
+}
+
+function printSpend() {
+  console.log(`estimated spend this run: $${estimatedSpend().toFixed(3)} at listed prices (${submitted.size} submitted job(s)); balance: ${FAL_CREDITS_URL}`);
+}
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -44,6 +58,7 @@ function log(event: JobProgress) {
   const t = new Date().toISOString();
   if (event.type === "state") {
     const j = event.job;
+    if (j.providerRequestId) submitted.set(j.id, j.providerModel);
     console.log(`${t}  job ${j.id} (${j.kind}) -> ${j.state}${j.providerRequestId ? `  request ${j.providerRequestId}` : ""}${j.error ? `  ${j.error.code}: ${j.error.message}` : ""}`);
   } else {
     console.log(`${t}  poll ${event.status}${event.queuePosition !== undefined ? ` (queue ${event.queuePosition})` : ""}  ${(event.elapsedMs / 1000).toFixed(1)}s`);
@@ -58,8 +73,8 @@ async function main() {
     console.error("usage: npx tsx lib/reconstruction/live-run.ts --image <photo> [--mask <png> | --prompt <text>] [--upright <png>]");
     process.exit(2);
   }
-  if (!process.env.FAL_KEY) {
-    console.error("FAL_KEY is not set. Add it to .env.local (git-ignored) and rerun.");
+  if (!falKeyFromEnv()) {
+    console.error("FAL_KEY (or FAL_API_KEY) is not set. Add it to .env.local (git-ignored) and rerun.");
     process.exit(2);
   }
   const convention: GlbConvention = {
@@ -129,6 +144,7 @@ async function main() {
     save("segment-output.json", seg.providerOutput);
     if (seg.job.state !== "succeeded") {
       console.error(`segmentation ${seg.job.state}: ${seg.job.error?.code} ${seg.job.error?.message}`);
+      printSpend();
       process.exit(1);
     }
     maskAssetId = seg.maskAssets[0].id;
@@ -162,6 +178,7 @@ async function main() {
     originalInspection: rec.originalInspection,
     normalizedInspection: rec.inspection,
     elapsedSeconds: Math.round((Date.now() - started) / 100) / 10,
+    estimatedSpendUsd: estimatedSpend(),
   };
   save("summary.json", summary);
   if (rec.rawAsset) save("raw.glb", must(await loadProjectAsset({ assets: backend.assets, blobs, actor }, projectId, rec.rawAsset.id), "load raw").bytes);
@@ -170,6 +187,7 @@ async function main() {
   console.log(`\njob ${rec.job.id}: ${rec.job.state}  request ${rec.job.providerRequestId ?? "none"}`);
   if (rec.originalInspection) console.log(`raw GLB dims (file units): ${rec.originalInspection.dimensions?.map((d) => d.toFixed(3)).join(" x ")}`);
   if (rec.inspection) console.log(`normalized dims: ${rec.inspection.dimensions?.map((d) => d.toFixed(3)).join(" x ")}  warnings: ${rec.inspection.warnings.join("; ") || "none"}`);
+  printSpend();
   console.log(`outputs: ${out}`);
   process.exit(rec.job.state === "succeeded" ? 0 : 1);
 }

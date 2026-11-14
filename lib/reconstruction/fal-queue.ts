@@ -9,6 +9,17 @@
 export const SAM3D_OBJECTS_MODEL = "fal-ai/sam-3/3d-objects";
 export const SAM3_IMAGE_MODEL = "fal-ai/sam-3/image";
 
+/**
+ * Listed prices (fal model pages, read 2026-11-14) for spend estimates only;
+ * fal bills from prepaid credits and does not charge server errors or queue time.
+ */
+export const FAL_LISTED_PRICE_USD: Record<string, number> = {
+  [SAM3D_OBJECTS_MODEL]: 0.02,
+  [SAM3_IMAGE_MODEL]: 0.005,
+};
+
+export const FAL_CREDITS_URL = "https://fal.ai/dashboard/usage-billing/credits";
+
 export type FalQueueState = "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED";
 
 export interface FalStatus {
