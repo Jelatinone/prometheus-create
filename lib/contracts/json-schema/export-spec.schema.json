@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "projectId": {
+      "type": "string",
+      "pattern": "^prj_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "takeId": {
+      "type": "string",
+      "pattern": "^tk_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "revisionId": {
+      "type": "string",
+      "pattern": "^rev_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "cameraId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^cam_[a-z0-9][a-z0-9_-]{2,63}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "appearanceMode": {
+      "type": "string",
+      "enum": [
+        "mesh",
+        "capture_appearance",
+        "wireframe"
+      ]
+    },
+    "frames": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "still"
+            },
+            "frame": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "kind",
+            "frame"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "range"
+            },
+            "startFrame": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "endFrame": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "kind",
+            "startFrame",
+            "endFrame"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "resolution": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8192
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8192
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ],
+      "additionalProperties": false
+    },
+    "background": {
+      "type": "string",
+      "enum": [
+        "transparent",
+        "solid",
+        "source_plate"
+      ]
+    },
+    "requestedFormat": {
+      "type": "string",
+      "enum": [
+        "png",
+        "glb",
+        "webm",
+        "mp4",
+        "project_json"
+      ]
+    }
+  },
+  "required": [
+    "projectId",
+    "takeId",
+    "revisionId",
+    "cameraId",
+    "appearanceMode",
+    "frames",
+    "resolution",
+    "background",
+    "requestedFormat"
+  ],
+  "additionalProperties": false,
+  "$id": "prometheus-create/contracts/export-spec.schema.json",
+  "title": "export-spec",
+  "description": "CT-004: What to export. Generated from lib/contracts; do not edit."
+}

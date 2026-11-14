@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "INVALID_SCHEMA",
+        "MISSING_ASSET",
+        "UNKNOWN_UNITS",
+        "UNSUPPORTED_DRIVER",
+        "STALE_CACHE",
+        "UNAUTHORIZED",
+        "NOT_FOUND",
+        "UNSUPPORTED_MEDIA",
+        "TOO_LARGE",
+        "STALE_FRAME",
+        "DUPLICATE",
+        "PROVIDER_UNAVAILABLE",
+        "INVALID_GEOMETRY",
+        "INVALID_TRANSITION",
+        "REVISION_CONFLICT",
+        "INVALID_ASSET_REFERENCE",
+        "IDEMPOTENCY_KEY_REUSED",
+        "UNSUPPORTED_CODEC",
+        "TAINTED_CANVAS",
+        "STALE_REVISION",
+        "RESOURCE_LIMIT",
+        "LINE_NOT_READY",
+        "CALLER_CAPTURE_UNAVAILABLE",
+        "NO_FRESH_FRAME",
+        "CALL_ENDED",
+        "PROVIDER_ERROR"
+      ]
+    },
+    "message": {
+      "type": "string"
+    },
+    "details": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "code",
+    "message"
+  ],
+  "additionalProperties": false,
+  "$id": "prometheus-create/contracts/contract-error.schema.json",
+  "title": "contract-error",
+  "description": "shared: Error value returned by every port. Generated from lib/contracts; do not edit."
+}

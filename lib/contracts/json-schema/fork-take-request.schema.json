@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "projectId": {
+      "type": "string",
+      "pattern": "^prj_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "fromTakeId": {
+      "type": "string",
+      "pattern": "^tk_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "fromRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "newTakeId": {
+      "type": "string",
+      "pattern": "^tk_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{8,128}$"
+    }
+  },
+  "required": [
+    "projectId",
+    "fromTakeId",
+    "fromRevision",
+    "newTakeId",
+    "name",
+    "idempotencyKey"
+  ],
+  "additionalProperties": false,
+  "$id": "prometheus-create/contracts/fork-take-request.schema.json",
+  "title": "fork-take-request",
+  "description": "CT-003: Fork a take at an exact revision. Generated from lib/contracts; do not edit."
+}

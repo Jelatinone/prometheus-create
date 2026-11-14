@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^ast_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^prj_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "image",
+        "video",
+        "frame",
+        "mask",
+        "mesh",
+        "splat",
+        "collider",
+        "motion",
+        "export",
+        "provider_raw"
+      ]
+    },
+    "mimeType": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 100
+    },
+    "byteSize": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "storageKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "origin": {
+      "type": "string",
+      "enum": [
+        "upload",
+        "capture",
+        "provider",
+        "editor",
+        "export",
+        "fixture"
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "projectId",
+    "kind",
+    "mimeType",
+    "byteSize",
+    "contentHash",
+    "storageKey",
+    "origin",
+    "createdAt"
+  ],
+  "additionalProperties": false,
+  "$id": "prometheus-create/contracts/asset.schema.json",
+  "title": "asset",
+  "description": "shared: Immutable stored binary. Generated from lib/contracts; do not edit."
+}

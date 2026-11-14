@@ -1,0 +1,1356 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "projectId": {
+      "type": "string",
+      "pattern": "^prj_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "initialManifest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "projectId": {
+          "type": "string",
+          "pattern": "^prj_[a-z0-9][a-z0-9_-]{2,63}$"
+        },
+        "take": {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "type": "number",
+              "const": 1
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^tk_[a-z0-9][a-z0-9_-]{2,63}$"
+            },
+            "projectId": {
+              "type": "string",
+              "pattern": "^prj_[a-z0-9][a-z0-9_-]{2,63}$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "parent": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "takeId": {
+                      "type": "string",
+                      "pattern": "^tk_[a-z0-9][a-z0-9_-]{2,63}$"
+                    },
+                    "revisionId": {
+                      "type": "string",
+                      "pattern": "^rev_[a-z0-9][a-z0-9_-]{2,63}$"
+                    }
+                  },
+                  "required": [
+                    "takeId",
+                    "revisionId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "frameRate": {
+              "type": "object",
+              "properties": {
+                "num": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "den": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "num",
+                "den"
+              ],
+              "additionalProperties": false
+            },
+            "durationFrames": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "activeCameraId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^cam_[a-z0-9][a-z0-9_-]{2,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sourceMappings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "sourceId": {
+                    "type": "string",
+                    "pattern": "^src_[a-z0-9][a-z0-9_-]{2,63}$"
+                  },
+                  "takeInFrame": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "takeOutFrame": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "sourceInUs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "rate": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "sourceId",
+                  "takeInFrame",
+                  "takeOutFrame",
+                  "sourceInUs",
+                  "rate"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "tracks": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^trk_[a-z0-9][a-z0-9_-]{2,63}$"
+                      },
+                      "target": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "object"
+                              },
+                              "objectId": {
+                                "type": "string",
+                                "pattern": "^obj_[a-z0-9][a-z0-9_-]{2,63}$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "objectId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "camera"
+                              },
+                              "cameraId": {
+                                "type": "string",
+                                "pattern": "^cam_[a-z0-9][a-z0-9_-]{2,63}$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "cameraId"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "startFrame": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "endFrame": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "driver": {
+                        "type": "string",
+                        "const": "keyframes"
+                      },
+                      "keyframes": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "frame": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "transform": {
+                              "type": "object",
+                              "properties": {
+                                "position": {
+                                  "type": "array",
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "items": false,
+                                  "minItems": 3,
+                                  "maxItems": 3
+                                },
+                                "rotation": {
+                                  "type": "array",
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "items": false,
+                                  "minItems": 4,
+                                  "maxItems": 4
+                                },
+                                "scale": {
+                                  "type": "array",
+                                  "prefixItems": [
+                                    {
+                                      "type": "number",
+                                      "exclusiveMinimum": 0
+                                    },
+                                    {
+                                      "type": "number",
+                                      "exclusiveMinimum": 0
+                                    },
+                                    {
+                                      "type": "number",
+                                      "exclusiveMinimum": 0
+                                    }
+                                  ],
+                                  "items": false,
+                                  "minItems": 3,
+                                  "maxItems": 3
+                                }
+                              },
+                              "required": [
+                                "position",
+                                "rotation",
+                                "scale"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "interpolation": {
+                              "type": "string",
+                              "enum": [
+                                "linear",
+                                "step"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "frame",
+                            "transform",
+                            "interpolation"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "target",
+                      "startFrame",
+                      "endFrame",
+                      "driver",
+                      "keyframes"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^trk_[a-z0-9][a-z0-9_-]{2,63}$"
+                      },
+                      "target": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "object"
+                              },
+                              "objectId": {
+                                "type": "string",
+                                "pattern": "^obj_[a-z0-9][a-z0-9_-]{2,63}$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "objectId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "camera"
+                              },
+                              "cameraId": {
+                                "type": "string",
+                                "pattern": "^cam_[a-z0-9][a-z0-9_-]{2,63}$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "cameraId"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "startFrame": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "endFrame": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "driver": {
+                        "type": "string",
+                        "const": "observed"
+                      },
+                      "sourceId": {
+                        "type": "string",
+                        "pattern": "^src_[a-z0-9][a-z0-9_-]{2,63}$"
+                      },
+                      "motionAssetId": {
+                        "type": "string",
+                        "pattern": "^ast_[a-z0-9][a-z0-9_-]{2,63}$"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "target",
+                      "startFrame",
+                      "endFrame",
+                      "driver",
+                      "sourceId",
+                      "motionAssetId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^trk_[a-z0-9][a-z0-9_-]{2,63}$"
+                      },
+                      "target": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "object"
+                              },
+                              "objectId": {
+                                "type": "string",
+                                "pattern": "^obj_[a-z0-9][a-z0-9_-]{2,63}$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "objectId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "camera"
+                              },
+                              "cameraId": {
+                                "type": "string",
+                                "pattern": "^cam_[a-z0-9][a-z0-9_-]{2,63}$"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "cameraId"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "startFrame": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "endFrame": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "driver": {
+                        "type": "string",
+                        "const": "simulation"
+                      },
+                      "simulationRunId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "target",
+                      "startFrame",
+                      "endFrame",
+                      "driver",
+                      "simulationRunId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "id",
+            "projectId",
+            "name",
+            "parent",
+            "frameRate",
+            "durationFrames",
+            "activeCameraId",
+            "sourceMappings",
+            "tracks"
+          ],
+          "additionalProperties": false
+        },
+        "scene": {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "type": "number",
+              "const": 1
+            },
+            "coordinateSystem": {
+              "type": "object",
+              "properties": {
+                "handedness": {
+                  "type": "string",
+                  "const": "right"
+                },
+                "up": {
+                  "type": "string",
+                  "const": "+Y"
+                },
+                "lengthUnit": {
+                  "type": "string",
+                  "const": "m"
+                },
+                "rotation": {
+                  "type": "string",
+                  "const": "quaternion_xyzw"
+                }
+              },
+              "required": [
+                "handedness",
+                "up",
+                "lengthUnit",
+                "rotation"
+              ],
+              "additionalProperties": false
+            },
+            "scale": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "estimated",
+                    "user_confirmed"
+                  ]
+                },
+                "reference": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "objectId": {
+                          "type": "string",
+                          "pattern": "^obj_[a-z0-9][a-z0-9_-]{2,63}$"
+                        },
+                        "axis": {
+                          "type": "string",
+                          "enum": [
+                            "x",
+                            "y",
+                            "z"
+                          ]
+                        },
+                        "lengthM": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "required": [
+                        "objectId",
+                        "axis",
+                        "lengthM"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "status",
+                "reference"
+              ],
+              "additionalProperties": false
+            },
+            "objects": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^obj_[a-z0-9][a-z0-9_-]{2,63}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "geometry": {
+                    "type": "object",
+                    "properties": {
+                      "assetId": {
+                        "type": "string",
+                        "pattern": "^ast_[a-z0-9][a-z0-9_-]{2,63}$"
+                      },
+                      "geometryRevision": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "originalAssetId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^ast_[a-z0-9][a-z0-9_-]{2,63}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "normalization": {
+                        "type": "object",
+                        "properties": {
+                          "sourceUnits": {
+                            "type": "string",
+                            "enum": [
+                              "m",
+                              "cm",
+                              "mm",
+                              "unknown"
+                            ]
+                          },
+                          "sourceUpAxis": {
+                            "type": "string",
+                            "enum": [
+                              "+Y",
+                              "+Z",
+                              "unknown"
+                            ]
+                          },
+                          "scaleApplied": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          "nodeTransformsBaked": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "sourceUnits",
+                          "sourceUpAxis",
+                          "scaleApplied",
+                          "nodeTransformsBaked"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "localBounds": {
+                        "type": "object",
+                        "properties": {
+                          "min": {
+                            "type": "array",
+                            "prefixItems": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ],
+                            "items": false,
+                            "minItems": 3,
+                            "maxItems": 3
+                          },
+                          "max": {
+                            "type": "array",
+                            "prefixItems": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ],
+                            "items": false,
+                            "minItems": 3,
+                            "maxItems": 3
+                          }
+                        },
+                        "required": [
+                          "min",
+                          "max"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "assetId",
+                      "geometryRevision",
+                      "originalAssetId",
+                      "normalization",
+                      "localBounds"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "material": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "const": "embedded"
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "const": "solid"
+                          },
+                          "color": {
+                            "type": "string",
+                            "pattern": "^#[0-9a-fA-F]{6}$"
+                          },
+                          "roughness": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "metalness": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "required": [
+                          "mode",
+                          "color",
+                          "roughness",
+                          "metalness"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "transform": {
+                    "type": "object",
+                    "properties": {
+                      "position": {
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "items": false,
+                        "minItems": 3,
+                        "maxItems": 3
+                      },
+                      "rotation": {
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "items": false,
+                        "minItems": 4,
+                        "maxItems": 4
+                      },
+                      "scale": {
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          }
+                        ],
+                        "items": false,
+                        "minItems": 3,
+                        "maxItems": 3
+                      }
+                    },
+                    "required": [
+                      "position",
+                      "rotation",
+                      "scale"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "visible": {
+                    "type": "boolean"
+                  },
+                  "dimensionsStatus": {
+                    "type": "string",
+                    "enum": [
+                      "estimated",
+                      "user_confirmed"
+                    ]
+                  },
+                  "provenance": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "capture",
+                          "import",
+                          "generated",
+                          "user",
+                          "fixture"
+                        ]
+                      },
+                      "sourceIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^src_[a-z0-9][a-z0-9_-]{2,63}$"
+                        }
+                      },
+                      "observationIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^obs_[a-z0-9][a-z0-9_-]{2,63}$"
+                        }
+                      },
+                      "jobId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^job_[a-z0-9][a-z0-9_-]{2,63}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "provider": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "note": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "sourceIds",
+                      "observationIds",
+                      "jobId",
+                      "provider",
+                      "note"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "splat": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "assetId": {
+                            "type": "string",
+                            "pattern": "^ast_[a-z0-9][a-z0-9_-]{2,63}$"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "validForGeometryRevision": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "assetId",
+                          "enabled",
+                          "validForGeometryRevision"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "collider": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "shape": {
+                            "type": "string",
+                            "enum": [
+                              "box",
+                              "convex_hull",
+                              "compound",
+                              "trimesh"
+                            ]
+                          },
+                          "assetId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^ast_[a-z0-9][a-z0-9_-]{2,63}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "shape",
+                          "assetId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "physics": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "bodyType": {
+                            "type": "string",
+                            "enum": [
+                              "fixed",
+                              "dynamic"
+                            ]
+                          },
+                          "massMode": {
+                            "type": "string",
+                            "enum": [
+                              "keep_mass",
+                              "keep_density"
+                            ]
+                          },
+                          "massKg": {
+                            "anyOf": [
+                              {
+                                "type": "number",
+                                "exclusiveMinimum": 0
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "densityKgM3": {
+                            "anyOf": [
+                              {
+                                "type": "number",
+                                "exclusiveMinimum": 0
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "friction": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "restitution": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "assumed",
+                              "user_supplied"
+                            ]
+                          },
+                          "joint": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "revolute"
+                                  },
+                                  "connectedObjectId": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "pattern": "^obj_[a-z0-9][a-z0-9_-]{2,63}$"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "axis": {
+                                    "type": "array",
+                                    "prefixItems": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      }
+                                    ],
+                                    "items": false,
+                                    "minItems": 3,
+                                    "maxItems": 3
+                                  },
+                                  "anchorLocal": {
+                                    "type": "array",
+                                    "prefixItems": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      }
+                                    ],
+                                    "items": false,
+                                    "minItems": 3,
+                                    "maxItems": 3
+                                  },
+                                  "connectedAnchorLocal": {
+                                    "type": "array",
+                                    "prefixItems": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "number"
+                                      }
+                                    ],
+                                    "items": false,
+                                    "minItems": 3,
+                                    "maxItems": 3
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "connectedObjectId",
+                                  "axis",
+                                  "anchorLocal",
+                                  "connectedAnchorLocal"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "bodyType",
+                          "massMode",
+                          "massKg",
+                          "densityKgM3",
+                          "friction",
+                          "restitution",
+                          "status",
+                          "joint"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "geometry",
+                  "material",
+                  "transform",
+                  "visible",
+                  "dimensionsStatus",
+                  "provenance",
+                  "splat",
+                  "collider",
+                  "physics"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "cameras": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^cam_[a-z0-9][a-z0-9_-]{2,63}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "verticalFovDeg": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "exclusiveMaximum": 180
+                  },
+                  "near": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "far": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "transform": {
+                    "type": "object",
+                    "properties": {
+                      "position": {
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "items": false,
+                        "minItems": 3,
+                        "maxItems": 3
+                      },
+                      "rotation": {
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "items": false,
+                        "minItems": 4,
+                        "maxItems": 4
+                      },
+                      "scale": {
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          }
+                        ],
+                        "items": false,
+                        "minItems": 3,
+                        "maxItems": 3
+                      }
+                    },
+                    "required": [
+                      "position",
+                      "rotation",
+                      "scale"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "origin": {
+                    "type": "string",
+                    "enum": [
+                      "source_estimate",
+                      "user"
+                    ]
+                  },
+                  "observationId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^obs_[a-z0-9][a-z0-9_-]{2,63}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "verticalFovDeg",
+                  "near",
+                  "far",
+                  "transform",
+                  "origin",
+                  "observationId"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "background": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "const": "transparent"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "const": "solid"
+                    },
+                    "color": {
+                      "type": "string",
+                      "pattern": "^#[0-9a-fA-F]{6}$"
+                    }
+                  },
+                  "required": [
+                    "mode",
+                    "color"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "const": "source_plate"
+                    },
+                    "observationId": {
+                      "type": "string",
+                      "pattern": "^obs_[a-z0-9][a-z0-9_-]{2,63}$"
+                    }
+                  },
+                  "required": [
+                    "mode",
+                    "observationId"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "coordinateSystem",
+            "scale",
+            "objects",
+            "cameras",
+            "background"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "projectId",
+        "take",
+        "scene"
+      ],
+      "additionalProperties": false
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{8,128}$"
+    }
+  },
+  "required": [
+    "projectId",
+    "title",
+    "initialManifest",
+    "idempotencyKey"
+  ],
+  "additionalProperties": false,
+  "$id": "prometheus-create/contracts/create-project-request.schema.json",
+  "title": "create-project-request",
+  "description": "CT-003: Create project + original take. Generated from lib/contracts; do not edit."
+}

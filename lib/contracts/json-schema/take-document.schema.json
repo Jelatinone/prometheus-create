@@ -1,0 +1,471 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^tk_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^prj_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "parent": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "takeId": {
+              "type": "string",
+              "pattern": "^tk_[a-z0-9][a-z0-9_-]{2,63}$"
+            },
+            "revisionId": {
+              "type": "string",
+              "pattern": "^rev_[a-z0-9][a-z0-9_-]{2,63}$"
+            }
+          },
+          "required": [
+            "takeId",
+            "revisionId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "frameRate": {
+      "type": "object",
+      "properties": {
+        "num": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "den": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "num",
+        "den"
+      ],
+      "additionalProperties": false
+    },
+    "durationFrames": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "activeCameraId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^cam_[a-z0-9][a-z0-9_-]{2,63}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceMappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "pattern": "^src_[a-z0-9][a-z0-9_-]{2,63}$"
+          },
+          "takeInFrame": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "takeOutFrame": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "sourceInUs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "rate": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "sourceId",
+          "takeInFrame",
+          "takeOutFrame",
+          "sourceInUs",
+          "rate"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tracks": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^trk_[a-z0-9][a-z0-9_-]{2,63}$"
+              },
+              "target": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "object"
+                      },
+                      "objectId": {
+                        "type": "string",
+                        "pattern": "^obj_[a-z0-9][a-z0-9_-]{2,63}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "objectId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "camera"
+                      },
+                      "cameraId": {
+                        "type": "string",
+                        "pattern": "^cam_[a-z0-9][a-z0-9_-]{2,63}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "cameraId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "startFrame": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "endFrame": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "driver": {
+                "type": "string",
+                "const": "keyframes"
+              },
+              "keyframes": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "frame": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "transform": {
+                      "type": "object",
+                      "properties": {
+                        "position": {
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "items": false,
+                          "minItems": 3,
+                          "maxItems": 3
+                        },
+                        "rotation": {
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "items": false,
+                          "minItems": 4,
+                          "maxItems": 4
+                        },
+                        "scale": {
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number",
+                              "exclusiveMinimum": 0
+                            },
+                            {
+                              "type": "number",
+                              "exclusiveMinimum": 0
+                            },
+                            {
+                              "type": "number",
+                              "exclusiveMinimum": 0
+                            }
+                          ],
+                          "items": false,
+                          "minItems": 3,
+                          "maxItems": 3
+                        }
+                      },
+                      "required": [
+                        "position",
+                        "rotation",
+                        "scale"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "interpolation": {
+                      "type": "string",
+                      "enum": [
+                        "linear",
+                        "step"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "frame",
+                    "transform",
+                    "interpolation"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "target",
+              "startFrame",
+              "endFrame",
+              "driver",
+              "keyframes"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^trk_[a-z0-9][a-z0-9_-]{2,63}$"
+              },
+              "target": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "object"
+                      },
+                      "objectId": {
+                        "type": "string",
+                        "pattern": "^obj_[a-z0-9][a-z0-9_-]{2,63}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "objectId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "camera"
+                      },
+                      "cameraId": {
+                        "type": "string",
+                        "pattern": "^cam_[a-z0-9][a-z0-9_-]{2,63}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "cameraId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "startFrame": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "endFrame": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "driver": {
+                "type": "string",
+                "const": "observed"
+              },
+              "sourceId": {
+                "type": "string",
+                "pattern": "^src_[a-z0-9][a-z0-9_-]{2,63}$"
+              },
+              "motionAssetId": {
+                "type": "string",
+                "pattern": "^ast_[a-z0-9][a-z0-9_-]{2,63}$"
+              }
+            },
+            "required": [
+              "id",
+              "target",
+              "startFrame",
+              "endFrame",
+              "driver",
+              "sourceId",
+              "motionAssetId"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^trk_[a-z0-9][a-z0-9_-]{2,63}$"
+              },
+              "target": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "object"
+                      },
+                      "objectId": {
+                        "type": "string",
+                        "pattern": "^obj_[a-z0-9][a-z0-9_-]{2,63}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "objectId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "camera"
+                      },
+                      "cameraId": {
+                        "type": "string",
+                        "pattern": "^cam_[a-z0-9][a-z0-9_-]{2,63}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "cameraId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "startFrame": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "endFrame": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "driver": {
+                "type": "string",
+                "const": "simulation"
+              },
+              "simulationRunId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              }
+            },
+            "required": [
+              "id",
+              "target",
+              "startFrame",
+              "endFrame",
+              "driver",
+              "simulationRunId"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "projectId",
+    "name",
+    "parent",
+    "frameRate",
+    "durationFrames",
+    "activeCameraId",
+    "sourceMappings",
+    "tracks"
+  ],
+  "additionalProperties": false,
+  "$id": "prometheus-create/contracts/take-document.schema.json",
+  "title": "take-document",
+  "description": "CT-001: Take: frame rate, duration, source mappings, tracks. Generated from lib/contracts; do not edit."
+}

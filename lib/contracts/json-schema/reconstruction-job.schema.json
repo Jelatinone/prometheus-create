@@ -1,0 +1,353 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^job_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^prj_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "reconstruct_object",
+        "segment"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "submitted",
+        "running",
+        "succeeded",
+        "failed",
+        "canceled"
+      ]
+    },
+    "provider": {
+      "type": "string",
+      "enum": [
+        "fal",
+        "meshy",
+        "fixture"
+      ]
+    },
+    "providerModel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "providerRequestId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 200
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "inputHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "observationId": {
+          "type": "string",
+          "pattern": "^obs_[a-z0-9][a-z0-9_-]{2,63}$"
+        },
+        "maskAssetIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^ast_[a-z0-9][a-z0-9_-]{2,63}$"
+          }
+        },
+        "targetObjectId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^obj_[a-z0-9][a-z0-9_-]{2,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "baseGeometryRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "observationId",
+        "maskAssetIds",
+        "targetObjectId",
+        "baseGeometryRevision"
+      ],
+      "additionalProperties": false
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "submitted",
+              "running",
+              "succeeded",
+              "failed",
+              "canceled"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "providerRequestId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "enum": [
+                      "INVALID_SCHEMA",
+                      "MISSING_ASSET",
+                      "UNKNOWN_UNITS",
+                      "UNSUPPORTED_DRIVER",
+                      "STALE_CACHE",
+                      "UNAUTHORIZED",
+                      "NOT_FOUND",
+                      "UNSUPPORTED_MEDIA",
+                      "TOO_LARGE",
+                      "STALE_FRAME",
+                      "DUPLICATE",
+                      "PROVIDER_UNAVAILABLE",
+                      "INVALID_GEOMETRY",
+                      "INVALID_TRANSITION",
+                      "REVISION_CONFLICT",
+                      "INVALID_ASSET_REFERENCE",
+                      "IDEMPOTENCY_KEY_REUSED",
+                      "UNSUPPORTED_CODEC",
+                      "TAINTED_CANVAS",
+                      "STALE_REVISION",
+                      "RESOURCE_LIMIT",
+                      "LINE_NOT_READY",
+                      "CALLER_CAPTURE_UNAVAILABLE",
+                      "NO_FRESH_FRAME",
+                      "CALL_ENDED",
+                      "PROVIDER_ERROR"
+                    ]
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "details": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "code",
+                  "message"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "number",
+          "state",
+          "at",
+          "providerRequestId",
+          "error"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "output": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "meshAssetId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^ast_[a-z0-9][a-z0-9_-]{2,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "splatAssetId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^ast_[a-z0-9][a-z0-9_-]{2,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maskAssetIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^ast_[a-z0-9][a-z0-9_-]{2,63}$"
+              }
+            },
+            "rawAssetIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^ast_[a-z0-9][a-z0-9_-]{2,63}$"
+              }
+            }
+          },
+          "required": [
+            "meshAssetId",
+            "splatAssetId",
+            "maskAssetIds",
+            "rawAssetIds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "INVALID_SCHEMA",
+                "MISSING_ASSET",
+                "UNKNOWN_UNITS",
+                "UNSUPPORTED_DRIVER",
+                "STALE_CACHE",
+                "UNAUTHORIZED",
+                "NOT_FOUND",
+                "UNSUPPORTED_MEDIA",
+                "TOO_LARGE",
+                "STALE_FRAME",
+                "DUPLICATE",
+                "PROVIDER_UNAVAILABLE",
+                "INVALID_GEOMETRY",
+                "INVALID_TRANSITION",
+                "REVISION_CONFLICT",
+                "INVALID_ASSET_REFERENCE",
+                "IDEMPOTENCY_KEY_REUSED",
+                "UNSUPPORTED_CODEC",
+                "TAINTED_CANVAS",
+                "STALE_REVISION",
+                "RESOURCE_LIMIT",
+                "LINE_NOT_READY",
+                "CALLER_CAPTURE_UNAVAILABLE",
+                "NO_FRESH_FRAME",
+                "CALL_ENDED",
+                "PROVIDER_ERROR"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "projectId",
+    "kind",
+    "state",
+    "provider",
+    "providerModel",
+    "providerRequestId",
+    "inputHash",
+    "input",
+    "history",
+    "output",
+    "error",
+    "createdAt",
+    "updatedAt"
+  ],
+  "additionalProperties": false,
+  "$id": "prometheus-create/contracts/reconstruction-job.schema.json",
+  "title": "reconstruction-job",
+  "description": "CT-002: Provider job with state log. Generated from lib/contracts; do not edit."
+}

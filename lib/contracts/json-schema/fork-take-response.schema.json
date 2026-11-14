@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "takeId": {
+      "type": "string",
+      "pattern": "^tk_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "revisionId": {
+      "type": "string",
+      "pattern": "^rev_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "revision": {
+      "type": "number",
+      "const": 1
+    },
+    "parent": {
+      "type": "object",
+      "properties": {
+        "takeId": {
+          "type": "string",
+          "pattern": "^tk_[a-z0-9][a-z0-9_-]{2,63}$"
+        },
+        "revisionId": {
+          "type": "string",
+          "pattern": "^rev_[a-z0-9][a-z0-9_-]{2,63}$"
+        }
+      },
+      "required": [
+        "takeId",
+        "revisionId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "takeId",
+    "revisionId",
+    "revision",
+    "parent"
+  ],
+  "additionalProperties": false,
+  "$id": "prometheus-create/contracts/fork-take-response.schema.json",
+  "title": "fork-take-response",
+  "description": "CT-003: Fork result. Generated from lib/contracts; do not edit."
+}

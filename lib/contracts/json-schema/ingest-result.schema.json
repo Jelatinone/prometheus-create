@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "duplicate"
+      ]
+    },
+    "observationId": {
+      "type": "string",
+      "pattern": "^obs_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "sourceId": {
+      "type": "string",
+      "pattern": "^src_[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "outOfOrder": {
+      "type": "boolean"
+    },
+    "latestSequence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": [
+    "status",
+    "observationId",
+    "sourceId",
+    "sequence",
+    "outOfOrder",
+    "latestSequence"
+  ],
+  "additionalProperties": false,
+  "$id": "prometheus-create/contracts/ingest-result.schema.json",
+  "title": "ingest-result",
+  "description": "CT-002: Ingestion outcome. Generated from lib/contracts; do not edit."
+}
