@@ -1,0 +1,5 @@
+# Capture fixtures are hashed in tests: never convert line endings.
+*.png binary
+*.jpg binary
+*.webp binary
+*.json text eol=lf
