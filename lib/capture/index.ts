@@ -5,5 +5,6 @@
 export * from "./probe";
 export * from "./frame";
 export * from "./blob-store";
+export * from "./assets";
 export * from "./ingestor";
 export * from "./project";

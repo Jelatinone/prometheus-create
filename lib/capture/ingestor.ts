@@ -19,7 +19,6 @@ import {
   newId,
   ok,
   parseContract,
-  sha256,
   type Actor,
   type Asset,
   type AssetCatalog,
@@ -30,7 +29,8 @@ import {
   type Result,
   type Source,
 } from "@/lib/contracts";
-import { assetStorageKey, type BlobStore } from "./blob-store";
+import { storeProjectAsset } from "./assets";
+import type { BlobStore } from "./blob-store";
 import { prepareImage, hashFrame, checkEncodedFrame, type EncodedFrame, type FrameEncoder } from "./frame";
 import { sniffMediaType, isVideoMimeType } from "./probe";
 
@@ -68,16 +68,6 @@ export interface FrameOptions {
   mode: "evidence" | "preview";
 }
 
-/**
- * Deterministic per-project asset ID from content. Re-uploading the same bytes
- * (a retried request, a duplicate frame) reuses the asset instead of leaving
- * orphans, and the ID stays unique across projects.
- */
-export async function projectAssetId(projectId: string, contentHash: string): Promise<string> {
-  const digest = await sha256(`${projectId}:${contentHash}`);
-  return `ast_${digest.slice("sha256:".length, "sha256:".length + 40)}`;
-}
-
 export class CaptureIngestor {
   private readonly now: () => Date;
 
@@ -94,28 +84,11 @@ export class CaptureIngestor {
   }
 
   /** Store bytes, then record the asset. Idempotent for identical content. */
-  async storeAsset(
+  storeAsset(
     bytes: Uint8Array,
     meta: { kind: AssetKind; mimeType: string; origin: Asset["origin"]; contentHash?: string },
   ): Promise<Result<Asset>> {
-    const { projectId, actor } = this.deps;
-    const contentHash = meta.contentHash ?? (await sha256(bytes));
-    const id = await projectAssetId(projectId, contentHash);
-    const storageKey = assetStorageKey(projectId, id);
-    const stored = await this.deps.blobs.put(storageKey, bytes, meta.mimeType);
-    if (!stored.ok) return stored;
-    return this.deps.assets.putAsset(actor, {
-      schemaVersion: 1,
-      id,
-      projectId,
-      kind: meta.kind,
-      mimeType: meta.mimeType,
-      byteSize: bytes.byteLength,
-      contentHash,
-      storageKey,
-      origin: meta.origin,
-      createdAt: this.timestamp(),
-    });
+    return storeProjectAsset(this.deps, this.deps.projectId, bytes, meta);
   }
 
   private async register(reg: SourceRegistration): Promise<Result<Source>> {
