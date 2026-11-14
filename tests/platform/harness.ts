@@ -102,14 +102,25 @@ export async function oneTimeCode(email: string): Promise<{ code: string; tokenH
   return { code: data.properties.email_otp, tokenHash: data.properties.hashed_token };
 }
 
-/** Sign a test user in with a one-time token and return a verified access token. */
-export async function signIn(email: string): Promise<TestUser> {
-  const { tokenHash } = await oneTimeCode(email);
-  const { data, error } = await publicClient().auth.verifyOtp({ type: "email", token_hash: tokenHash });
-  if (error || !data.session) throw new Error(`verifyOtp(${email}) failed: ${error?.message}`);
-  const actor = await actorFromAccessToken(data.session.access_token);
-  if (!actor) throw new Error(`access token for ${email} did not verify`);
-  return { email, actor, accessToken: data.session.access_token };
+/**
+ * Sign a test user in with a one-time token and return a verified access
+ * token. Test files run in parallel workers and each generates a token for
+ * the same users; a newer token invalidates an unverified older one, so a
+ * rejected token is retried with jitter.
+ */
+export async function signIn(email: string, attempts = 6): Promise<TestUser> {
+  for (let attempt = 1; ; attempt++) {
+    const { tokenHash } = await oneTimeCode(email);
+    const { data, error } = await publicClient().auth.verifyOtp({ type: "email", token_hash: tokenHash });
+    if (!error && data.session) {
+      const actor = await actorFromAccessToken(data.session.access_token);
+      if (!actor) throw new Error(`access token for ${email} did not verify`);
+      return { email, actor, accessToken: data.session.access_token };
+    }
+    const superseded = /invalid or has expired/i.test(error?.message ?? "");
+    if (!superseded || attempt >= attempts) throw new Error(`verifyOtp(${email}) failed: ${error?.message}`);
+    await new Promise((r) => setTimeout(r, 250 + Math.random() * 750 * attempt));
+  }
 }
 
 let shared: Promise<PlatformHarness> | undefined;
