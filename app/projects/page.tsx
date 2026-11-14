@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { nextCookieJar, sessionUser } from "@/lib/server/auth";
 import { getBackend } from "@/lib/server/backend";
@@ -32,6 +33,9 @@ export default function ProjectsPage() {
 }
 
 async function ProjectList() {
+  // Request-time only: the session check reads the clock (token expiry) and
+  // the list is live database data, so it is never runtime-prefetched.
+  await connection();
   const user = await sessionUser(await nextCookieJar());
   if (!user) redirect("/login?next=/projects");
   const backend = getBackend();
