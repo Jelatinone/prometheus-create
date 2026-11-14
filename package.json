@@ -18,7 +18,9 @@
     "lane:setup": "node scripts/lane.mjs setup",
     "lane:check": "node scripts/lane.mjs check",
     "db:migrate": "tsx db/migrate.mts",
-    "db:storage": "tsx db/provision-storage.mts"
+    "db:storage": "tsx db/provision-storage.mts",
+    "skills:check": "node scripts/agent-skills.mjs check",
+    "skills:sync": "node scripts/agent-skills.mjs sync"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

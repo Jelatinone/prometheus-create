@@ -2,13 +2,13 @@
 // Lane worktree helper.
 //
 //   npm run lane:create -- <lane> [--base production]   new branch + worktree, then setup
-//   npm run lane:setup                                   submodule, npm ci, .claude/skills link
+//   npm run lane:setup                                   submodule, both skill sets, npm ci
 //   npm run lane:check -- [lane] [--base production]     is this branch inside its owned paths?
 //   node scripts/lane.mjs list                           lanes and owned paths
 //
 // Lanes, branches and owned paths come from lanes.json.
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { ROOT, changedFiles, classify, currentBranch, detectLane, git, loadLanes, tryGit } from "./lib/lanes.mjs";
 
@@ -29,43 +29,10 @@ function run(cmd, args, cwd) {
   }
 }
 
-/**
- * Make .claude/skills/<name> resolve to this checkout's toolkit skills.
- * The committed entries are symlinks; with core.symlinks=false (Windows
- * default) git writes them as plain text files in a new worktree, so each is
- * replaced by a junction (no admin needed) and hidden from `git status` with
- * --skip-worktree.
- */
-function linkSkills(dir) {
-  const skillsDir = resolve(dir, ".claude/skills");
-  const toolkitSkills = resolve(dir, "toolkit/.agents/skills");
-  if (!existsSync(toolkitSkills)) {
-    console.log("toolkit skills not found; skipped .claude/skills");
-    return;
-  }
-  mkdirSync(skillsDir, { recursive: true });
-  const type = process.platform === "win32" ? "junction" : "dir";
-  for (const name of readdirSync(toolkitSkills)) {
-    const link = resolve(skillsDir, name);
-    let stat = null;
-    try {
-      stat = lstatSync(link);
-    } catch {
-      stat = null;
-    }
-    if (stat && (stat.isDirectory() || stat.isSymbolicLink()) && existsSync(resolve(link, "SKILL.md"))) continue;
-    if (stat) rmSync(link, { force: true, recursive: true });
-    symlinkSync(resolve(toolkitSkills, name), link, type);
-    if (tryGit(["ls-files", "--error-unmatch", `.claude/skills/${name}`], { cwd: dir }) !== null)
-      tryGit(["update-index", "--skip-worktree", `.claude/skills/${name}`], { cwd: dir });
-    console.log(`linked .claude/skills/${name}`);
-  }
-}
-
 function setup(dir) {
   run("git", ["submodule", "update", "--init", "--recursive"], dir);
+  run("node", ["scripts/agent-skills.mjs", "check"], dir);
   run("npm", ["ci"], dir);
-  linkSkills(dir);
   console.log(`\nready: ${dir}\n  npm run verify      all gates\n  npm run dev         then open http://localhost:3000`);
 }
 

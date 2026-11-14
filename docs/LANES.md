@@ -33,7 +33,7 @@ Prerequisite: the baseline is merged into `production` (the `base` in `lanes.jso
 npm run lane:create -- editor
 ```
 
-This creates `feat/HK-004-editor` from `production`, adds the worktree at `../prometheus-create-editor`, initializes the toolkit submodule, runs `npm ci`, and links `.claude/skills` to the worktree's toolkit. In a worktree created another way (for example by Claude Code), run `npm run lane:setup` inside it once.
+This creates `feat/HK-004-editor` from `production`, adds the worktree at `../prometheus-create-editor`, initializes the toolkit submodule, checks the tracked Codex and Claude skill entrypoints, and runs `npm ci`. In a worktree created another way (for example by Claude Code), run `npm run lane:setup` inside it once. The entrypoints use relative links into that worktree's own toolkit; setup does not create junctions or hide index changes. For an existing worktree from before this repair, follow [manual migration](AGENT_SETUP.md) before merging the repair commit.
 
 Then point the agent at its task note, for example: "Implement HK-004 as assigned in docs/changes/HK-004.md."
 
