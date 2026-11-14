@@ -79,11 +79,21 @@ async def check() -> int:
 
     status = 0
     try:
-        conf = cfg.load()
+        conf = cfg.load(require_line=False)
         calls = ChertCalls(conf)
-        listed = calls.list_calls()
-        count = len(listed.get("data", [])) if isinstance(listed, dict) and isinstance(listed.get("data"), list) else "?"
-        print(f"OK   Chert API key + project accepted (GET /calls -> {count} calls)")
+        listed = calls.lines()
+        lines = event_list(listed)
+        print(f"OK   Chert API key + project accepted (GET /lines -> {len(lines)} line(s))")
+        for line in lines:
+            summary = {k: line.get(k) for k in ("id", "status", "state", "kind", "capabilities", "video", "caller_capture") if k in line}
+            print(f"     line {json.dumps(summary)}")
+        if conf.chert_line_id and not any(line.get("id") == conf.chert_line_id for line in lines):
+            status = 1
+            print("FAIL CHERT_LINE_ID is not among this project's lines")
+        if not lines:
+            print("     no line assigned yet: outbound calls are blocked until Chert releases one (LINE_NOT_READY)")
+        if problem := cfg.destination_problem(conf.destination):
+            print(f"WARN {problem} (calls will refuse to dial until fixed)")
     except ChertError as e:
         status = 1
         print(f"FAIL Chert API: {e}  body={json.dumps(e.body)[:300]}")
@@ -108,6 +118,8 @@ async def call(seconds: float, project_id: str, max_wait_bridge_s: float, max_wa
     from livekit import rtc
 
     conf = cfg.load()
+    if not conf.chert_line_id:
+        raise SystemExit("CHERT_LINE_ID is empty: no line has been issued yet (LINE_NOT_READY)")
     calls = ChertCalls(conf)
     session_id = env.new_id("captureSession")
     room_name = f"hk002-{uuid.uuid4().hex[:10]}"
@@ -190,6 +202,13 @@ async def call(seconds: float, project_id: str, max_wait_bridge_s: float, max_wa
         box.log({"event": "participant_disconnected", "participant": participant.identity})
         if participant.identity == bridge_identity:
             state["ended"] = True
+
+    @room.on("room_metadata_changed")
+    def on_metadata(old: str, new: str):
+        # skills.md: Chert marks FaceTime readiness with the room metadata key `chert_bridge_ready`.
+        box.log({"event": "room_metadata_changed", "metadata": new[:500]})
+        if "chert_bridge_ready" in (new or "") and state["session"] == "requested":
+            snapshot("bridge_ready")
 
     await room.connect(conf.livekit_url, agent_token)
     pump = await publish_silence(room)

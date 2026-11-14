@@ -1,12 +1,16 @@
-"""Minimal client for Chert's managed FaceTime Calls API (stdlib only).
+"""Minimal client for Chert's managed FaceTime API (stdlib only).
 
-Documented at docs.trychert.com/facetime/outbound and calls-api:
+Base https://app.trychert.com/api/v1 (app.trychert.com/skills.md v0.2.0;
+docs.trychert.com/facetime/outbound and calls-api for the call lifecycle):
+  GET  /lines               lines and IDs (read-only; works before a line is issued)
   POST /calls               create (201 = allocated, NOT dialed or answered)
   GET  /calls/{id}          read
-  GET  /calls/{id}/events   lifecycle events (start guidance on bridge_ready)
+  GET  /calls/{id}/events   lifecycle events (also signalled by room metadata
+                            `chert_bridge_ready`; start guidance only then)
   POST /calls/{id}/end      hang up (202 acknowledged; observe until terminal)
-Every request sends `Authorization: Bearer ftk_…` and `X-Chert-Project-Id`.
-The event payload schema is not documented, so events are kept raw.
+Every request sends `Authorization: Bearer ftk_…` and `X-Chert-Project-Id`;
+every POST an `Idempotency-Key` (8-200 chars). Event payloads are not
+documented, so events are kept raw.
 """
 from __future__ import annotations
 
@@ -58,9 +62,9 @@ class ChertCalls:
         except urllib.error.URLError as e:
             raise ChertError(None, str(e.reason)) from None
 
-    def list_calls(self) -> Any:
-        """Read-only call (facetime:read): verifies the key and project id without dialing."""
-        return self._request("GET", "/calls")
+    def lines(self) -> Any:
+        """Read-only (facetime:read): verifies the key and project id and lists assigned lines."""
+        return self._request("GET", "/lines")
 
     def create_outbound_call(self, *, participant_token: str, remote_participant_identity: str, idempotency_key: str, video: bool = True) -> dict[str, Any]:
         body = {

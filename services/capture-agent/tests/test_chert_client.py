@@ -48,7 +48,7 @@ def test_create_call_sends_documented_headers_and_body(monkeypatch):
     out = ChertCalls(CONF).create_outbound_call(participant_token="jwt", remote_participant_identity="agent", idempotency_key="cap_abc12345")
     assert out["data"]["id"] == "call_123"
     req = sent[0]
-    assert req.full_url == "https://facetime.trychert.com/api/v1/calls" and req.get_method() == "POST"
+    assert req.full_url == "https://app.trychert.com/api/v1/calls" and req.get_method() == "POST"
     headers = {k.lower(): v for k, v in req.header_items()}
     assert headers["authorization"] == "Bearer ftk_test_not_a_secret"
     assert headers["x-chert-project-id"] == CONF.chert_project_id
@@ -101,3 +101,33 @@ def test_destination_type_and_env_file(tmp_path, monkeypatch):
     config.load_env_file(env_file)
     assert os.environ["HK002_TEST_A"] == "one" and os.environ["HK002_TEST_B"] == "two"
     assert "HK002_TEST_EMPTY" not in os.environ
+
+
+def test_chert_key_is_only_sent_to_app_trychert_com(monkeypatch):
+    monkeypatch.setenv("CHERT_BASE_URL", "https://evil.example.com/api/v1")
+    with pytest.raises(SystemExit):
+        config.chert_base_url()
+    monkeypatch.setenv("CHERT_BASE_URL", "http://app.trychert.com/api/v1")
+    with pytest.raises(SystemExit):
+        config.chert_base_url()
+    monkeypatch.delenv("CHERT_BASE_URL")
+    assert config.chert_base_url() == "https://app.trychert.com/api/v1"
+
+
+def test_lines_is_a_read_only_get(monkeypatch):
+    sent = capture_requests(monkeypatch, {"data": [{"id": "line-1", "status": "ready"}]})
+    out = ChertCalls(CONF).lines()
+    assert sent[0].get_method() == "GET" and sent[0].full_url.endswith("/lines")
+    assert event_list(out) == [{"id": "line-1", "status": "ready"}]
+
+
+def test_masked_placeholders_and_bad_destinations_are_refused(monkeypatch):
+    monkeypatch.setenv("HK002_MASKED", "•" * 32)
+    monkeypatch.setenv("HK002_REAL", "abcDEF123")
+    assert config.masked(("HK002_MASKED", "HK002_REAL")) == ["HK002_MASKED"]
+    with pytest.raises(SystemExit):
+        config.require_unmasked(("HK002_MASKED",))
+    assert config.destination_problem("5551234567")  # no country code: never guessed
+    assert config.destination_problem("+15551234567") is None
+    assert config.destination_problem("tester@example.com") is None
+    assert config.destination_problem("")
