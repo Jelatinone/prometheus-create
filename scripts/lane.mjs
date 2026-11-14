@@ -66,7 +66,7 @@ function setup(dir) {
   run("git", ["submodule", "update", "--init", "--recursive"], dir);
   run("npm", ["ci"], dir);
   linkSkills(dir);
-  console.log(`\nready: ${dir}\n  npm run verify      all gates\n  npm run dev         then open http://localhost:3000/lab`);
+  console.log(`\nready: ${dir}\n  npm run verify      all gates\n  npm run dev         then open http://localhost:3000`);
 }
 
 function create(laneKey) {

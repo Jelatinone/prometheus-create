@@ -3,7 +3,7 @@
  *
  * axis-box.glb is a 0.4 x 0.9 x 0.2 m box: unequal extents make axis swaps,
  * unit errors (cm vs m) and double-applied transforms visible in tests and
- * in the /lab GLB viewer. Fixture manifests record its sha256; regenerating
+ * in `npm run validate -- glb`. Fixture manifests record its sha256; regenerating
  * with different bytes must update fixtures/contracts in the same change.
  */
 import { writeFileSync } from "node:fs";

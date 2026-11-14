@@ -16,11 +16,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <Link href="/" className="font-semibold tracking-wide text-ink">
             {PRODUCT_NAME}
           </Link>
-          <nav className="flex gap-4 text-muted">
-            <Link href="/lab" className="hover:text-ink">
-              Lab
-            </Link>
-          </nav>
         </header>
         {children}
       </body>

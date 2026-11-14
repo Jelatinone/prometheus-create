@@ -1,6 +1,6 @@
 /**
  * Named registry of every contract schema. Used by the CLI validator
- * (`npm run validate`), the /lab validator, and JSON Schema export for
+ * (`npm run validate`) and JSON Schema export for
  * non-TypeScript consumers (e.g. the Python capture agent).
  */
 import type { z } from "zod";
