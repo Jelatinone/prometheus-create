@@ -16,7 +16,9 @@
     "fixtures:glb": "tsx scripts/gen-fixture-glb.mts",
     "lane:create": "node scripts/lane.mjs create",
     "lane:setup": "node scripts/lane.mjs setup",
-    "lane:check": "node scripts/lane.mjs check"
+    "lane:check": "node scripts/lane.mjs check",
+    "skills:check": "node scripts/agent-skills.mjs check",
+    "skills:sync": "node scripts/agent-skills.mjs sync"
   },
   "dependencies": {
     "next": "16.4.6",

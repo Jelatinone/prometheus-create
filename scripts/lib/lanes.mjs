@@ -60,8 +60,7 @@ export function detectLane(lanes, branch = currentBranch()) {
 
 /**
  * Files changed since the merge-base with `base`: committed, staged, unstaged
- * and untracked, minus machine-local paths (lanes.json `ignore`, e.g. the
- * .claude/skills junctions that lane:setup creates).
+ * and untracked, minus explicitly ignored paths (lanes.json `ignore`).
  */
 export function changedFiles(base, ignore = []) {
   if (!tryGit(["rev-parse", "--verify", "--quiet", base]))
