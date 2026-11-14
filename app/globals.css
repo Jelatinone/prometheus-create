@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* Neutral dark interface with one accent (PLAN §1). Status colors always
+   pair with a text label or icon; color alone never carries meaning. */
+@theme {
+  --color-ink: #e7e9ee;
+  --color-muted: #9aa1ad;
+  --color-panel: #171a20;
+  --color-panel-2: #1e222a;
+  --color-line: #2b313b;
+  --color-canvas: #101216;
+  --color-accent: #f2a541;
+  --color-ok: #4cc38a;
+  --color-bad: #f0686a;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
