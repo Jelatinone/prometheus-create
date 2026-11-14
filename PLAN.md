@@ -4,7 +4,7 @@
 
 Final planning deliverable for a **solo HackUTA 2026 build**. Former working name: Rift. Daedalus is the user-selected name; the interface should retain familiar labels such as Project, Source, Take, and Export. The name evokes construction and invention. The event's specific theme is Homer's Odyssey, so the presentation should connect the product to exploring and returning to a captured place; Greek branding alone is not the theme argument.
 
-This plan follows schema 2 and the nine sections of the [toolkit PLAN template](https://github.com/Jelatinone/hackathon-toolkit/blob/d34da50829c5ded6c3e38bf0415d82b7419a983e/templates/PLAN.md), inspected through the connected GitHub tools at commit `d34da50829c5ded6c3e38bf0415d82b7419a983e` on `production`. Its [project contract](https://github.com/Jelatinone/hackathon-toolkit/blob/d34da50829c5ded6c3e38bf0415d82b7419a983e/docs/PROJECT_CONTRACT.md), [formats](https://github.com/Jelatinone/hackathon-toolkit/blob/d34da50829c5ded6c3e38bf0415d82b7419a983e/docs/FORMATS.md), and [playbook](https://github.com/Jelatinone/hackathon-toolkit/blob/d34da50829c5ded6c3e38bf0415d82b7419a983e/HACKATHON_PLAYBOOK.md) supply the workflow. No toolkit files were changed. No application repository or starter exists yet, and no application behavior has been tested.
+This plan follows schema 2 and the nine sections of the [toolkit PLAN template](https://github.com/Jelatinone/hackathon-toolkit/blob/d34da50829c5ded6c3e38bf0415d82b7419a983e/templates/PLAN.md), inspected through the connected GitHub tools at commit `d34da50829c5ded6c3e38bf0415d82b7419a983e` on `production`. Its [project contract](https://github.com/Jelatinone/hackathon-toolkit/blob/d34da50829c5ded6c3e38bf0415d82b7419a983e/docs/PROJECT_CONTRACT.md), [formats](https://github.com/Jelatinone/hackathon-toolkit/blob/d34da50829c5ded6c3e38bf0415d82b7419a983e/docs/FORMATS.md), and [playbook](https://github.com/Jelatinone/hackathon-toolkit/blob/d34da50829c5ded6c3e38bf0415d82b7419a983e/HACKATHON_PLAYBOOK.md) supply the workflow. No toolkit files were changed. Kickoff (2026-11-14) found the starter `prometheus-create` (Next.js 16.4.6, React 19.3, TypeScript, Tailwind 4) with the toolkit pinned at `toolkit/`; HK-001 adds the shared baseline on `feat/HK-001-foundation` (evidence: `docs/changes/HK-001.md`). No external service has been tested.
 
 The product and architecture decisions below are the recommended build baseline. `proposed` distinguishes this finished planning document from an approved, executable project baseline with verified access and commands. It does not mean that the document is unfinished.
 
@@ -16,7 +16,7 @@ project_status: "ideation"
 plan_version: 1
 approval: "proposed"
 approval_ref: null
-updated_at: "2026-11-14T13:22:26-06:00"
+updated_at: "2026-11-14T14:26:10-06:00"
 timezone: "America/Chicago"
 code_start: "2026-11-14T12:00:00-06:00"
 code_end: "2026-11-15T00:00:00-06:00"
@@ -383,7 +383,7 @@ Guide the caller to move slowly around stationary objects, maintain overlap, avo
 - GPU inference: hosted model API. No GPU cluster or custom CUDA build in the critical path.
 - Storage/auth: Supabase. App metadata: TigerData. Provider keys and service-role credentials remain server-side.
 - Short web endpoints submit/query jobs; long media processing belongs in a worker. Next.js documentation notes that host timeouts can terminate long-running handlers. [Deployment caveats](https://nextjs.org/docs/app/guides/backend-for-frontend)
-- Proposed starter layout: `app/`, `components/editor/`, `lib/contracts/`, `lib/scene/`, `lib/server/`, `services/capture-agent/`, `db/`, `tests/`, `docs/changes/`, and a pinned `toolkit/`. These paths are proposed ownership boundaries, not existing files.
+- Starter layout: `lib/contracts/` (CT-001..CT-005 zod schemas, ports, generated JSON Schema), `lib/reference/` (in-memory backend), `lib/assets/` (GLB inspection), `fixtures/`, `tests/` (contract, conformance, lane checks), `scripts/`, `app/lab/` (verification lab), `docs/changes/`, and the pinned `toolkit/`. Lane-owned paths such as `components/editor/`, `lib/scene/`, `lib/server/`, `db/`, and `services/capture-agent/` are listed in `lanes.json`.
 
 ## 5. Work packages and checkpoints
 
@@ -393,7 +393,7 @@ The first task includes creating the starter because none exists. Toolkit kickof
 
 | Task ID | Checkpoint ID | Branch | Owner | Owned paths | Dependency IDs | Acceptance / test | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| HK-001 | CP-001 | feat/HK-001-foundation | Cody | App scaffold, package/lock files, lib/contracts, PLAN.md, docs/DECISIONS.md, toolkit adoption | None | Runnable shell, GLB fixture, actual commands recorded; rules and account access checked. | planned |
+| HK-001 | CP-001 | feat/HK-001-foundation | Cody | App scaffold, package/lock files, lib/contracts, PLAN.md, docs/DECISIONS.md, toolkit adoption | None | Runnable shell, GLB fixture, actual commands recorded; rules and account access checked. | ready_for_review |
 | HK-002 | CP-001 | feat/HK-002-risk-proofs | Cody | services/capture-agent, isolated provider adapters, docs/changes/HK-002.md | HK-001 | Real Chert caller frame and real image-to-mesh request; record failures and cut decision. | planned |
 | HK-003 | CP-002 | feat/HK-003-ingest-persist | Cody | app project/capture routes, lib/server, db, auth/storage | HK-001, HK-002 | Upload and Chert frame share CT-002; authenticated save/reload and unauthorized rejection. | planned |
 | HK-004 | CP-002 | feat/HK-004-editor | Cody | components/editor, lib/scene, editor state | HK-003 | Select, lasso, transform, undo, source reference, mesh acceptance. | planned |
@@ -403,6 +403,18 @@ The first task includes creating the starter because none exists. Toolkit kickof
 | HK-008 | CP-005 | feat/HK-008-motion | Cody | Minimal timeline, animation, optional Rapier, video export | HK-007 | Only after confirmed extra time: short take, basic motion/physics and supported video playback. | planned |
 | HK-009 | CP-005 | feat/HK-009-appearance | Cody | Optional Spark adapter or return-preview adapter, targeted checks | HK-008 | Choose at most one stretch: aligned splats OR duplex FaceTime preview. | planned |
 | HK-010 | CP-006 | chore/HK-010-final | Cody | Release, evidence, video, submission records | HK-008 | Confirmed-window final regression, final artifacts, receipt and rehearsal. | planned |
+
+### Parallel lanes (proposed for plan v2)
+
+On 2026-11-14 Cody directed that, after the HK-001 baseline, work splits into three agent lanes, each with its own branch and worktree. This changes the one-owner assumption above, so it is a **proposed replan**: until Cody approves it (for example through `replan-checkpoint`), the task registry and checkpoints remain authoritative.
+
+| Lane | Task | Branch | Owned paths | Proposed dependency | Lane lab |
+| --- | --- | --- | --- | --- | --- |
+| Capture & reconstruction | HK-002 | feat/HK-002-risk-proofs | `lanes.json` → `capture` | HK-001 | /lab/capture |
+| Platform | HK-003 | feat/HK-003-ingest-persist | `lanes.json` → `platform` | HK-001 | /lab/platform |
+| Editor | HK-004 (then HK-005) | feat/HK-004-editor | `lanes.json` → `editor` | HK-001 | /lab/editor |
+
+HK-003 and HK-004 drop their dependency on HK-002/HK-003 because the baseline supplies the shared contracts, ports, an in-memory reference backend, and conformance suites; integration then swaps the reference backend for the platform's. `lanes.json` is the single source for owned paths; `docs/LANES.md` holds the lane protocol. Checkpoint CP-001/CP-002 ordering must be revised in the same approval.
 
 ### Schedule and effort caps
 
@@ -525,21 +537,21 @@ Only Cody can update accepted architecture, integration, and gate status. Follow
 ## 6. Technical verification and deployment
 
 ```yaml
-runtime_version: null
-package_manager: null
-install: null
-unit_tests: null
-typecheck: null
-lint: null
-build: null
+runtime_version: "Node.js 22.18.0 (package.json engines >=22.18.0)"
+package_manager: "npm 11.5.2"
+install: "npm ci"
+unit_tests: "npm test"
+typecheck: "npm run typecheck"
+lint: "npm run lint"
+build: "npm run build"
 integration_e2e: null
-run_demo: null
+run_demo: "npm run dev, then open http://localhost:3000/lab"
 external_services: ["TigerData", "Supabase Auth and Storage", "fal", "Chert", "LiveKit", "Gemini if capture guidance is enabled"]
 secrets_location: "Local ignored environment files and deployment secret stores; never browser bundles, PLAN, or committed logs"
 test_environment: "Actual demo laptop browser, one iPhone, dedicated test project, consenting test call, small owned image/video fixtures"
 ```
 
-Commands are null because there is no starter or package manifest to inspect. HK-001 must fill these from the created repository and run them. Candidate runtime is a supported Node 24 release for the web/control layer, plus the Python version required by the selected LiveKit agent packages; verify exact versions and pin lockfiles. Chert's documented runtime support is not proof that a complete call has passed on those versions. Do not present proposed commands as already executed.
+Commands come from `package.json` and were executed by HK-001 on 2026-11-14 (evidence: `docs/changes/HK-001.md`). `npm run verify` runs typecheck, lint, tests and build in one pass, adds the lane scope check on lane branches, and prints a task-note evidence table. `integration_e2e` stays null: no browser end-to-end harness exists yet; the lanes add journey checks. The demo laptop runs Node 22.18.0 rather than the earlier Node 24 candidate. The Python version for the LiveKit capture agent is still unselected (HK-002). Chert's documented runtime support is not proof that a complete call has passed on those versions. Do not present proposed commands as already executed.
 
 ### Acceptance matrix
 
