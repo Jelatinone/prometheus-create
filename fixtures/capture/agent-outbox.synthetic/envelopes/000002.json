@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "projectId": "prj_fixture_agent_outbox",
+  "sourceId": "src_fixture_agent_call",
+  "adapter": "chert_facetime",
+  "captureSessionId": "cap_fixture_agent_call",
+  "sequence": 2,
+  "sourceTimeUs": 1000000,
+  "capturedAt": "2026-11-14T20:00:01.000Z",
+  "mode": "evidence",
+  "frame": {
+    "assetId": "ast_8e0c29fa42317c96a4a3b57f77e7566bca486aa8",
+    "mimeType": "image/png",
+    "byteSize": 364,
+    "width": 48,
+    "height": 64,
+    "contentHash": "sha256:49c7ee9811b5f4b7d85c27551de7042962c61d03f72d4eeda2d903d8c9df7e0b"
+  }
+}
