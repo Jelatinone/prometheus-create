@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "src_fixture_anchor_photo",
+  "projectId": "prj_fixture_demo",
+  "adapter": "upload",
+  "media": {
+    "kind": "image",
+    "mimeType": "image/jpeg",
+    "width": 1920,
+    "height": 1440
+  },
+  "assetId": "ast_fixture_anchor_photo",
+  "contentHash": "sha256:285e233329a60aa9c292f032f753a1a101f2cb5ffd4124d8da7e88a8ec625a61",
+  "capturedAt": "2026-11-14T12:41:07-06:00",
+  "captureSessionId": null,
+  "consent": {
+    "basis": "owner_upload",
+    "recordedAt": "2026-11-14T13:00:00-06:00",
+    "note": null
+  },
+  "createdAt": "2026-11-14T13:00:00-06:00"
+}

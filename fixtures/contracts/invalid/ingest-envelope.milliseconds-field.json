@@ -1,0 +1,25 @@
+{
+  "expect": {
+    "path": "(root)",
+    "messageIncludes": "sourceTimeMs"
+  },
+  "document": {
+    "schemaVersion": 1,
+    "projectId": "prj_fixture_demo",
+    "sourceId": "src_fixture_chert_call",
+    "adapter": "chert_facetime",
+    "captureSessionId": "cap_fixture_call",
+    "sequence": 3,
+    "capturedAt": "2026-11-14T13:05:04.400-06:00",
+    "mode": "evidence",
+    "frame": {
+      "assetId": "ast_fixture_chert_frame_0003",
+      "mimeType": "image/jpeg",
+      "byteSize": 182211,
+      "width": 1280,
+      "height": 720,
+      "contentHash": "sha256:ac12f3a4133754dc08276c2c3ecbc3b9f2c1b602ceef8990d5f24ab16ad424d4"
+    },
+    "sourceTimeMs": 2400
+  }
+}

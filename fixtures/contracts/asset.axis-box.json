@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "ast_fixture_axis_box",
+  "projectId": "prj_fixture_demo",
+  "kind": "mesh",
+  "mimeType": "model/gltf-binary",
+  "byteSize": 1556,
+  "contentHash": "sha256:3ba8499e4cf92288b1ecb3d44b208a9cc56a57d0e5673ac69cefc65c782188a5",
+  "storageKey": "fixtures/axis-box.glb",
+  "origin": "fixture",
+  "createdAt": "2026-11-14T13:00:00-06:00"
+}

@@ -1,0 +1,17 @@
+{
+  "projectId": "prj_fixture_demo",
+  "takeId": "tk_fixture_alternate",
+  "revisionId": "rev_fixture_alternate_1",
+  "cameraId": null,
+  "appearanceMode": "mesh",
+  "frames": {
+    "kind": "still",
+    "frame": 0
+  },
+  "resolution": {
+    "width": 1920,
+    "height": 1080
+  },
+  "background": "transparent",
+  "requestedFormat": "png"
+}

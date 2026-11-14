@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "cap_fixture_call",
+  "projectId": "prj_fixture_demo",
+  "kind": "chert_facetime",
+  "state": "active",
+  "providerCallId": "call_example_123",
+  "consent": {
+    "basis": "participant_opt_in",
+    "recordedAt": "2026-11-14T13:05:00-06:00",
+    "note": "Builder's own test device"
+  },
+  "capabilities": {
+    "callerVideo": "available",
+    "agentVideo": "unknown"
+  },
+  "startedAt": "2026-11-14T13:05:00-06:00",
+  "endedAt": null,
+  "endReason": null
+}

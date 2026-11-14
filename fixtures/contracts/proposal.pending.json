@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "prp_fixture_label",
+  "projectId": "prj_fixture_demo",
+  "observationIds": [
+    "obs_fixture_anchor"
+  ],
+  "targetObjectId": null,
+  "change": {
+    "kind": "segment_target",
+    "label": "chair",
+    "maskAssetId": null,
+    "boxPx": [
+      612,
+      380,
+      1104,
+      1290
+    ]
+  },
+  "rationale": "A chair is centered in the anchor frame.",
+  "assumptions": [
+    "Label only; no measurement implied"
+  ],
+  "status": "pending",
+  "provider": {
+    "name": "example",
+    "model": "example-model"
+  },
+  "createdAt": "2026-11-14T13:00:00-06:00",
+  "decidedAt": null
+}

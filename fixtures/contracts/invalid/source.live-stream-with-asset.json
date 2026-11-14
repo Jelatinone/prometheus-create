@@ -1,0 +1,27 @@
+{
+  "expect": {
+    "path": "assetId",
+    "messageIncludes": "live_stream"
+  },
+  "document": {
+    "schemaVersion": 1,
+    "id": "src_fixture_chert_call",
+    "projectId": "prj_fixture_demo",
+    "adapter": "chert_facetime",
+    "media": {
+      "kind": "live_stream",
+      "width": null,
+      "height": null
+    },
+    "assetId": "ast_fixture_whole_call",
+    "contentHash": "sha256:285e233329a60aa9c292f032f753a1a101f2cb5ffd4124d8da7e88a8ec625a61",
+    "capturedAt": null,
+    "captureSessionId": "cap_fixture_call",
+    "consent": {
+      "basis": "participant_opt_in",
+      "recordedAt": "2026-11-14T13:05:00-06:00",
+      "note": "Builder's own test device"
+    },
+    "createdAt": "2026-11-14T13:00:00-06:00"
+  }
+}

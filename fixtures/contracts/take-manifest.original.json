@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "projectId": "prj_fixture_demo",
+  "take": {
+    "schemaVersion": 1,
+    "id": "tk_fixture_original",
+    "projectId": "prj_fixture_demo",
+    "name": "Original",
+    "parent": null,
+    "frameRate": {
+      "num": 30,
+      "den": 1
+    },
+    "durationFrames": 0,
+    "activeCameraId": "cam_fixture_main",
+    "sourceMappings": [],
+    "tracks": []
+  },
+  "scene": {
+    "schemaVersion": 1,
+    "coordinateSystem": {
+      "handedness": "right",
+      "up": "+Y",
+      "lengthUnit": "m",
+      "rotation": "quaternion_xyzw"
+    },
+    "scale": {
+      "status": "estimated",
+      "reference": null
+    },
+    "objects": [
+      {
+        "id": "obj_fixture_axis_box",
+        "name": "Axis box",
+        "geometry": {
+          "assetId": "ast_fixture_axis_box",
+          "geometryRevision": 1,
+          "originalAssetId": null,
+          "normalization": {
+            "sourceUnits": "m",
+            "sourceUpAxis": "+Y",
+            "scaleApplied": 1,
+            "nodeTransformsBaked": true
+          },
+          "localBounds": {
+            "min": [
+              -0.2,
+              -0.45,
+              -0.1
+            ],
+            "max": [
+              0.2,
+              0.45,
+              0.1
+            ]
+          }
+        },
+        "material": {
+          "mode": "embedded"
+        },
+        "transform": {
+          "position": [
+            0,
+            0.45,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "visible": true,
+        "dimensionsStatus": "estimated",
+        "provenance": {
+          "kind": "fixture",
+          "sourceIds": [],
+          "observationIds": [],
+          "jobId": null,
+          "provider": null,
+          "note": "Generated axis-box fixture; not a reconstruction"
+        },
+        "splat": null,
+        "collider": {
+          "shape": "box",
+          "assetId": null
+        },
+        "physics": null
+      }
+    ],
+    "cameras": [
+      {
+        "id": "cam_fixture_main",
+        "name": "Main camera",
+        "verticalFovDeg": 50,
+        "near": 0.05,
+        "far": 100,
+        "transform": {
+          "position": [
+            1.2,
+            1.1,
+            2.2
+          ],
+          "rotation": [
+            -0.1305262,
+            0.258819,
+            0.0349748,
+            0.9565594
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "origin": "user",
+        "observationId": null
+      }
+    ],
+    "background": {
+      "mode": "solid",
+      "color": "#20232a"
+    }
+  }
+}

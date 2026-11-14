@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "job_fixture_reconstruct",
+  "projectId": "prj_fixture_demo",
+  "kind": "reconstruct_object",
+  "state": "succeeded",
+  "provider": "fixture",
+  "providerModel": "fixture/axis-box",
+  "providerRequestId": null,
+  "inputHash": "sha256:f8414471e6f074d6fe8d164cba1f0dd495eef900957ef6a81a20a466430247cc",
+  "input": {
+    "observationId": "obs_fixture_anchor",
+    "maskAssetIds": [
+      "ast_fixture_anchor_mask"
+    ],
+    "targetObjectId": null,
+    "baseGeometryRevision": 0
+  },
+  "history": [
+    {
+      "number": 1,
+      "state": "queued",
+      "at": "2026-11-14T13:10:00-06:00",
+      "providerRequestId": null,
+      "error": null
+    },
+    {
+      "number": 2,
+      "state": "submitted",
+      "at": "2026-11-14T13:10:01-06:00",
+      "providerRequestId": null,
+      "error": null
+    },
+    {
+      "number": 3,
+      "state": "succeeded",
+      "at": "2026-11-14T13:10:02-06:00",
+      "providerRequestId": null,
+      "error": null
+    }
+  ],
+  "output": {
+    "meshAssetId": "ast_fixture_axis_box",
+    "splatAssetId": null,
+    "maskAssetIds": [],
+    "rawAssetIds": []
+  },
+  "error": null,
+  "createdAt": "2026-11-14T13:10:00-06:00",
+  "updatedAt": "2026-11-14T13:10:02-06:00"
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "src_fixture_chert_call",
+  "projectId": "prj_fixture_demo",
+  "adapter": "chert_facetime",
+  "media": {
+    "kind": "live_stream",
+    "width": null,
+    "height": null
+  },
+  "assetId": null,
+  "contentHash": null,
+  "capturedAt": "2026-11-14T13:05:02-06:00",
+  "captureSessionId": "cap_fixture_call",
+  "consent": {
+    "basis": "participant_opt_in",
+    "recordedAt": "2026-11-14T13:05:00-06:00",
+    "note": "Builder's own test device"
+  },
+  "createdAt": "2026-11-14T13:05:02-06:00"
+}

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "projectId": "prj_fixture_demo",
+  "sourceId": "src_fixture_anchor_photo",
+  "adapter": "upload",
+  "captureSessionId": null,
+  "sequence": 0,
+  "sourceTimeUs": 0,
+  "capturedAt": "2026-11-14T12:41:07-06:00",
+  "mode": "evidence",
+  "frame": {
+    "assetId": "ast_fixture_anchor_frame",
+    "mimeType": "image/jpeg",
+    "byteSize": 734003,
+    "width": 1920,
+    "height": 1440,
+    "contentHash": "sha256:1f83c63a7e65114645c724389388d39c7a7c61d63988bed80d6107641bdd05f1"
+  }
+}
