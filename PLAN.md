@@ -1,8 +1,8 @@
-# Daedalus - Project canonical baseline
+# Prometheus::create - Project canonical baseline
 
 **Capture a scene. Make its objects editable. Create another take.**
 
-Final planning deliverable for a **solo HackUTA 2026 build**. Former working name: Rift. Daedalus is the user-selected name; the interface should retain familiar labels such as Project, Source, Take, and Export. The name evokes construction and invention. The event's specific theme is Homer's Odyssey, so the presentation should connect the product to exploring and returning to a captured place; Greek branding alone is not the theme argument.
+Final planning deliverable for a **solo HackUTA 2026 build**. Former working names: Rift, then Daedalus. Prometheus::create is the selected name (ADR-001); the interface should retain familiar labels such as Project, Source, Take, and Export. The name evokes creation and invention. The event's specific theme is Homer's Odyssey, so the presentation should connect the product to exploring and returning to a captured place; Greek branding alone is not the theme argument.
 
 This plan follows schema 2 and the nine sections of the [toolkit PLAN template](https://github.com/Jelatinone/hackathon-toolkit/blob/d34da50829c5ded6c3e38bf0415d82b7419a983e/templates/PLAN.md), inspected through the connected GitHub tools at commit `d34da50829c5ded6c3e38bf0415d82b7419a983e` on `production`. Its [project contract](https://github.com/Jelatinone/hackathon-toolkit/blob/d34da50829c5ded6c3e38bf0415d82b7419a983e/docs/PROJECT_CONTRACT.md), [formats](https://github.com/Jelatinone/hackathon-toolkit/blob/d34da50829c5ded6c3e38bf0415d82b7419a983e/docs/FORMATS.md), and [playbook](https://github.com/Jelatinone/hackathon-toolkit/blob/d34da50829c5ded6c3e38bf0415d82b7419a983e/HACKATHON_PLAYBOOK.md) supply the workflow. No toolkit files were changed. Kickoff (2026-11-14) found the starter `prometheus-create` (Next.js 16.4.6, React 19.3, TypeScript, Tailwind 4) with the toolkit pinned at `toolkit/`; HK-001 adds the shared baseline on `feat/HK-001-foundation` (evidence: `docs/changes/HK-001.md`). No external service has been tested.
 
@@ -10,13 +10,13 @@ The product and architecture decisions below are the recommended build baseline.
 
 ```yaml
 schema_version: 2
-project_name: "Daedalus"
+project_name: "Prometheus::create"
 event_name: "HackUTA 2026"
 project_status: "ideation"
-plan_version: 1
+plan_version: 2
 approval: "proposed"
 approval_ref: null
-updated_at: "2026-11-14T14:26:10-06:00"
+updated_at: "2026-11-14T14:40:00-06:00"
 timezone: "America/Chicago"
 code_start: "2026-11-14T12:00:00-06:00"
 code_end: "2026-11-15T00:00:00-06:00"
@@ -87,7 +87,7 @@ This supports the filmmaking direction and a home-staging interpretation without
 | Project / Take switcher | Original and named alternatives, with saved status. | Fork creates a separate revision; no branch merges or multi-user conflict resolution. |
 | Capture panel | Upload, Phone camera, Video, FaceTime. Progress and errors remain in this panel. | All produce the same source records. |
 
-Use `V` select, `L` lasso, `W/E/R` move/rotate/scale, `F` frame selection, Space play/pause, and standard undo/redo shortcuts, disabled while typing in a field. Numeric fields and visible controls remain available without shortcuts. Start with a neutral dark interface and one accent color; selection, warning, and provenance must also have text or icon cues.
+Use `V` select, `L` lasso, `W/E/R` move/rotate/scale, `F` frame selection, Space play/pause, and standard undo/redo shortcuts, disabled while typing in a field. Numeric fields and visible controls remain available without shortcuts. Use the ADR-002 palette (warm white background, charcoal text, vermilion hover accent); selection, warning, and provenance must also have text or icon cues.
 
 **Selection:** suggested objects highlight on hover. A click selects an existing object. Lasso on the source view creates an image-space polygon, rasterized into a mask at the source's actual resolution; it does not magically select hidden 3D surfaces. A mask can request a new mesh or refine a proposal. In the 3D viewport, lasso initially selects existing objects by projected bounds; splitting an arbitrary mesh is deferred.
 
@@ -116,7 +116,7 @@ The supplied evidence is `HackUTA 2026_compressed.pdf`, 80 pages, from the user'
 
 | Track ID | Exact prompt clause/source | Essential technology/capability | Proof scene | Current state | Gap/limitation |
 | --- | --- | --- | --- | --- | --- |
-| SP-001 | Chert, deck p.18: "uses FaceTime video to see what you show it, show you what you need, or both." | Chert FaceTime API; real caller video ingestion into Daedalus. | Agent places an opted-in call, participant changes camera view, new frames enter the project and drive object selection/reconstruction. | planned | Primary target. Requires an assigned outbound-video line and caller-camera capture. iMessage is optional. |
+| SP-001 | Chert, deck p.18: "uses FaceTime video to see what you show it, show you what you need, or both." | Chert FaceTime API; real caller video ingestion into Prometheus::create. | Agent places an opted-in call, participant changes camera view, new frames enter the project and drive object selection/reconstruction. | planned | Primary target. Requires an assigned outbound-video line and caller-camera capture. iMessage is optional. |
 | SP-002 | [Best Use of Tiger Data](https://www.mlh.com/events/hackuta-53/challenges/019fcfdb-abbc-d470-b762-e73f1ee414d2): "show us how Tiger Data powers your project." Deck p.55. | Actual hosted PostgreSQL project/revision/source data; optional capture-event history. | Save a fork, refresh on another device, retrieve source observations and their timestamps from the real database. | planned | Primary target. Useful persistence qualifies the design rationale; tiny demo data does not establish performance at scale. |
 | SP-003 | [Best Use of Gemini API](https://www.mlh.com/events/hackuta-53/challenges/01953de4-ee8b-0807-88b1-86bb6abbf410), deck p.54. | Gemini used for capture guidance, object suggestions, or evidence-grounded edit proposals. | Change the caller's view; agent responds to that new view and identifies a target tied to a saved frame. | planned | Secondary target only if it reuses the capture agent. fal reconstruction alone is not Gemini use. |
 | SP-004 | Xome sponsor introduction, deck p.19. | No technical challenge or required API was provided. | Explain how editable interior captures could support remote staging; demonstrate the same furniture scene. | deferred | Product relevance, not a verified prize target or Xome integration. Do not invent a Xome API or claim partnership. |
@@ -404,7 +404,7 @@ The first task includes creating the starter because none exists. Toolkit kickof
 | HK-009 | CP-005 | feat/HK-009-appearance | Cody | Optional Spark adapter or return-preview adapter, targeted checks | HK-008 | Choose at most one stretch: aligned splats OR duplex FaceTime preview. | planned |
 | HK-010 | CP-006 | chore/HK-010-final | Cody | Release, evidence, video, submission records | HK-008 | Confirmed-window final regression, final artifacts, receipt and rehearsal. | planned |
 
-### Parallel lanes (proposed for plan v2)
+### Parallel lanes (proposed replan)
 
 On 2026-11-14 Cody directed that, after the HK-001 baseline, work splits into three agent lanes, each with its own branch and worktree. This changes the one-owner assumption above, so it is a **proposed replan**: until Cody approves it (for example through `replan-checkpoint`), the task registry and checkpoints remain authoritative.
 
@@ -625,7 +625,7 @@ upload_start_at: null
 
 | Time | Screen action | Claim |
 | --- | --- | --- |
-| 0:00-0:20 | Original and edited scene side by side. | Captures normally lock creators into what happened; Daedalus makes an alternative editable. |
+| 0:00-0:20 | Original and edited scene side by side. | Captures normally lock creators into what happened; Prometheus::create makes an alternative editable. |
 | 0:20-0:50 | Brief real capture through Chert, or clearly identified recording of the tested call; new observation appears. | Remote FaceTime feed enters the same pipeline as phone/video uploads. |
 | 0:50-1:25 | Select object, show mask and actual reconstruction result; inspect estimated dimensions. | AI supplies a mesh hypothesis that the creator can correct. Do not wait minutes on stage; disclose a previously completed job. |
 | 1:25-2:05 | Fork take, move/scale object, undo once, compare with original. | Edits preserve the source and original take. |
@@ -662,12 +662,13 @@ Prepare a 90-120-second submission video if the final rules allow it, with intel
 | Plan version | Date | Release | Accepted task IDs / ADR IDs | Updated by | Approval/evidence | Why |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 2026-11-14 | None | None | Planning assistant | User selected Daedalus, confirmed solo/no starter, specified Chert ingestion and optional return video. No implementation approval or gate evidence recorded. | Final planning baseline aligned with inspected toolkit and current documentation. |
+| 2 | 2026-11-14 | None | ADR-001, ADR-002 | Claude Code for Cody (HK-001) | Cody's chat instructions during HK-001 (name and palette); see docs/DECISIONS.md. Plan approval and the lane replan remain proposed. | Record the selected name, visual identity, and logo. |
 
 ### Decision register for kickoff
 
 | Decision | Baseline | Rationale / review trigger |
 | --- | --- | --- |
-| D-001 Name | Daedalus; former name Rift | Explicit user choice. |
+| D-001 Name | Prometheus::create (ADR-001); former names Rift, Daedalus | Explicit user choice. |
 | D-002 Platform | Next.js web; mobile capture; desktop editor | One codebase and no native distribution overhead. |
 | D-003 Representation | Unified editable triangle-mesh objects; separate optional splats/colliders | Geometry, appearance, and collision have different requirements. |
 | D-004 Storage | TigerData metadata; private binary storage; hosted identity | Natural project/revision relationships and meaningful sponsor fit. |
@@ -688,6 +689,6 @@ At kickoff, Cody records accepted architectural decisions in the project-owned `
 - **Toolkit:** connected GitHub inspection read README, template, project contract, formats, playbook, branch commit, and recursive tree. Template/document blob hashes matched the pinned tree. The absent utility scripts are an observed limitation, not an application failure.
 - **Event:** supplied opening deck, especially pp.18-19, 32, 40, 42-43, 54-60, 68, and 72; [official HackUTA site](https://www.hackuta.com/); [MLH event page](https://www.mlh.com/events/hackuta-53). Xome is listed as a sponsor, with no challenge clause found in supplied material. Chert's deck-linked `/uta` page was not accessible through the web tool; no unseen rules are assumed.
 - **Technical:** primary provider/library documentation is linked next to each relevant decision. These establish documented capabilities, not actual account access, performance, or successful integration. All live technical acceptance remains `not_run` until implementation.
-- **Prior design context:** earlier Egress notes informed persistent tool/inspector continuity and avoidance of modal-heavy flows only. They were historical guidance, not a verified current Egress implementation or a constraint on Daedalus's 3D editing.
+- **Prior design context:** earlier Egress notes informed persistent tool/inspector continuity and avoidance of modal-heavy flows only. They were historical guidance, not a verified current Egress implementation or a constraint on Prometheus::create's 3D editing.
 
 **Next concrete action:** confirm the clock and Chert line capability, then create a fresh application starter and attempt the two early proofs: a real caller frame reaching CT-002 and a real selected image becoming a valid editable mesh. Everything else follows those results.
