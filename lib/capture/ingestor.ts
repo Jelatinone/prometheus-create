@@ -51,6 +51,8 @@ export interface FrameOutcome {
   envelope: IngestEnvelope;
   result: IngestResult;
   frameAsset: Asset;
+  /** The stored upright frame (for thumbnails, masks, reconstruction input). */
+  frame: EncodedFrame;
 }
 
 export interface ImageOutcome extends FrameOutcome {
@@ -279,6 +281,7 @@ export class CaptureIngestor {
     if (!limits.ok) return limits;
     const result = await this.deps.ingestion.ingest(this.deps.actor, parsed.value);
     if (!result.ok) return result;
-    return ok({ envelope: parsed.value, result: result.value, frameAsset });
+    const { bytes, mimeType, width, height } = frame;
+    return ok({ envelope: parsed.value, result: result.value, frameAsset, frame: { bytes, mimeType, width, height } });
   }
 }
