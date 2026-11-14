@@ -8,6 +8,7 @@
  * a PEM file) when the service still presents its interim private CA.
  */
 import { existsSync, readFileSync } from "node:fs";
+import { rootCertificates } from "node:tls";
 import pg from "pg";
 import type { Result } from "@/lib/contracts/common";
 
@@ -32,7 +33,11 @@ export function createPool(connectionString: string, options: PoolOptions = {}):
   const url = new URL(connectionString);
   const localHost = ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
   for (const param of ["sslmode", "sslrootcert", "sslcert", "sslkey", "uselibpqcompat"]) url.searchParams.delete(param);
-  const ca = resolveCa(options.ca ?? process.env.DATABASE_CA_CERT);
+  const pinned = resolveCa(options.ca ?? process.env.DATABASE_CA_CERT);
+  // `ca` replaces Node's trust store, so keep the public roots alongside the
+  // pin: the connection keeps verifying after TigerData rotates to a
+  // publicly signed certificate.
+  const ca = pinned ? [...rootCertificates, pinned] : undefined;
   return new pg.Pool({
     connectionString: url.toString(),
     ssl: localHost ? undefined : { rejectUnauthorized: true, ...(ca ? { ca } : {}) },
