@@ -1,23 +1,25 @@
 @import "tailwindcss";
 
-/* Neutral dark interface with one accent (PLAN §1). Status colors always
-   pair with a text label or icon; color alone never carries meaning. */
+/* Visual identity (docs/DECISIONS.md ADR-002). The first three tokens are
+   Cody's chosen primaries; the rest are derived supporting tones.
+   Vermilion on warm white is ~2.5:1 contrast: use it for hover/focus and
+   large accents (with an underline or weight change), never body text. */
 @theme {
-  --color-ink: #e7e9ee;
-  --color-muted: #9aa1ad;
-  --color-panel: #171a20;
-  --color-panel-2: #1e222a;
-  --color-line: #2b313b;
-  --color-canvas: #101216;
-  --color-accent: #f2a541;
-  --color-ok: #4cc38a;
-  --color-bad: #f0686a;
+  --color-canvas: #f3f0e9; /* primary background: warm white */
+  --color-ink: #17191d; /* primary text: charcoal (15.5:1 on canvas) */
+  --color-accent: #ff6842; /* accent, text on hover: vermilion */
+  --color-muted: #5e6168; /* secondary text (5.4:1 on canvas) */
+  --color-panel: #faf8f3;
+  --color-panel-2: #ece7dd;
+  --color-line: #d9d3c7;
+  --color-ok: #1f7a4d;
+  --color-bad: #c0362c;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
