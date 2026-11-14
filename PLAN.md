@@ -383,7 +383,7 @@ Guide the caller to move slowly around stationary objects, maintain overlap, avo
 - GPU inference: hosted model API. No GPU cluster or custom CUDA build in the critical path.
 - Storage/auth: Supabase. App metadata: TigerData. Provider keys and service-role credentials remain server-side.
 - Short web endpoints submit/query jobs; long media processing belongs in a worker. Next.js documentation notes that host timeouts can terminate long-running handlers. [Deployment caveats](https://nextjs.org/docs/app/guides/backend-for-frontend)
-- Starter layout: `lib/contracts/` (CT-001..CT-005 zod schemas, ports, generated JSON Schema), `lib/reference/` (in-memory backend), `lib/assets/` (GLB inspection), `fixtures/`, `tests/` (contract, conformance, lane checks), `scripts/`, `app/lab/` (verification lab), `docs/changes/`, and the pinned `toolkit/`. Lane-owned paths such as `components/editor/`, `lib/scene/`, `lib/server/`, `db/`, and `services/capture-agent/` are listed in `lanes.json`.
+- Starter layout: `lib/contracts/` (CT-001..CT-005 zod schemas, ports, generated JSON Schema), `lib/reference/` (in-memory backend), `lib/assets/` (GLB inspection), `fixtures/`, `tests/` (contract, conformance, lane checks), `scripts/`, `docs/changes/`, and the pinned `toolkit/`. Lane-owned paths such as `components/editor/`, `lib/scene/`, `lib/server/`, `db/`, and `services/capture-agent/` are listed in `lanes.json`.
 
 ## 5. Work packages and checkpoints
 
@@ -408,11 +408,11 @@ The first task includes creating the starter because none exists. Toolkit kickof
 
 On 2026-11-14 Cody directed that, after the HK-001 baseline, work splits into three agent lanes, each with its own branch and worktree. This changes the one-owner assumption above, so it is a **proposed replan**: until Cody approves it (for example through `replan-checkpoint`), the task registry and checkpoints remain authoritative.
 
-| Lane | Task | Branch | Owned paths | Proposed dependency | Lane lab |
-| --- | --- | --- | --- | --- | --- |
-| Capture & reconstruction | HK-002 | feat/HK-002-risk-proofs | `lanes.json` → `capture` | HK-001 | /lab/capture |
-| Platform | HK-003 | feat/HK-003-ingest-persist | `lanes.json` → `platform` | HK-001 | /lab/platform |
-| Editor | HK-004 (then HK-005) | feat/HK-004-editor | `lanes.json` → `editor` | HK-001 | /lab/editor |
+| Lane | Task | Branch | Owned paths | Proposed dependency |
+| --- | --- | --- | --- | --- |
+| Capture & reconstruction | HK-002 | feat/HK-002-risk-proofs | `lanes.json` → `capture` | HK-001 |
+| Platform | HK-003 | feat/HK-003-ingest-persist | `lanes.json` → `platform` | HK-001 |
+| Editor | HK-004 (then HK-005) | feat/HK-004-editor | `lanes.json` → `editor` | HK-001 |
 
 HK-003 and HK-004 drop their dependency on HK-002/HK-003 because the baseline supplies the shared contracts, ports, an in-memory reference backend, and conformance suites; integration then swaps the reference backend for the platform's. `lanes.json` is the single source for owned paths; `docs/LANES.md` holds the lane protocol. Checkpoint CP-001/CP-002 ordering must be revised in the same approval.
 
@@ -545,7 +545,7 @@ typecheck: "npm run typecheck"
 lint: "npm run lint"
 build: "npm run build"
 integration_e2e: null
-run_demo: "npm run dev, then open http://localhost:3000/lab"
+run_demo: "npm run dev, then open http://localhost:3000"
 external_services: ["TigerData", "Supabase Auth and Storage", "fal", "Chert", "LiveKit", "Gemini if capture guidance is enabled"]
 secrets_location: "Local ignored environment files and deployment secret stores; never browser bundles, PLAN, or committed logs"
 test_environment: "Actual demo laptop browser, one iPhone, dedicated test project, consenting test call, small owned image/video fixtures"

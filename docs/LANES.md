@@ -1,6 +1,6 @@
 # Lanes: parallel agent work
 
-Three lanes build on the HK-001 baseline at the same time, each on its own branch and worktree. `lanes.json` is the single source for each lane's task ID, branch, worktree path, lab page, and **owned paths**. PLAN.md §5 records the proposed replan; it needs Cody's approval before lanes start.
+Three lanes build on the HK-001 baseline at the same time, each on its own branch and worktree. `lanes.json` is the single source for each lane's task ID, branch, worktree path, and **owned paths**. PLAN.md §5 records the proposed replan; it needs Cody's approval before lanes start.
 
 | Lane | Task | Builds | Hands to |
 | --- | --- | --- | --- |
@@ -14,8 +14,7 @@ Three lanes build on the HK-001 baseline at the same time, each on its own branc
 - **Ports** — `lib/contracts/ports.ts`: `ProjectRepository`, `AssetCatalog`, `IngestionGateway`, `JobStore`, bundled as `Backend`. Every method returns `Result<T>`; `HTTP_STATUS` maps error codes to HTTP.
 - **Reference backend** — `lib/reference/memory-backend.ts` (`new MemoryBackend()`), the executable reading of the port semantics. Build and test against it until the platform lands.
 - **Conformance suite** — `tests/conformance/backend-conformance.ts`. The platform's backend must pass `describeBackendConformance(...)` unchanged; that is how "works like the reference" is proven.
-- **Fixtures** — `fixtures/contracts/*.json` (golden and invalid cases, importable from `@/fixtures`) and `public/fixtures/axis-box.glb` (0.4 × 0.9 × 0.2 m; unequal sides expose axis and unit mistakes).
-- **A lab page** — `app/lab/<lane>/page.tsx` is reserved for the lane's hand-checkable demo. Replace the placeholder.
+- **Fixtures** — `fixtures/contracts/*.json` (golden and invalid cases) and `public/fixtures/axis-box.glb` (0.4 × 0.9 × 0.2 m; unequal sides expose axis and unit mistakes).
 - **A task note** — `docs/changes/<TASK-ID>.md` holds the assignment; the lane writes its plan and evidence there.
 
 ## Rules
@@ -48,10 +47,6 @@ npm run verify
 
 One pass/fail table: lane scope, typecheck, lint, unit and conformance tests, production build (`-- --quick` skips the build). The same table is saved to `.verify/report.md`.
 
-```bash
-npm run dev -- -p 3003
-```
-
-Then open `http://localhost:3003/lab` and the lane's page (`/lab/editor`, `/lab/platform`, `/lab/capture`). Use `/lab/validate` to check any JSON the lane produces (a saved manifest, an export manifest, a capture-agent payload) and `/lab/glb` to check any mesh. CLI equivalents: `npm run validate -- auto file.json` and `npm run validate -- glb file.glb`.
+To check output by hand, run the lane's app on its port (`npm run dev -- -p 3003`) and validate anything it produces: `npm run validate -- <contract> file.json` for JSON (a saved manifest, an export manifest, a capture-agent payload), `npm run validate -- glb file.glb` for a mesh.
 
 Finally, read the lane's task note: claimed behavior, evidence table, limitations, and any proposed contract deviations.

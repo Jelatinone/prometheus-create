@@ -22,18 +22,15 @@ npm run verify
 
 Runs typecheck, lint, unit and conformance tests, and a production build, then prints a pass/fail evidence table (saved to `.verify/report.md`). On a lane branch it first checks that only the lane's owned paths changed. Add `-- --quick` to skip the build.
 
+Check a file by hand against the contracts:
+
 ```bash
-npm run dev
+npm run validate -- auto fixtures/contracts/take-manifest.original.json
 ```
 
-Open <http://localhost:3000/lab>, the verification lab:
+`npm run validate -- list` names every contract; `npm run validate -- <contract> <file.json>` checks any JSON (a saved manifest, an export manifest, a capture-agent payload); `npm run validate -- glb <file.glb>` prints a mesh's dimensions, triangle count, and warnings.
 
-- **Contract fixtures**: every golden fixture validates, every invalid case is rejected where expected.
-- **Contract validator** (`/lab/validate`): paste or drop any JSON and check it against a contract.
-- **GLB inspector** (`/lab/glb`): dimensions, triangles, warnings, and a 3D view of any `.glb`.
-- **Lane labs** (`/lab/editor`, `/lab/platform`, `/lab/capture`): each lane's hand-checkable demo.
-
-Command-line equivalents: `npm run validate -- list`, `npm run validate -- auto <file.json>`, `npm run validate -- glb <file.glb>`.
+Run the app with `npm run dev` and open <http://localhost:3000>.
 
 ## Layout
 
@@ -44,7 +41,6 @@ Command-line equivalents: `npm run validate -- list`, `npm run validate -- auto 
 | `lib/assets/` | GLB inspection and fixture writer |
 | `fixtures/` | Golden and invalid contract fixtures; `public/fixtures/axis-box.glb` |
 | `tests/` | Contract, conformance, GLB, and lane-ownership tests |
-| `app/lab/` | Verification lab |
 | `lanes.json`, `docs/LANES.md` | Parallel lane ownership and protocol |
 | `docs/changes/` | One task note per task (assignment, plan, evidence) |
 | `toolkit/` | Pinned hackathon-toolkit submodule (workflows and formats) |
