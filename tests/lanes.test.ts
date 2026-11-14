@@ -18,8 +18,12 @@ describe("lane globs", () => {
     expect(re.test("app/projects/page.tsx")).toBe(false);
   });
 
-  it("ignore the machine-local skill junctions that lane:setup creates", () => {
-    expect((matchesAny as (p: string, g: string[]) => boolean)(".claude/skills/kickoff-project/SKILL.md", lanes.ignore)).toBe(true);
+  it("keeps both agents' tracked skills visible to the shared-path ownership check", () => {
+    for (const agent of [".agents", ".claude"]) {
+      const path = `${agent}/skills/kickoff-project/SKILL.md`;
+      expect((matchesAny as (p: string, g: string[]) => boolean)(path, lanes.ignore)).toBe(false);
+      expect(classifyFor(path, "editor")).toBe("shared");
+    }
     expect((matchesAny as (p: string, g: string[]) => boolean)(".claude/launch.json", lanes.ignore)).toBe(false);
   });
 

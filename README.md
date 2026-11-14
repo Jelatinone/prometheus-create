@@ -14,13 +14,22 @@ git submodule update --init --recursive
 npm ci
 ```
 
+```bash
+npm run skills:check
+```
+
+Or run `npm run lane:setup` for all three steps. Both Codex and Claude Code use
+the same pinned toolkit through committed skill entrypoints; no symlink support
+or administrator privileges are needed. See [agent setup](docs/AGENT_SETUP.md)
+for tool commands and manual migration of existing worktrees.
+
 ## Verify
 
 ```bash
 npm run verify
 ```
 
-Runs typecheck, lint, unit and conformance tests, and a production build, then prints a pass/fail evidence table (saved to `.verify/report.md`). On a lane branch it first checks that only the lane's owned paths changed. Add `-- --quick` to skip the build.
+Checks both agents' skill entrypoints, runs typecheck, lint, unit and conformance tests, and a production build, then prints a pass/fail evidence table (saved to `.verify/report.md`). On a lane branch it first checks that only the lane's owned paths changed. Add `-- --quick` to skip the build.
 
 Check a file by hand against the contracts:
 
