@@ -1,0 +1,74 @@
+{
+  "$comment": "Canonical lane ownership for parallel agent work. Branch and task IDs must match PLAN.md section 5 (checked by tests/lanes.test.ts). A lane may edit only its `owns` globs plus its task note; package.json/package-lock.json edits are allowed but must be listed in the task note. Every other path is shared: change it only with integration-owner approval. Check a branch with `npm run lane:check`.",
+  "base": "production",
+  "dependencyFiles": ["package.json", "package-lock.json"],
+  "contractPaths": ["lib/contracts/**", "fixtures/contracts/**", "tests/conformance/**"],
+  "lanes": {
+    "capture": {
+      "title": "Capture & reconstruction",
+      "task": "HK-002",
+      "branch": "feat/HK-002-risk-proofs",
+      "worktree": "../prometheus-create-capture",
+      "lab": "/lab/capture",
+      "check": "A real photo or Chert caller frame becomes a valid IngestEnvelope; a masked frame becomes a validated mesh job.",
+      "owns": [
+        "services/capture-agent/**",
+        "lib/capture/**",
+        "lib/reconstruction/**",
+        "components/capture/**",
+        "app/api/capture/**",
+        "app/api/reconstruction/**",
+        "app/lab/capture/**",
+        "fixtures/capture/**",
+        "tests/capture/**",
+        "tests/reconstruction/**",
+        "docs/changes/HK-002.md"
+      ]
+    },
+    "platform": {
+      "title": "Platform",
+      "task": "HK-003",
+      "branch": "feat/HK-003-ingest-persist",
+      "worktree": "../prometheus-create-platform",
+      "lab": "/lab/platform",
+      "check": "Sign in, save and reload a take from TigerData, ingest a frame over HTTP, and see a stale save rejected as a conflict.",
+      "owns": [
+        "app/api/projects/**",
+        "app/api/ingest/**",
+        "app/api/assets/**",
+        "app/api/jobs/**",
+        "app/projects/page.tsx",
+        "app/projects/new/**",
+        "app/login/**",
+        "app/auth/**",
+        "proxy.ts",
+        "lib/server/**",
+        "lib/platform/**",
+        "db/**",
+        "app/lab/platform/**",
+        "tests/platform/**",
+        "docs/changes/HK-003.md"
+      ]
+    },
+    "editor": {
+      "title": "Editor",
+      "task": "HK-004",
+      "branch": "feat/HK-004-editor",
+      "worktree": "../prometheus-create-editor",
+      "lab": "/lab/editor",
+      "check": "Open the fixture manifest, select and transform the box with undo, fork a take, and switch back to the unchanged original.",
+      "owns": [
+        "app/projects/[projectId]/**",
+        "components/editor/**",
+        "lib/scene/**",
+        "lib/editor/**",
+        "lib/export/**",
+        "app/lab/editor/**",
+        "tests/editor/**",
+        "tests/scene/**",
+        "docs/changes/HK-004.md",
+        "docs/changes/HK-005.md"
+      ]
+    }
+  }
+}
