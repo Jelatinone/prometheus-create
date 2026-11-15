@@ -37,6 +37,7 @@ from . import envelope as env
 from .chert import ChertCalls, ChertError, event_list, event_name, looks_terminal
 from .frames import encode_upright, signature, sha256_hash
 from .outbox import Outbox
+from .return_video import ReturnVideoState, publish_return_video
 from .sequencer import FrameSelector, Sequencer
 
 AGENT_IDENTITY = "prometheus-capture-agent"
@@ -135,7 +136,7 @@ async def check() -> int:
     return status
 
 
-async def call(seconds: float, project_id: str, max_wait_bridge_s: float, max_wait_frame_s: float) -> int:
+async def call(seconds: float, project_id: str, max_wait_bridge_s: float, max_wait_frame_s: float, return_video: bool = False) -> int:
     from livekit import rtc
 
     conf = cfg.load()
@@ -198,6 +199,7 @@ async def call(seconds: float, project_id: str, max_wait_bridge_s: float, max_wa
                     registration=registration, frame=encoded, sequence=sequence, source_time_us=source_time, captured_at=env.iso(), mode=decision
                 )
                 box.frame(envelope, encoded)
+                video_state.latest_sequence = sequence
                 box.log({"event": "frame", "sequence": sequence, "mode": decision, "why": why, "sourceTimeUs": source_time,
                          "width": encoded.width, "height": encoded.height, "rotation": rotation, "participant": participant.identity, "track": track.name})
                 state["evidence" if decision == "evidence" else "previews"] += 1
@@ -243,6 +245,9 @@ async def call(seconds: float, project_id: str, max_wait_bridge_s: float, max_wa
 
     await room.connect(conf.livekit_url, agent_token)
     pump = await publish_capture_audio(room, bridge_ready)
+    # CP-023: show the caller what the live loop recognises (reads <outbox>/overlay.json).
+    video_state = ReturnVideoState(run)
+    returned = await publish_return_video(room, video_state) if return_video else None
     print(f"{env.iso()}  agent in room {room_name}; placing call to the consenting test device")
 
     exit_code = 0
@@ -303,9 +308,11 @@ async def call(seconds: float, project_id: str, max_wait_bridge_s: float, max_wa
             except ChertError as e:
                 box.log({"event": "end_error", "message": str(e), "body": e.body})
         pump.cancel()
+        if returned:
+            returned.cancel()
         for t in video_tasks:
             t.cancel()
-        await asyncio.gather(pump, *video_tasks, return_exceptions=True)
+        await asyncio.gather(pump, *([returned] if returned else []), *video_tasks, return_exceptions=True)
         await room.disconnect()
         # Frame capture and the provider's terminal call status are separate facts.
         # A worker can deliver usable frames and still report a failed call.
@@ -326,6 +333,8 @@ async def call(seconds: float, project_id: str, max_wait_bridge_s: float, max_wa
     summary = {k: state[k] for k in ("call_id", "frames", "evidence", "previews", "caller_video", "provider_terminal_status")} | {"room": room_name, "sessionId": session_id, "sourceId": registration["id"], "projectId": project_id, "outbox": str(run)}
     # Frame-selection counts by reason (HK-011 CP-022), including near-duplicates dropped.
     summary["selection"] = dict(selector.stats)
+    if return_video:
+        summary["return_video"] = {"published_frames": video_state.published, "renders": video_state.renders, "saved": video_state.saved}
     (run / "selection-stats.json").write_text(json.dumps(summary["selection"], indent=2) + "\n", encoding="utf-8")
     (run / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))
@@ -341,10 +350,11 @@ def main() -> int:
     c.add_argument("--project", default=None, help="project id the frames belong to (default: new prj_ id)")
     c.add_argument("--wait-bridge", type=float, default=90.0, help="seconds to wait for bridge_ready")
     c.add_argument("--wait-frame", type=float, default=30.0, help="seconds after bridge_ready to wait for caller video")
+    c.add_argument("--return-video", action="store_true", help="publish a video track showing recognised objects (reads <outbox>/overlay.json)")
     args = p.parse_args()
     if args.cmd == "check":
         return asyncio.run(check())
-    return asyncio.run(call(args.seconds, args.project or env.new_id("project"), args.wait_bridge, args.wait_frame))
+    return asyncio.run(call(args.seconds, args.project or env.new_id("project"), args.wait_bridge, args.wait_frame, args.return_video))
 
 
 if __name__ == "__main__":
