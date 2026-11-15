@@ -76,6 +76,8 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   const [error, setError] = useState("");
   const [detecting, setDetecting] = useState(false);
   const [multiview, setMultiview] = useState<string | null>(null);
+  /** Fast: one frame (SAM 3D). Detailed: four frames of the whole capture (Trellis), slower. */
+  const [quality, setQuality] = useState<"fast" | "detailed">("fast");
   const alive = useRef(true);
   const savedRef = useRef<Saved | null>(null);
   useEffect(() => {
@@ -315,6 +317,12 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   function generate() {
     const s = savedRef.current;
     if (!s || !toGenerate(s.batch).length) return;
+    if (quality === "detailed" && onImportGlb) {
+      void (async () => {
+        for (const o of toGenerate(s.batch)) await fromVideo(o);
+      })();
+      return;
+    }
     const next = startGenerate(s.batch);
     persist({ ...s, batch: next }); // every mesh job ID is stored before the first request
     for (const o of next.objects) if (o.mesh?.stage === "pending") void driveMesh(o.key);
@@ -530,9 +538,19 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
             </ul>
           )}
           {pending.length > 0 && (
-            <button className={`${button} w-full bg-accent/15`} onClick={generate}>
-              <SparklesIcon className="size-4" /> Generate {pending.length} {pending.length === 1 ? "object" : "objects"}
-            </button>
+            <div className="space-y-1.5">
+              {onImportGlb && (
+                <div className="flex gap-1 rounded-lg border border-line bg-canvas p-0.5 text-xs" role="group" aria-label="Generation quality">
+                  {([["fast", "Fast", "One frame (SAM 3D), about 30 s"], ["detailed", "Detailed", "Four frames of the whole video (Trellis), slower; about $0.04 each"]] as const).map(([id, label, hint]) => (
+                    <button key={id} title={hint} aria-pressed={quality === id} onClick={() => setQuality(id)}
+                      className={`flex-1 rounded-md px-2 py-1 ${quality === id ? "bg-accent/15 text-accent" : "hover:text-accent"}`}>{label}</button>
+                  ))}
+                </div>
+              )}
+              <button className={`${button} w-full bg-accent/15`} disabled={!!multiview} onClick={generate}>
+                {multiview ? <Spinner className="size-4" /> : <SparklesIcon className="size-4" />} Generate
+              </button>
+            </div>
           )}
           {readyToAdd.length > 1 && (
             <button className={`${button} w-full`} disabled={!sameTake} onClick={() => readyToAdd.forEach(apply)}>
