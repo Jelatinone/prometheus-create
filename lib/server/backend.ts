@@ -6,9 +6,17 @@ import { createPool } from "./db";
 import { databaseUrl } from "./env";
 import { PostgresBackend } from "./postgres-backend";
 
-const holder = globalThis as typeof globalThis & { __prometheusBackend?: PostgresBackend };
+const holder = globalThis as typeof globalThis & {
+  __prometheusBackend?: PostgresBackend;
+  __prometheusPool?: ReturnType<typeof createPool>;
+};
 
 export function getBackend(): PostgresBackend {
-  holder.__prometheusBackend ??= new PostgresBackend({ pool: createPool(databaseUrl()) });
+  // A dev hot reload replaces the PostgresBackend class. A cached instance of the old class would lack
+  // newly added methods (and fail every call to them), so rebuild it on the same pool.
+  if (!(holder.__prometheusBackend instanceof PostgresBackend)) {
+    holder.__prometheusPool ??= createPool(databaseUrl());
+    holder.__prometheusBackend = new PostgresBackend({ pool: holder.__prometheusPool });
+  }
   return holder.__prometheusBackend;
 }
