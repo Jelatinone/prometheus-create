@@ -14,6 +14,8 @@
   --color-line: #d9d3c7;
   --color-ok: #1f7a4d;
   --color-bad: #c0362c;
+  --color-stage: #cbc8c1; /* editor viewport: warm gray for contrast against white chrome */
+  --font-serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
 }
