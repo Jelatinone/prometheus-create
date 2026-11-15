@@ -74,6 +74,7 @@ import { Presence } from "@/components/ui/Presence";
 import { Toast } from "@/components/ui/Toast";
 import { ProjectTitle } from "./ProjectTitle";
 import { CapturePanel } from "@/components/capture/CapturePanel";
+import { FaceTimeModal } from "@/components/capture/FaceTimeModal";
 import { Inspector } from "./Inspector";
 import { ALL_LAYERS, checkSplatPly, drawsSplat, type LayerView } from "@/lib/scene/splat";
 import { LayersMenu } from "./LayersMenu";
@@ -153,6 +154,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [faceTimeOpen, setFaceTimeOpen] = useState(false);
   const [pane, setPane] = useState<Pane>("objects");
   const [playbackOpen, setPlaybackOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -744,7 +746,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
               <XMarkIcon className="size-5" />
             </button>
           </div>
-          <CapturePanel ingestor={ingestor} onEntry={(entry) => { if (entry.ok) setCaptureCount((n) => n + 1); }} />
+          <CapturePanel ingestor={ingestor} onEntry={(entry) => { if (entry.ok) setCaptureCount((n) => n + 1); }} onStartFaceTime={() => setFaceTimeOpen(true)} />
       </Presence>
 
       {/* Details for the current mode */}
@@ -998,6 +1000,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           </button>
         </div>
       )}
+      <FaceTimeModal open={faceTimeOpen} onClose={() => setFaceTimeOpen(false)} api={api} actor={actor} projectId={projectId} onSceneReady={() => { setFaceTimeOpen(false); void open(take.id); }} />
       {!exportOpen && loadingOverlay}
       {exportOpen && (
         <ExportDialog takeName={take.name} frame={frame} animated={duration > 0} dirty={dirty} busy={!!busy} error={exportError} progress={loadingOverlay}

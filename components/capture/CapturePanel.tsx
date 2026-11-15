@@ -34,6 +34,8 @@ export interface CapturePanelProps {
   ingestor: CaptureIngestor;
   faceTime?: FaceTimeStatus;
   onEntry?: (entry: CaptureEntry) => void;
+  /** Opens the access-code modal that starts a FaceTime capture (demo machine). */
+  onStartFaceTime?: () => void;
 }
 
 const TABS: { id: CaptureTab; label: string }[] = [
@@ -95,7 +97,7 @@ function FilePicker({ label, accept, capture, disabled, onFile }: { label: strin
   );
 }
 
-export function CapturePanel({ ingestor, faceTime = DEFAULT_FACETIME, onEntry }: CapturePanelProps) {
+export function CapturePanel({ ingestor, faceTime = DEFAULT_FACETIME, onEntry, onStartFaceTime }: CapturePanelProps) {
   const [tab, setTab] = useState<CaptureTab>("upload");
   const [busy, setBusy] = useState(false);
   const [entries, setEntries] = useState<CaptureEntry[]>([]);
@@ -335,10 +337,16 @@ export function CapturePanel({ ingestor, faceTime = DEFAULT_FACETIME, onEntry }:
         </div>
 
         <div role="tabpanel" id="capture-panel-facetime" aria-labelledby="capture-tab-facetime" hidden={tab !== "facetime"} className="space-y-3">
-          <p className={`text-sm ${faceTime.state === "ready" ? "text-ok" : "text-muted"}`} role="status">
-            {faceTime.state === "ready" ? "Capture agent connected." : faceTime.reason}
-          </p>
-          {faceTime.state === "ready" && <Button>Start FaceTime capture</Button>}
+          {onStartFaceTime ? (
+            <>
+              <p className="text-sm text-muted">We call your phone over FaceTime; sweep the room for about 35 seconds. Its frames appear in Generate.</p>
+              <Button primary onClick={onStartFaceTime}>Start FaceTime</Button>
+            </>
+          ) : (
+            <p className={`text-sm ${faceTime.state === "ready" ? "text-ok" : "text-muted"}`} role="status">
+              {faceTime.state === "ready" ? "Capture agent connected." : faceTime.reason}
+            </p>
+          )}
         </div>
       </div>
 
