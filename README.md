@@ -67,20 +67,21 @@ npm run db:storage
 npm run dev
 ```
 
-Open <http://localhost:3000> and choose **Open your saves** (or go to `/projects`). Sign in with your email and the one-time code you receive.
+Open <http://localhost:3000>; it starts at sign-in. Enter your email and the one-time code you receive, and you land on your saves. The account button (top right on every screen) has **Sign out**.
 
 - **Saves:**
   - **New** creates an empty project.
   - **Example** creates the labelled axis-box fixture project.
   - **Import .zip** restores a downloaded project as a new project.
-  - **↓** downloads a project as `.zip`: `project.json` with every take's latest revision, plus `assets/`.
+  - **Download (.zip)** saves a project as `project.json` (every take's latest revision) plus `assets/`.
   - Select a row to preview it. Drag the preview to orbit. **Open** (or double-click) opens the editor.
 - **Editor:**
   - Tools are **V** select, **W** move, **E** rotate, **R** scale and **F** frame.
   - **Ctrl+Z** / **Ctrl+Shift+Z** undo and redo, **Ctrl+S** saves, **Ctrl+D** duplicates and **Del** deletes.
   - **Fork take** copies the saved revision into a new take. The take menu switches between takes.
-  - **Capture** opens the upload, phone camera and video panel.
-  - **← Saves** slides the save viewer back.
+  - The camera icon opens the upload, phone camera and video panel.
+  - The folder icon (top left) slides the save viewer back.
+  - The tools sit in the bottom toolbar; with an object selected it also shows hide, duplicate and delete.
 - **Capture lab** (`/api/capture/lab`, development only): the capture panel on an in-memory backend, with no sign-in.
 
 Live camera capture needs HTTPS or `localhost`. A phone reaching the dev server over LAN HTTP can still use **Take photo**.
