@@ -13,6 +13,8 @@
  *   --units <m|cm|mm|unknown>  --up <+Y|+Z|unknown>  GLB convention (default unknown)
  *   --timeout <s>     provider timeout per job (default 600)
  *   --out <dir>       output folder (default .verify/hk002-live/<timestamp>, git-ignored)
+ *   --note <text>     consent/provenance note for the source (default does not assert ownership;
+ *                     say "Owner photo …" only for a photo the user owns)
  *
  * Reads FAL_KEY (or FAL_API_KEY) from the environment or .env.local; never
  * prints it. Runs in memory (MemoryBackend) until the platform backend exists.
@@ -107,7 +109,11 @@ async function main() {
     : undefined;
   const ingestor = new CaptureIngestor({ assets: backend.assets, ingestion: backend.ingestion, blobs, actor, projectId, encoder });
   const captured = must(
-    await ingestor.ingestImage({ bytes: imageBytes, adapter: "upload", consentNote: "Owner photo for the HK-002 live reconstruction proof" }),
+    await ingestor.ingestImage({
+      bytes: imageBytes,
+      adapter: "upload",
+      consentNote: (arg("note") ?? "HK-002 live reconstruction proof input; ownership not asserted").slice(0, 500),
+    }),
     "capture",
   );
   save("source-registration.json", captured.registration);
