@@ -93,8 +93,12 @@ export async function stepChild(send: Send, batch: Batch, child: BatchChild): Pr
   } catch (e) {
     response = { ok: false, error: { code: "PROVIDER_UNAVAILABLE", message: e instanceof Error ? e.message : String(e) } };
   }
-  if (!response.ok)
+  if (!response.ok) {
+    // The route holds a per-job lock; another request finishing this job is not a failure, just wait.
+    if (response.error.code === "PROVIDER_UNAVAILABLE" && /processing in another request/i.test(response.error.message))
+      return { child: { ...child, jobState: child.jobState ?? "busy" } };
     return { child: { ...child, stage: "failed", failedStage: stage, errorKind: "transport", error: `${response.error.code}: ${response.error.message}` } };
+  }
   const { job } = response.value;
   const seen = { ...child, jobState: job.state, providerRequestId: job.providerRequestId ?? null, error: undefined, errorKind: undefined };
   if (job.state === "failed" || job.state === "canceled")

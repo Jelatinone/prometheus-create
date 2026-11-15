@@ -24,6 +24,7 @@ import {
   FolderOpenIcon,
   HandRaisedIcon,
   PhotoIcon,
+  SparklesIcon,
   Square2StackIcon,
   Squares2X2Icon,
   TrashIcon,
@@ -514,7 +515,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           <CameraIcon className="size-5" />
         </button>
         <button className={labelled} onClick={() => { setReconstructOpen(v => !v); setCaptureOpen(false); }} aria-pressed={reconstructOpen}>
-          <CubeIcon className="size-5" />Reconstruct
+          <SparklesIcon className="size-5" />Generate
         </button>
         {sep}
         <button className={labelled} onClick={() => void exportPng()} title="Download the current view as PNG">
@@ -536,14 +537,14 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             </button>
           </div>
           <p className="mb-2 text-xs text-muted">
-            Photos, camera frames and video frames are saved privately to this project. Open Reconstruct to turn one captured object into a mesh.
+            Photos, camera frames and video frames are saved privately to this project. Open Generate to turn up to three captured objects into meshes.
           </p>
           <CapturePanel ingestor={ingestor} />
         </aside>
       )}
 
       {reconstructOpen && <aside className={`absolute top-17 bottom-20 left-3 z-10 w-[26rem] max-w-[calc(100%-1.5rem)] overflow-auto p-3 ${chrome}`}>
-        <div className="mb-3 flex items-center justify-between"><h2 className="font-serif font-semibold">Reconstruct</h2><button className={icon} onClick={() => setReconstructOpen(false)} aria-label="Close reconstruct"><XMarkIcon className="size-5" /></button></div>
+        <div className="mb-3 flex items-center justify-between"><h2 className="font-serif font-semibold">Generate</h2><button className={icon} onClick={() => setReconstructOpen(false)} aria-label="Close generate"><XMarkIcon className="size-5" /></button></div>
         <ReconstructPanel api={api} actor={actor} projectId={projectId} takeId={take.id} onApply={(requestedTake, name, observation, outcome) => {
           const current = historyRef.current;
           if (!current) return false;

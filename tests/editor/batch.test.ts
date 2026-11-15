@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildBoxGlb } from "@/lib/assets/glb";
 import { MemoryBlobStore } from "@/lib/capture";
 import type { Observation } from "@/lib/contracts";
-import { childStatus, retryChild, runChild, startBatch, type Batch, type BatchChild, type Command, type Send } from "@/lib/editor/batch";
+import { childStatus, retryChild, runChild, startBatch, stepChild, type Batch, type BatchChild, type Command, type Send } from "@/lib/editor/batch";
 import { FalQueueError, type FalQueue, type FalStatus } from "@/lib/reconstruction/fal-queue";
 import { reconstructionCommand } from "@/lib/reconstruction/http";
 import { captureFixture, captureHarness, expectOk } from "../capture/helpers";
@@ -174,5 +174,22 @@ describe("batch Generate (S4 phase 1)", () => {
     expect(again.stage).toBe("ready");
     expect(fal.count("image")).toBe(imageBefore + 1);
     expect(sends.filter((s) => s.jobId === failed.segmentJobId).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("batch driver details", () => {
+  it("a job locked by another request keeps waiting instead of failing", async () => {
+    const b = startBatch({ id: "obs_x00", sourceId: "src_x00", projectId: "prj_x00" }, "tk_x00", ["chair"])!;
+    let calls = 0;
+    const send: Send = async () => {
+      calls++;
+      return calls === 1
+        ? { ok: false, error: { code: "PROVIDER_UNAVAILABLE", message: "this job is processing in another request; resume shortly" } }
+        : { ok: false, error: { code: "NOT_FOUND", message: "gone" } };
+    };
+    const first = await stepChild(send, b, b.children[0]);
+    expect(first.child.stage).toBe("segment");
+    const second = await stepChild(send, b, first.child);
+    expect(second.child).toMatchObject({ stage: "failed", errorKind: "transport" });
   });
 });
