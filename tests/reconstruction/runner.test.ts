@@ -12,6 +12,8 @@ import {
   FalQueueError,
   SAM3D_OBJECTS_MODEL,
   backfillSplat,
+  meshPreviewAssetId,
+  previewMesh,
   splatBackfillJobId,
   resumeReconstruction,
   runReconstruction,
@@ -26,6 +28,8 @@ import { reconstructedObject } from "@/lib/editor/reconstruction";
 import { emptyCaptureManifest } from "@/lib/capture/project";
 import { buildZip, crc32 } from "@/lib/editor/project-archive";
 import { buildSplatPly, readS1 } from "./splat-fixtures";
+import { buildGridGlb } from "./mesh-fixtures";
+import { inspectGlb } from "@/lib/assets/glb";
 
 type Call = { op: string; requestId?: string; storedRequestId?: string | null };
 
@@ -627,5 +631,83 @@ describe("bundle-first finish and provider placement (fake provider: plumbing on
     expect(out.placement).toBeNull();
     expect(out.placementNote).toMatch(/no object pose/);
     expect(out.job.output!.rawAssetIds).toHaveLength(1);
+  });
+});
+
+describe("cached mesh preview (CP-010; fake provider: plumbing only)", () => {
+  /** A provider mesh above the 100k preview budget: 2 x 260^2 = 135,200 triangles. */
+  const bigMesh = () => {
+    const fal = new FakeFal();
+    fal.files["fake://mesh.glb"] = buildGridGlb({ n: 260 });
+    return fal;
+  };
+  const triangles = async (h: Awaited<ReturnType<typeof setup>>["h"], id: string) =>
+    expectOk(inspectGlb(expectOk(await h.blobs.get(assetStorageKey(h.projectId, id))).bytes)).triangleCount;
+
+  it("stores a separate simplified preview after success, keeping the full mesh as the geometry", async () => {
+    const { h, deps, request } = await setup(bigMesh());
+    const out = expectOk(await runReconstruction(deps, request));
+    expect(out.job.state).toBe("succeeded");
+    expect(out.previewMeshAsset).toMatchObject({ kind: "mesh", mimeType: "model/gltf-binary", origin: "provider" });
+    expect(out.previewMeshAsset!.id).toBe(await meshPreviewAssetId(h.projectId, out.meshAsset!.id));
+    expect(out.previewMeshAsset!.id).not.toBe(out.meshAsset!.id);
+    expect(out.previewNote).toMatch(/^preview \d+ of 135200 triangles$/);
+    expect(out.geometry!.assetId).toBe(out.meshAsset!.id);
+    expect(out.job.output!.meshAssetId).toBe(out.meshAsset!.id);
+    expect(parseContract(CONTRACTS["reconstruction-job"].schema, out.job).ok).toBe(true);
+    expect(await triangles(h, out.meshAsset!.id)).toBe(135_200);
+    const preview = await triangles(h, out.previewMeshAsset!.id);
+    expect(preview).toBeLessThanOrEqual(100_000);
+    expect(preview).toBeGreaterThan(50_000);
+    expect(out.previewMeshAsset!.byteSize).toBeLessThan(out.meshAsset!.byteSize);
+  });
+
+  it("returns the stored preview on resume without provider calls or recomputation", async () => {
+    const { h, deps, request, fal } = await setup(bigMesh());
+    const first = expectOk(await runReconstruction(deps, request));
+    const calls = fal.calls.length;
+    const put = h.blobs.put.bind(h.blobs);
+    let uploads = 0;
+    h.blobs.put = async (...args: Parameters<typeof put>) => (uploads++, put(...args));
+    const again = expectOk(await resumeReconstruction(deps, { projectId: request.projectId, jobId: first.job.id }));
+    expect(again.previewMeshAsset).toEqual(first.previewMeshAsset);
+    const ensured = expectOk(await previewMesh(deps, { projectId: request.projectId, jobId: first.job.id }));
+    expect(ensured.previewMeshAsset).toEqual(first.previewMeshAsset);
+    expect(fal.calls.length).toBe(calls);
+    expect(uploads).toBe(0);
+  });
+
+  it("gives a small mesh no preview, with a note", async () => {
+    const { deps, request } = await setup();
+    const out = expectOk(await runReconstruction(deps, request));
+    expect(out.previewMeshAsset).toBeNull();
+    expect(out.previewNote).toMatch(/^no preview needed: 12 triangles is within the 100000 budget$/);
+    const resumed = expectOk(await resumeReconstruction(deps, { projectId: request.projectId, jobId: out.job.id }));
+    expect(resumed.previewMeshAsset).toBeNull();
+    expect(resumed.previewNote).toMatch(/no stored preview/);
+  });
+
+  it("mesh_preview over HTTP: owner only, succeeded reconstructions only, never a provider call", async () => {
+    const { h, fal, deps, request, observation } = await setup(bigMesh());
+    const done = expectOk(await runReconstruction(deps, request));
+    const segment = expectOk(await runSegmentation(deps, { projectId: h.projectId, observation, prompt: "table" }));
+    const calls = fal.calls.length;
+    const send = (jobId: string, actor: typeof h.actor | null = h.actor) =>
+      reconstructionCommand(
+        new Request("http://test", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ projectId: h.projectId, sourceId: observation.sourceId, observationId: observation.id, jobId, action: "mesh_preview" }),
+        }),
+        { backend: h.backend, actor, blobs: h.blobs, fal: () => fal },
+      );
+    const res = await send(done.job.id);
+    expect(res.status).toBe(200);
+    expect((await res.json()).previewMeshAsset.id).toBe(done.previewMeshAsset!.id);
+    expect((await send(done.job.id, null)).status).toBe(401);
+    expect((await send(done.job.id, { userId: "other" })).status).toBe(404);
+    expect((await send(segment.job.id)).status).not.toBe(200);
+    expect((await send("job_missing")).status).toBe(404);
+    expect(fal.calls.length).toBe(calls);
   });
 });
