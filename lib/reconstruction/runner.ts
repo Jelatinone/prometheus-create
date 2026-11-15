@@ -50,6 +50,7 @@ import { normalizeGlb, type NormalizedGlb, type SourceUnits, type SourceUpAxis }
 import { PROVIDER_SPLAT_TO_GLB, SPLAT_MIME, bundleMeshPath, bundleSplatPath, composeTransforms, parseSplatPly, toS1Splat } from "./splat";
 import { objectPlacement, parseProviderMetadata, type ScenePlacement } from "./placement";
 import { readZip } from "@/lib/editor/project-archive";
+import { ensureMeshPreview, findMeshPreview } from "./mesh-preview";
 
 export interface PollOptions {
   intervalMs: number;
@@ -130,6 +131,14 @@ export interface ReconstructionOutcome {
   placement: ScenePlacement | null;
   /** Why there is no placement; null when nothing to report. */
   placementNote: string | null;
+  /**
+   * Cached simplified copy of `meshAsset` for interactive preview (CP-010), or
+   * null. The full mesh stays the geometry; find it later by
+   * `meshPreviewAssetId(projectId, geometry.assetId)`.
+   */
+  previewMeshAsset: Asset | null;
+  /** Why there is no preview, or its size; null when nothing to report. */
+  previewNote: string | null;
   /** Provider output JSON as returned (URLs are temporary). */
   providerOutput: unknown;
 }
@@ -314,6 +323,8 @@ function emptyOutcome(job: ReconstructionJob, providerOutput: unknown = null): R
     splatNote: null,
     placement: null,
     placementNote: null,
+    previewMeshAsset: null,
+    previewNote: null,
     providerOutput,
   };
 }
@@ -500,6 +511,12 @@ async function finishReconstruction(
     if (!reread.ok) return reread;
     settled = reread.value;
   }
+  // After success is recorded, so a slow simplification never delays or fails
+  // the job; a finish retried after a timeout finds the stored preview.
+  const preview =
+    settled.state === "succeeded"
+      ? await ensureMeshPreview(ad, job.projectId, meshAsset.value, normalized.value.bytes)
+      : { asset: null, note: null };
   const apply = canApplyJobResult(settled, currentGeometryRevision);
   const geometry: Geometry | null = apply.apply
     ? {
@@ -523,6 +540,8 @@ async function finishReconstruction(
     splatNote: splat.note,
     placement: placed.placement,
     placementNote: placed.note,
+    previewMeshAsset: preview.asset,
+    previewNote: preview.note,
     providerOutput: output,
   });
 }
@@ -641,6 +660,8 @@ export async function resumeReconstruction(
         placed = { placement: null, note: "stored provider pose is not JSON; no placement" };
       }
     }
+    // Lookup only: a resume never simplifies (see previewMesh for that).
+    const preview = await findMeshPreview(assetDeps(deps), job.projectId, mesh.value.id);
     const apply = canApplyJobResult(job, current);
     return ok({
       job,
@@ -663,6 +684,8 @@ export async function resumeReconstruction(
       splatNote: splatAsset ? null : "this job has no stored splat",
       placement: placed.placement,
       placementNote: placed.note,
+      previewMeshAsset: preview.asset,
+      previewNote: preview.note,
       providerOutput: null,
     });
   }
@@ -723,6 +746,27 @@ export async function backfillSplat(
   if (!adopted.ok) return adopted;
   if (deps.execution === "submit") return ok(emptyOutcome(adopted.value));
   return continueReconstruction(deps, driver, adopted.value, original.input.baseGeometryRevision);
+}
+
+/**
+ * Give a succeeded reconstruction a cached simplified preview of its mesh
+ * (CP-010), then return its outcome. No provider call: the stored mesh is
+ * simplified locally. Idempotent; a mesh within the budget gets none.
+ */
+export async function previewMesh(
+  deps: ReconstructionDeps,
+  req: { projectId: string; jobId: string; currentGeometryRevision?: number },
+): Promise<Result<ReconstructionOutcome>> {
+  const found = await deps.jobs.getJob(deps.actor, req.projectId, req.jobId);
+  if (!found.ok) return found;
+  const job = found.value;
+  if (job.kind !== "reconstruct_object") return err("INVALID_SCHEMA", `job ${job.id} is not a reconstruction`);
+  if (job.state !== "succeeded" || !job.output?.meshAssetId)
+    return err("INVALID_TRANSITION", `job ${job.id} is ${job.state}; only a succeeded reconstruction has a mesh to preview`);
+  const mesh = await deps.assets.getAsset(deps.actor, job.projectId, job.output.meshAssetId);
+  if (!mesh.ok) return mesh;
+  await ensureMeshPreview(assetDeps(deps), job.projectId, mesh.value);
+  return resumeReconstruction(deps, req);
 }
 
 /**

@@ -3,7 +3,7 @@ import { AssetId, JobId, ObservationId, ProjectId, SourceId, err, type Backend, 
 import type { BlobStore } from "@/lib/capture/blob-store";
 import type { FalQueue } from "./fal-queue";
 import { readBody, respond } from "@/lib/server/http";
-import { backfillSplat, resumeReconstruction, resumeSegmentation, runReconstruction, runSegmentation, splatBackfillJobId } from "./runner";
+import { backfillSplat, previewMesh, resumeReconstruction, resumeSegmentation, runReconstruction, runSegmentation, splatBackfillJobId } from "./runner";
 
 // HTTP adapter shapes are local; shared contracts and backend ports remain unchanged.
 export const ReconstructionCommand = z.strictObject({
@@ -11,8 +11,10 @@ export const ReconstructionCommand = z.strictObject({
   /**
    * attach_splat: `jobId` is a succeeded reconstruction without a splat. Repeat
    * the call until the returned (backfill) job settles; it never submits.
+   * mesh_preview: `jobId` is a succeeded reconstruction; stores its cached
+   * simplified mesh (CP-010) if missing. Local CPU only, never a provider call.
    */
-  action: z.enum(["segment", "reconstruct", "poll", "attach_splat"]),
+  action: z.enum(["segment", "reconstruct", "poll", "attach_splat", "mesh_preview"]),
   prompt: z.string().trim().min(1).max(200).optional(),
   maskAssetIds: z.array(AssetId).min(1).max(1).optional(),
 });
@@ -40,6 +42,14 @@ export async function reconstructionCommand(
       if (!original.ok) return respond(original);
       if (original.value.input.observationId !== observation.id) return respond(err("DUPLICATE", "job ID belongs to a different frame"));
       return respond(await backfillSplat(deps(), { projectId: cmd.projectId, jobId: cmd.jobId }));
+    });
+  }
+  if (cmd.action === "mesh_preview") {
+    return lock(`${cmd.projectId}:${cmd.jobId}`, async () => {
+      const job = await ctx.backend.jobs.getJob(ctx.actor, cmd.projectId, cmd.jobId);
+      if (!job.ok) return respond(job);
+      if (job.value.input.observationId !== observation.id) return respond(err("DUPLICATE", "job ID belongs to a different frame"));
+      return respond(await previewMesh(deps(), { projectId: cmd.projectId, jobId: cmd.jobId }));
     });
   }
   return lock(`${cmd.projectId}:${cmd.jobId}`, async () => {
