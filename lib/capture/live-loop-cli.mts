@@ -2,10 +2,11 @@
  * INGEST_API_URL=http://localhost:3005 INGEST_ACCESS_TOKEN=<short-lived user token>
  * tsx lib/capture/live-loop-cli.mts <outbox> --prompt "chair" --seconds 35 [--max-spend 0.10]
  * Started by call-http.mts when it is given --prompt. Paid: segmentation $0.005/mask,
- * one reconstruction $0.02, capped by --max-spend. Writes <outbox>/live-loop-result.json.
+ * one reconstruction $0.02, capped by --max-spend. Writes <outbox>/live-loop-result.json and,
+ * for the agent's return video (CP-023), <outbox>/overlay.json.
  * Tokens stay in the environment, never arguments or logs.
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { DEFAULT_LIVE_LOOP } from "./live-loop";
@@ -69,6 +70,12 @@ const result = await runLiveLoop({
   session,
   newJobId: () => `job_${randomUUID().replaceAll("-", "")}`,
   onUpdate: (r) => writeFileSync(out, JSON.stringify(r, null, 2)),
+  // The agent's return video (CP-023) reads this; write-then-rename so it never sees half a file.
+  onOverlay: (o) => {
+    const target = resolve(dir, "overlay.json");
+    writeFileSync(`${target}.tmp`, JSON.stringify(o));
+    renameSync(`${target}.tmp`, target);
+  },
 });
 let selection: unknown = null;
 try {

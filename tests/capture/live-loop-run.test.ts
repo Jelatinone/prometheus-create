@@ -18,8 +18,8 @@ function scripted() {
   const coverage = new Map(schedule.map(([, id, c]) => [id, c]));
   const transport = {
     async listFrames() {
-      for (const [t, id] of schedule) if (clock >= t && !frames.some((f) => f.id === id)) frames.push({ id, sourceId: "src_call", mode: "evidence", receivedAt: at(t) });
-      return [...frames, { id: "obs_other", sourceId: "src_other", mode: "evidence" as const, receivedAt: at(clock) }];
+      for (const [t, id] of schedule) if (clock >= t && !frames.some((f) => f.id === id)) frames.push({ id, sourceId: "src_call", sequence: t / 100, mode: "evidence", receivedAt: at(t) });
+      return [...frames, { id: "obs_other", sourceId: "src_other", sequence: 0, mode: "evidence" as const, receivedAt: at(clock) }];
     },
     async command(body: Record<string, unknown>) {
       commands.push(body);
@@ -33,17 +33,19 @@ function scripted() {
       job.polls++;
       if (job.polls < 3) return { status: 200, body: { job: { state: "running" } } };
       if (job.kind === "segment")
-        return { status: 200, body: { job: { state: "succeeded" }, maskStats: [{ assetId: `mask_${job.observationId}`, areaFraction: coverage.get(job.observationId)!, touchesEdge: false }, null] } };
+        return { status: 200, body: { job: { state: "succeeded" }, maskStats: [{ assetId: `mask_${job.observationId}`, areaFraction: coverage.get(job.observationId)!, touchesEdge: false, box: [0.4, 0.3, 0.6, 0.8] }, null] } };
       return { status: 200, body: { job: { state: "succeeded" }, meshAsset: { id: "ast_mesh" }, splatAsset: { id: "ast_splat" }, previewMeshAsset: { id: "ast_preview" } } };
     },
   };
   let n = 0;
+  const overlays: import("@/lib/capture/live-loop-run").LiveOverlay[] = [];
   return {
+    overlays,
     transport, commands, jobs, frames,
     setSession: (s: SessionState) => (session = s),
     opts: {
       projectId: "prj_x", sourceId: "src_call", prompt: "chair", seconds: 30, transport,
-      session: () => session, newJobId: () => `job_${++n}`, now: () => clock,
+      session: () => session, newJobId: () => `job_${++n}`, now: () => clock, onOverlay: (o: import("@/lib/capture/live-loop-run").LiveOverlay) => overlays.push(o),
       sleep: async (ms: number) => { clock += ms; if (clock >= 500) session = clock >= 31_000 ? "ended" : "active"; },
     },
   };
@@ -66,6 +68,14 @@ describe("runLiveLoop", () => {
     expect(result.stopReason).toBe("reconstruction started");
     expect(result.estimatedSpendUsd).toBeCloseTo(4 * 2 * 0.005 + 0.02, 9);
     expect(result.errors).toEqual([]);
+    // The caller's overlay (CP-023): searching, found with growing coverage on the keyframe, generating, ready.
+    const phases = s.overlays.map((o) => o.phase).filter((p, i, a) => p !== a[i - 1]);
+    expect(phases).toEqual(["looking", "searching", "found", "generating", "done"]);
+    const found = s.overlays.filter((o) => o.phase === "found");
+    expect(found[0].keyframe).toEqual({ observationId: "obs_a", sequence: 10 });
+    expect(found.at(-1)!.objects[0]).toMatchObject({ id: 1, views: 4, box: [0.4, 0.3, 0.6, 0.8] });
+    expect(found.at(-1)!.objects[0].score).toBeGreaterThan(found[0].objects[0].score);
+    expect(s.overlays.at(-1)!.status).toBe("3D chair ready in Prometheus");
   });
 
   it("records a rejected segmentation without retrying it or charging the budget", async () => {

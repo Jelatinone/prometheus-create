@@ -4,11 +4,13 @@
  * the agent's outbox. Every provider step goes through POST /api/reconstruction
  * with the caller's token: one durable job ID per step, polled (never resubmitted).
  */
-import { DEFAULT_LIVE_LOOP, LiveLoopPolicy, type LiveLoopConfig, type LiveMask } from "./live-loop";
+import { DEFAULT_LIVE_LOOP, LiveLoopPolicy, ObjectTracker, type LiveLoopConfig, type LiveMask, type TrackedObject } from "./live-loop";
 
 export interface LiveObservation {
   id: string;
   sourceId: string;
+  /** The agent's frame number (outbox frames/<sequence>.jpg). */
+  sequence: number;
   mode: "evidence" | "preview";
   receivedAt: string;
 }
@@ -18,6 +20,21 @@ export interface LiveTransport {
   listFrames(): Promise<LiveObservation[]>;
   /** POST /api/reconstruction; returns the HTTP status and parsed JSON body. */
   command(body: Record<string, unknown>): Promise<{ status: number; body: unknown }>;
+}
+
+/**
+ * What the agent shows the caller (CP-023), written as <outbox>/overlay.json.
+ * The boxes belong to `keyframe` (the frame they were measured on), not to
+ * the newest frame, so they stay accurate while the camera moves.
+ */
+export interface LiveOverlay {
+  prompt: string;
+  phase: "looking" | "searching" | "found" | "generating" | "done" | "failed" | "not_found";
+  /** One short line for the caller. */
+  status: string;
+  keyframe: { observationId: string; sequence: number } | null;
+  objects: TrackedObject[];
+  updatedAtMs: number;
 }
 
 export type SessionState = "requested" | "bridge_ready" | "active" | "ended" | "failed" | null;
@@ -40,6 +57,7 @@ export interface LiveLoopRun {
   /** Keep polling the reconstruction after hang-up for at most this long. */
   settleTimeoutMs?: number;
   onUpdate?: (result: LiveLoopResult) => void;
+  onOverlay?: (overlay: LiveOverlay) => void;
 }
 
 interface JobRecord {
@@ -78,6 +96,20 @@ export async function runLiveLoop(opts: LiveLoopRun): Promise<LiveLoopResult> {
   const config = opts.config ?? DEFAULT_LIVE_LOOP;
   const policy = new LiveLoopPolicy(now(), config);
   const receivedAt = new Map<string, number>();
+  const sequences = new Map<string, number>();
+  const tracker = new ObjectTracker(config.minCoverage);
+  const overlay: LiveOverlay = { prompt: opts.prompt, phase: "looking", status: `Looking for ${opts.prompt}`, keyframe: null, objects: [], updatedAtMs: policy.startMs };
+  let overlayKey = "";
+  const showOverlay = (phase: LiveOverlay["phase"], status: string) => {
+    overlay.phase = phase;
+    overlay.status = status;
+    const key = JSON.stringify([phase, status, overlay.keyframe, overlay.objects]);
+    if (key === overlayKey) return;
+    overlayKey = key;
+    overlay.updatedAtMs = now();
+    opts.onOverlay?.({ ...overlay, objects: overlay.objects.map((o) => ({ ...o })) });
+  };
+  showOverlay("looking", `Looking for ${opts.prompt}`);
   const result: LiveLoopResult = {
     prompt: opts.prompt, startedAtMs: policy.startMs, config, segmentations: [], reconstruction: null,
     plannedEndMs: null, endedAtMs: null, stopReason: null, counts: policy.counts, estimatedSpendUsd: 0, log: policy.log, errors: [],
@@ -114,6 +146,7 @@ export async function runLiveLoop(opts: LiveLoopRun): Promise<LiveLoopResult> {
         if (o.sourceId !== opts.sourceId) continue;
         const at = Date.parse(o.receivedAt);
         receivedAt.set(o.id, at);
+        sequences.set(o.id, o.sequence);
         policy.offerFrame({ observationId: o.id, mode: o.mode, receivedAtMs: at });
       }
     } catch (e) {
@@ -127,16 +160,28 @@ export async function runLiveLoop(opts: LiveLoopRun): Promise<LiveLoopResult> {
         segment.state = job.state;
         segment.finishedAtMs = now();
         if (job.state === "succeeded") {
-          const all = (r.body as { maskStats?: ({ assetId: string; areaFraction: number; touchesEdge: boolean } | null)[] }).maskStats ?? [];
-          const stats = all.filter((s): s is { assetId: string; areaFraction: number; touchesEdge: boolean } => !!s);
-          segment.masks = stats.map((s) => ({ assetId: s.assetId, areaFraction: s.areaFraction, touchesEdge: s.touchesEdge }));
+          type Stat = { assetId: string; areaFraction: number; touchesEdge: boolean; box?: [number, number, number, number] | null };
+          const all = (r.body as { maskStats?: (Stat | null)[] }).maskStats ?? [];
+          const stats = all.filter((s): s is Stat => !!s);
+          segment.masks = stats.map((s) => ({ assetId: s.assetId, areaFraction: s.areaFraction, touchesEdge: s.touchesEdge, box: s.box ?? null }));
           policy.segmentFinished(segment.observationId, segment.masks, receivedAt.get(segment.observationId) ?? segment.startedAtMs, segment.finishedAtMs, all.length);
+          const objects = tracker.update(segment.masks);
+          const sequence = sequences.get(segment.observationId);
+          if (objects.length && sequence !== undefined) {
+            overlay.keyframe = { observationId: segment.observationId, sequence };
+            overlay.objects = objects;
+          }
         } else {
           segment.error = JSON.stringify((jobOf(r) as { error?: unknown })?.error ?? null);
           policy.segmentFailed(segment.observationId, segment.finishedAtMs);
         }
         segment = null;
       }
+    }
+    if (!result.reconstruction) {
+      const best = overlay.objects.reduce((m, o) => Math.max(m, o.score), 0);
+      if (segment && !overlay.objects.length) showOverlay("searching", `Looking for ${opts.prompt}…`);
+      else if (overlay.objects.length) showOverlay("found", `Found ${opts.prompt} · ${Math.round(best * 100)}%`);
     }
     const action = policy.next(now());
     if (action.kind === "segment") {
@@ -166,8 +211,10 @@ export async function runLiveLoop(opts: LiveLoopRun): Promise<LiveLoopResult> {
         rec.error = errorOf(r);
       } else rec.state = jobOf(r)?.state ?? "submitted";
       policy.log.push({ atMs: now(), event: "reconstruct_reason", detail: { reason: action.reason } });
+      showOverlay(rec.state === "submit_failed" ? "failed" : "generating", rec.state === "submit_failed" ? "3D generation could not start" : `Generating 3D ${opts.prompt}`);
     } else if (action.kind === "done") {
       result.stopReason = action.reason;
+      if (!result.reconstruction) showOverlay("not_found", `No ${opts.prompt} found to generate`);
       update();
       break;
     }
@@ -198,6 +245,7 @@ export async function runLiveLoop(opts: LiveLoopRun): Promise<LiveLoopResult> {
         rec.splatAssetId = body.splatAsset?.id ?? null;
         rec.previewMeshAssetId = body.previewMeshAsset?.id ?? null;
         if (rec.state !== "succeeded") rec.error = JSON.stringify(body.job?.error ?? null);
+        showOverlay(rec.state === "succeeded" ? "done" : "failed", rec.state === "succeeded" ? `3D ${opts.prompt} ready in Prometheus` : "3D generation failed");
       }
       update();
     }

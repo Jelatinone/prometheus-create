@@ -61,6 +61,8 @@ export interface LiveMask {
   assetId: string;
   areaFraction: number;
   touchesEdge: boolean;
+  /** Normalized [x0, y0, x1, y1] on its frame, when known. */
+  box?: [number, number, number, number] | null;
 }
 
 export interface Candidate {
@@ -220,5 +222,70 @@ export class LiveLoopPolicy {
     if (!this.pending) return { kind: "wait", reason: "waiting for a fresh evidence frame" };
     if (this.lastSegmentStartMs !== null && nowMs - this.lastSegmentStartMs < c.minSegmentGapMs) return { kind: "wait", reason: "pacing segmentations" };
     return { kind: "segment", observationId: this.pending.observationId };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Return-video overlay (HK-011 CP-023): recognised objects and their coverage.
+// ---------------------------------------------------------------------------
+
+/** Mask area at which an object counts as well covered (the best seen on the CP-022 call was 8 %). */
+export const GOOD_AREA = 0.08;
+/** Views (segmentations finding the object) at which it counts as well covered. */
+export const GOOD_VIEWS = 3;
+
+/** 0 (barely seen, red) to 1 (well covered, green): half area, half views. */
+export function coverageScore(areaFraction: number, views: number): number {
+  return 0.5 * Math.min(1, areaFraction / GOOD_AREA) + 0.5 * Math.min(1, views / GOOD_VIEWS);
+}
+
+export function iou(a: [number, number, number, number], b: [number, number, number, number]): number {
+  const w = Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0]));
+  const h = Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+  const inter = w * h;
+  const union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter;
+  return union > 0 ? inter / union : 0;
+}
+
+export interface TrackedObject {
+  id: number;
+  box: [number, number, number, number];
+  areaFraction: number;
+  touchesEdge: boolean;
+  views: number;
+  score: number;
+}
+
+/**
+ * Follows recognised objects across segmentations: a mask whose box overlaps
+ * (IoU >= 0.3) an object from the previous segmentation is the same object
+ * seen again. The camera moves slowly between keyframes, so overlap is a
+ * reasonable identity test for a short call.
+ */
+export class ObjectTracker {
+  private previous: TrackedObject[] = [];
+  private nextId = 1;
+
+  constructor(private readonly minCoverage = DEFAULT_LIVE_LOOP.minCoverage) {}
+
+  /** The objects in this segmentation (usable masks with boxes), with views counted. */
+  update(masks: LiveMask[]): TrackedObject[] {
+    const used = new Set<number>();
+    const current: TrackedObject[] = [];
+    for (const m of [...masks].sort((a, b) => b.areaFraction - a.areaFraction)) {
+      if (!m.box || m.areaFraction < this.minCoverage) continue;
+      let match: TrackedObject | null = null;
+      let best = 0.3;
+      for (const p of this.previous) {
+        const overlap = iou(p.box, m.box);
+        if (!used.has(p.id) && overlap >= best) [match, best] = [p, overlap];
+      }
+      if (match) used.add(match.id);
+      const views = (match?.views ?? 0) + 1;
+      current.push({ id: match?.id ?? this.nextId++, box: m.box, areaFraction: m.areaFraction, touchesEdge: m.touchesEdge, views, score: coverageScore(m.areaFraction, views) });
+    }
+    // Objects missed this time are kept (with their last box), so one miss does not reset their views.
+    this.previous = [...current, ...this.previous.filter((p) => !used.has(p.id))];
+    return current;
   }
 }

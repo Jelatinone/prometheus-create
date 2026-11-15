@@ -3,7 +3,7 @@
  * the real-call evidence is in docs/changes/HK-011.md.
  */
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LIVE_LOOP, LiveLoopPolicy, type LiveMask } from "@/lib/capture/live-loop";
+import { DEFAULT_LIVE_LOOP, LiveLoopPolicy, ObjectTracker, coverageScore, iou, type LiveMask } from "@/lib/capture/live-loop";
 
 const T0 = 1_000_000;
 const evidence = (id: string, atMs: number) => ({ observationId: id, mode: "evidence" as const, receivedAtMs: atMs });
@@ -125,5 +125,25 @@ describe("LiveLoopPolicy", () => {
     p.reconstructStarted(now);
     expect(p.spentUsd).toBeCloseTo(2 * 3 * 0.005 + 0.02, 9);
     expect(p.spentUsd).toBeLessThanOrEqual(0.05);
+  });
+});
+
+describe("return-video coverage (CP-023)", () => {
+  it("scores coverage from red (0) to green (1) by mask area and views", () => {
+    expect(coverageScore(0, 0)).toBe(0);
+    expect(coverageScore(0.04, 1)).toBeCloseTo(0.25 + 1 / 6, 9);
+    expect(coverageScore(0.08, 3)).toBe(1);
+    expect(coverageScore(0.5, 9)).toBe(1);
+  });
+
+  it("follows an object across segmentations by box overlap, keeping views through a miss", () => {
+    expect(iou([0, 0, 1, 1], [0.5, 0, 1.5, 1])).toBeCloseTo(1 / 3, 9);
+    const t = new ObjectTracker();
+    const can = (dx: number) => ({ assetId: `m${dx}`, areaFraction: 0.05, touchesEdge: false, box: [0.4 + dx, 0.3, 0.6 + dx, 0.8] as [number, number, number, number] });
+    const tub = { assetId: "tub", areaFraction: 0.02, touchesEdge: false, box: [0.7, 0.6, 0.85, 0.8] as [number, number, number, number] };
+    expect(t.update([can(0), tub]).map((o) => [o.id, o.views])).toEqual([[1, 1], [2, 1]]);
+    expect(t.update([can(0.05)]).map((o) => [o.id, o.views])).toEqual([[1, 2]]); // the tub was missed
+    expect(t.update([can(0.1), tub]).map((o) => [o.id, o.views])).toEqual([[1, 3], [2, 2]]);
+    expect(t.update([{ ...can(0), box: null }, { assetId: "x", areaFraction: 0.001, touchesEdge: false, box: [0, 0, 0.1, 0.1] }])).toEqual([]);
   });
 });

@@ -34,7 +34,9 @@ const option = (name: string) => {
 
 const before = new Set(existsSync(outboxRoot) ? readdirSync(outboxRoot) : []);
 let done = false; let callCode = 0;
-const child = spawn(python, ["-u", "-m", "capture_agent.live", "call", ...args], { cwd: agentRoot, env: process.env, stdio: "inherit" });
+// With a prompt, the agent also shows the caller what the live loop recognises (CP-023).
+const agentArgs = prompt ? [...args, "--return-video"] : args;
+const child = spawn(python, ["-u", "-m", "capture_agent.live", "call", ...agentArgs], { cwd: agentRoot, env: process.env, stdio: "inherit" });
 child.on("error", e => { console.error(e.message); done = true; callCode = 1; });
 child.on("exit", code => { done = true; callCode = code ?? 1; });
 const exited = (proc: ReturnType<typeof spawn>) => new Promise<number>(resolveExit => {
