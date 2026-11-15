@@ -218,6 +218,11 @@ export function toS1Splat(ply: SplatPly, transform: SplatTransform, maxBytes = S
   return ok({ bytes: out, count: kept, droppedInvalid, droppedInvisible, droppedForSize, centreBounds: { min, max } });
 }
 
+/** Bundle entry holding object `index`'s mesh (same file as model_glb for single objects). */
+export function bundleMeshPath(index: number): string {
+  return `object_${String(index).padStart(2, "0")}/mesh.glb`;
+}
+
 /** Bundle entry holding object `index`'s object-local splat. */
 export function bundleSplatPath(index: number): string {
   return `object_${String(index).padStart(2, "0")}/splat.ply`;

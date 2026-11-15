@@ -158,7 +158,8 @@ describe("runReconstruction (fake provider: plumbing only)", () => {
     expect(out.apply).toEqual({ apply: true, reason: "result is current" });
     expect(out.meshAsset!.kind).toBe("mesh");
     expect(out.rawAsset!.kind).toBe("provider_raw");
-    expect(out.job.output).toMatchObject({ meshAssetId: out.meshAsset!.id, rawAssetIds: [out.rawAsset!.id] });
+    expect(out.job.output).toMatchObject({ meshAssetId: out.meshAsset!.id });
+    expect(out.job.output!.rawAssetIds[0]).toBe(out.rawAsset!.id); // [1] is the provider pose JSON
     expect(expectOk(await h.blobs.get(assetStorageKey(h.projectId, out.meshAsset!.id))).bytes.byteLength).toBeGreaterThan(0);
   });
 
@@ -544,5 +545,61 @@ describe("backfillSplat: splat for an already-paid job (fake provider: plumbing 
     expect(outcome.job.state).toBe("succeeded");
     expect(outcome.splatAsset.kind).toBe("splat");
     expect(fal.count("submit")).toBe(1);
+  });
+});
+
+describe("bundle-first finish and provider placement (fake provider: plumbing only)", () => {
+  const corners = [-1, 1].flatMap((sx) => [-1, 1].flatMap((sy) => [-1, 1].map((sz) => [0.2 * sx, 0.45 * sy, 0.1 * sz] as const)));
+  const providerSplat = buildSplatPly(corners.map(([x, y, z]) => ({ p: [x, -z, y] as [number, number, number] })), { withNormals: true });
+  const metadata = [{ object_index: 0, scale: [[0.5, 0.5, 0.5]], rotation: [[1, 0, 0, 0]], translation: [[0.1, 0.2, 1.5]], camera_pose: null }];
+  const fullBundle = () => {
+    const fal = new FakeFal();
+    fal.output = { model_glb: { url: "fake://mesh.glb" }, artifacts_zip: { url: "fake://bundle.zip" }, metadata };
+    fal.files["fake://bundle.zip"] = buildZip([
+      { name: "object_00/mesh.glb", bytes: fal.files["fake://mesh.glb"] },
+      { name: "object_00/splat.ply", bytes: providerSplat },
+    ]);
+    return fal;
+  };
+
+  it("downloads only the bundle when it holds the object mesh, and stores the pose with a placement", async () => {
+    const fal = fullBundle();
+    const { h, deps, request } = await setup(fal);
+    const out = expectOk(await runReconstruction(deps, request));
+    expect(out.job.state).toBe("succeeded");
+    expect(fal.count("download:")).toBe(1);
+    expect(fal.count("download:fake://bundle.zip")).toBe(1);
+    expect(out.splatAsset).not.toBeNull();
+    const [glbId, poseId] = out.job.output!.rawAssetIds;
+    expect(glbId).toBe(out.rawAsset!.id);
+    const pose = expectOk(await h.blobs.get(assetStorageKey(h.projectId, poseId)));
+    expect(JSON.parse(new TextDecoder().decode(pose.bytes))).toEqual(metadata);
+    expect(out.placement).toMatchObject({ frame: "provider_camera", scale: 0.5 });
+    expect(out.placementNote).toBeNull();
+    // Identity pose: camera (0.1, 0.2, 1.5) -> scene (-0.1, 0.2, -1.5), shifted by the scaled recentering.
+    expect(out.placement!.position[2]).toBeLessThan(0);
+  });
+
+  it("returns the same placement on resume without provider calls", async () => {
+    const fal = fullBundle();
+    const { deps, request } = await setup(fal);
+    const first = expectOk(await runReconstruction(deps, request));
+    const calls = fal.calls.length;
+    const again = expectOk(await resumeReconstruction(deps, { projectId: request.projectId, jobId: first.job.id }));
+    expect(again.placement).toEqual(first.placement);
+    expect(fal.calls.length).toBe(calls);
+  });
+
+  it("falls back to model_glb when the bundle has no usable mesh, and reports missing poses", async () => {
+    const fal = new FakeFal();
+    fal.output = { model_glb: { url: "fake://mesh.glb" }, artifacts_zip: { url: "fake://bundle.zip" } };
+    fal.files["fake://bundle.zip"] = buildZip([{ name: "object_00/mesh.glb", bytes: new TextEncoder().encode("not a glb") }]);
+    const { deps, request } = await setup(fal);
+    const out = expectOk(await runReconstruction(deps, request));
+    expect(out.job.state).toBe("succeeded");
+    expect(fal.count("download:fake://mesh.glb")).toBe(1);
+    expect(out.placement).toBeNull();
+    expect(out.placementNote).toMatch(/no object pose/);
+    expect(out.job.output!.rawAssetIds).toHaveLength(1);
   });
 });
