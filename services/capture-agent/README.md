@@ -94,13 +94,14 @@ Add `--prompt "<object>"` to `call-http.mts` and the live loop (`lib/capture/liv
 
 ### Return video (HK-011 CP-023)
 
-With `--prompt`, `call-http.mts` also passes `--return-video` to the agent, which then publishes a 540×960 video track ("agent-video") that the caller sees.
+With `--prompt`, `call-http.mts` also passes `--return-video` to the agent, which then publishes a 720×1280 video track ("agent-video", up to 3 Mbps) that the caller sees.
 
-- **What it shows:** until something is recognised, the newest captured frame and "Looking for …". After that, the keyframe the live loop last segmented, with each object boxed and coloured red → amber → green by coverage, followed by "Generating 3D …" and "… ready in Prometheus".
+- **What it shows:** until something is recognised, every incoming caller frame (live, 10 fps) and "Looking for …". After that, the keyframe the live loop last segmented, with each object boxed and coloured red → amber → green by coverage, followed by "Generating 3D …" and "… ready in Prometheus".
 - **Coverage:** half mask area (8 % of the frame counts as full) and half views (found in 3 segmentations counts as full). Objects are matched across segmentations by box overlap.
 - **Data flow:** the overlay comes from `<outbox>/overlay.json`, which the live loop writes atomically. Boxes are drawn on the frame they were measured on, so they stay accurate while the camera moves.
 - **No echo:** FaceTime shows our video as a tile inside the caller capture. `ECHO_TILE` in `capture_agent/return_video.py` blanks that tile, measured on a real call, before rendering. Re-measure it if Chert changes the layout.
-- **No queue:** the agent renders only when its inputs change and re-sends the newest picture at 4 fps.
+- **Cropping:** `PICTURE_INSET` trims FaceTime UI (top pills, bottom controls, rounded corners) from the phone picture. On the call Cody could still partly see surrounding text, so increase it if needed.
+- **No queue:** the agent renders only when its inputs change and re-sends the newest picture at 10 fps.
 - **Evidence:** the first 40 distinct renders are saved to `<outbox>/return-video/`, and `summary.json` holds the counts.
 
 Chert ends silent calls unless the agent greets within ten seconds of
