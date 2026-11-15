@@ -33,13 +33,15 @@ export function ProfileMenu() {
 
   if (!signedIn) return null;
   return (
-    <div className="group fixed top-3 right-3 z-50">
+    // 34 px like the other header controls (text-sm buttons), centred in the
+    // 68 px saves header and on the editor's 44 px toolbars (top-3 + 5 px).
+    <div className="group fixed top-4.25 right-4.25 z-50">
       <button
-        className="grid size-11 place-items-center rounded-xl border border-line bg-panel text-ink shadow-sm hover:text-accent focus-visible:text-accent"
+        className="grid size-8.5 place-items-center rounded-md border border-line bg-panel text-ink hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent"
         aria-label="Account"
         aria-haspopup="menu"
       >
-        <UserCircleIcon className="size-6" />
+        <UserCircleIcon className="size-5" />
       </button>
       <div
         role="menu"
