@@ -120,7 +120,12 @@ def render(frame: Image.Image | None, overlay: dict[str, Any] | None, size: tupl
         draw.text((width / 2, area_h / 2), "Waiting for your camera", fill=PAPER, font=_font(round(30 * k)), anchor="mm")
     draw.rectangle((0, area_h, width, height), fill=PAPER)
     status = (overlay or {}).get("status") or "Prometheus is watching"
-    draw.text((24 * k, area_h + 22 * k), "Prometheus::create", fill=(255, 104, 66), font=_font(round(24 * k)))
+    # Wordmark: charcoal with only the "::" in the accent colour.
+    brand_font = _font(round(24 * k))
+    brand_x = 24 * k
+    for part, fill in (("Prometheus", INK), ("::", (255, 104, 66)), ("create", INK)):
+        draw.text((brand_x, area_h + 22 * k), part, fill=fill, font=brand_font)
+        brand_x += draw.textlength(part, font=brand_font)
     status_font = _font(round(30 * k))
     draw.text((24 * k, area_h + 56 * k), _fit(draw, status, status_font, width - 48 * k), fill=INK, font=status_font)
     return out
