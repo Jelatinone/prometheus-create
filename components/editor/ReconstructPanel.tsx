@@ -10,7 +10,7 @@
  * FaceTime call, another browser or an earlier session) are listed and can be
  * loaded: an existing job ID only resumes on the server, so nothing is paid twice.
  */
-import { ArrowPathIcon, CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon, ExclamationTriangleIcon, MagnifyingGlassIcon, PlusIcon, SparklesIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon, ExclamationTriangleIcon, FilmIcon, MagnifyingGlassIcon, PlusIcon, SparklesIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { newId } from "@/lib/contracts/common";
 import type { Actor, Observation, ReconstructionJob } from "@/lib/contracts";
@@ -47,10 +47,12 @@ interface Saved {
 /** Jobs with a driver loop in this page; a dev double mount never drives a job twice. */
 const activeJobs = new Set<string>();
 
-export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captureCount = 0, takeJobIds = [], findRef }: {
+export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captureCount = 0, takeJobIds = [], findRef, onImportGlb }: {
   api: HttpBackend; actor: NonNullable<Actor>; projectId: string; takeId: string;
   /** Lets the toolbar run Find objects (no prompt) on the current frame. */
   findRef?: Ref<{ findAll(): void }>;
+  /** Adds a mesh built from several frames (From video) the way Import GLB does. */
+  onImportGlb?(file: File): void;
   /** Jobs whose objects are already in the take, so they are not offered again. */
   takeJobIds?: string[];
   /** Rises when a frame is captured elsewhere on the page, so the frame list follows it. */
@@ -73,6 +75,7 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   const [confirm, setConfirm] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [detecting, setDetecting] = useState(false);
+  const [multiview, setMultiview] = useState<string | null>(null);
   const alive = useRef(true);
   const savedRef = useRef<Saved | null>(null);
   useEffect(() => {
@@ -278,6 +281,22 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   }
   useImperativeHandle(findRef, () => ({ findAll: () => void findAll() }));
 
+  /** CP-031: rebuild one found object from four frames of the same capture (paid, ~$0.04). */
+  async function fromVideo(o: FoundObject) {
+    const s = savedRef.current;
+    const prompt = s?.batch.finds.find((f) => f.key === o.findKey)?.prompt ?? o.label;
+    if (!s || !onImportGlb || multiview) return;
+    setMultiview(o.key);
+    setError("");
+    const r = await api.request<{ glbBase64: string; views: number }>(actor, "POST", "/api/reconstruction", {
+      projectId, sourceId: s.frame.sourceId, observationId: s.frame.id, jobId: newId("job"), action: "multiview", prompt,
+    });
+    setMultiview(null);
+    if (!r.ok) return setError(`From video failed: ${r.error.message}`);
+    const bytes = Uint8Array.from(atob(r.value.glbBase64), (c) => c.charCodeAt(0));
+    onImportGlb(new File([bytes], `${prompt} (${r.value.views} views).glb`, { type: "model/gltf-binary" }));
+  }
+
   function generate() {
     const s = savedRef.current;
     if (!s || !toGenerate(s.batch).length) return;
@@ -481,6 +500,12 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
                         </button>
                       )}
                       {ready && !isApplied && <button className={small} disabled={!sameTake} onClick={() => apply(o)}><PlusIcon className="size-3.5" />Add</button>}
+                      {onImportGlb && !o.removed && (
+                        <button className={small} disabled={!!multiview || !sameTake} onClick={() => void fromVideo(o)} title="Rebuild this object from four frames of the same capture (paid, about $0.04)">
+                          {multiview === o.key ? <Spinner className="size-3.5" /> : <FilmIcon className="size-3.5" />}
+                          From video
+                        </button>
+                      )}
                       {o.mesh?.stage === "failed" && !confirm[o.key] && <button className={small} onClick={() => retry("mesh", o.key, o.mesh!)}><ArrowPathIcon className="size-3.5" />Retry</button>}
                     </div>
                     {o.mesh && confirmBox(o.key, "mesh", o.mesh)}

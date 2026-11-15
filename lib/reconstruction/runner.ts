@@ -947,3 +947,64 @@ export async function detectObjects(deps: ReconstructionDeps, req: { projectId: 
     return err(failure.code, failure.message, failure.details);
   }
 }
+
+/** Multi-view mesh (CP-031): several frames of one capture, one object cut out of each, one Trellis call. */
+export const MULTIVIEW_MODEL = "fal-ai/trellis/multi";
+const MULTIVIEW_VIEWS = 4;
+
+async function waitForResult(deps: ReconstructionDeps, endpoint: string, input: Record<string, unknown>, limitMs: number): Promise<unknown> {
+  const { requestId } = await deps.fal.submit(endpoint, input);
+  const started = Date.now();
+  for (;;) {
+    const status = await deps.fal.status(endpoint, requestId);
+    if (status.status === "COMPLETED") break;
+    if (Date.now() - started > limitMs) throw new Error(`${endpoint} took too long`);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  return deps.fal.result(endpoint, requestId);
+}
+
+/**
+ * Builds one mesh from up to four frames of the same capture: SAM 3 masks the
+ * described object in each frame (in parallel), each frame is cut out to that
+ * mask, and Trellis reconstructs from all the cut-outs together. Returns the GLB;
+ * the editor adds it like an imported mesh. Paid (~$0.04), single request, no job record.
+ */
+export async function multiViewMesh(
+  deps: ReconstructionDeps,
+  req: { projectId: string; prompt: string; observations: Observation[] },
+): Promise<Result<{ glbBase64: string; views: number }>> {
+  const evidence = req.observations.filter((o) => o.mode === "evidence").sort((a, b) => a.sourceTimeUs - b.sourceTimeUs);
+  if (evidence.length < 2) return err("INVALID_SCHEMA", "this capture has only one frame; From video needs a video or call capture");
+  const picks = [...new Set(Array.from({ length: MULTIVIEW_VIEWS }, (_, i) => Math.round((i * (evidence.length - 1)) / (MULTIVIEW_VIEWS - 1))))].map((i) => evidence[i]);
+  try {
+    const { default: sharp } = await import("sharp");
+    const cutouts = await Promise.all(
+      picks.map(async (observation, k): Promise<string | null> => {
+        const frame = await loadProjectAsset(assetDeps(deps), req.projectId, observation.frame.assetId);
+        if (!frame.ok) return null;
+        const frameUrl = await deps.fal.upload(frame.value.bytes, frame.value.asset.mimeType, `view-${k}.${frame.value.asset.mimeType.split("/")[1] ?? "jpg"}`);
+        const seg = (await waitForResult(deps, SAM3_IMAGE_MODEL, { image_url: frameUrl, prompt: req.prompt, return_multiple_masks: true, max_masks: 1 }, 60_000)) as { masks?: { url?: string }[] };
+        const maskUrl = seg.masks?.[0]?.url;
+        if (!maskUrl) return null;
+        const mask = await deps.fal.download(maskUrl);
+        const image = sharp(Buffer.from(frame.value.bytes));
+        const { width, height } = await image.metadata();
+        if (!width || !height) return null;
+        const alpha = await sharp(Buffer.from(mask.bytes)).resize(width, height).greyscale().raw().toBuffer();
+        const rgba = await sharp(Buffer.from(frame.value.bytes)).removeAlpha().joinChannel(alpha, { raw: { width, height, channels: 1 } }).png().toBuffer();
+        const cut = await sharp(rgba).trim({ threshold: 1 }).extend({ top: 16, bottom: 16, left: 16, right: 16, background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+        return deps.fal.upload(new Uint8Array(cut), "image/png", `cutout-${k}.png`);
+      }),
+    );
+    const views = cutouts.filter((u): u is string => !!u);
+    if (views.length < 2) return err("NOT_FOUND", `"${req.prompt}" was found in fewer than two frames of this capture`);
+    const output = (await waitForResult(deps, MULTIVIEW_MODEL, { image_urls: views }, 150_000)) as { model_mesh?: { url?: string } };
+    if (!output.model_mesh?.url) return err("PROVIDER_ERROR", "Trellis returned no mesh");
+    const glb = await deps.fal.download(output.model_mesh.url);
+    return ok({ glbBase64: Buffer.from(glb.bytes).toString("base64"), views: views.length });
+  } catch (e) {
+    const failure = providerFailure(e, "multi-view mesh");
+    return err(failure.code, failure.message, failure.details);
+  }
+}

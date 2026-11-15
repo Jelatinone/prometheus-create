@@ -777,7 +777,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         )}
         {pane === "generate" && (
           <div className={`h-full overflow-auto p-3 ${chrome}`}>
-            <ReconstructPanel findRef={findRef} api={api} actor={actor} projectId={projectId} takeId={take.id} captureCount={captureCount} takeJobIds={present.scene.objects.flatMap((o) => (o.provenance.jobId ? [o.provenance.jobId] : []))} onApply={(requestedTake, name, observation, outcome, placement) => {
+            <ReconstructPanel findRef={findRef} onImportGlb={(file) => void importGlb(file)} api={api} actor={actor} projectId={projectId} takeId={take.id} captureCount={captureCount} takeJobIds={present.scene.objects.flatMap((o) => (o.provenance.jobId ? [o.provenance.jobId] : []))} onApply={(requestedTake, name, observation, outcome, placement) => {
               const current = historyRef.current;
               if (!current) return false;
               const r = reconstructedObject(current.present, requestedTake, name, observation, outcome, placement);

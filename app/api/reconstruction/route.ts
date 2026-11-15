@@ -8,7 +8,7 @@ import { serverBlobs } from "@/lib/reconstruction/server-blobs";
 import { createPool, type Pool } from "@/lib/server/db";
 import { databaseUrl } from "@/lib/server/env";
 
-export const maxDuration = 60;
+export const maxDuration = 300; // multi-view Trellis can take over a minute
 const holder = globalThis as typeof globalThis & { __reconstructionLocks?: Pool };
 
 export async function POST(request: Request) {
