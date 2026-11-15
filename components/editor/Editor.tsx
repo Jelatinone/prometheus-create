@@ -570,7 +570,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           e.preventDefault();
           setPlaying((p) => !p);
         } else if (k === "home") setPlayhead(0);
-        else if (k === "k" && selected) toggleKey();
+        else if (k === "k" && (selected || pane === "camera")) toggleKey();
         else if ((k === "delete" || k === "backspace") && selected) {
           apply((h) => commit(h, removeObject(h.present, selected)));
           setSelected(null);
@@ -579,7 +579,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [apply, save, selected, duration, toggleKey, exportOpen]);
+  }, [apply, save, selected, duration, toggleKey, exportOpen, pane]);
 
   // Warn before leaving with unsaved edits.
   useEffect(() => {
