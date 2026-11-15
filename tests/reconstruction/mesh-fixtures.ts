@@ -130,8 +130,20 @@ export function buildGridGlb(o: GridOptions): Uint8Array {
   return glb;
 }
 
+/** The parts of a GLB's JSON chunk the tests read. */
+export interface GlbJsonView {
+  asset: unknown;
+  nodes: unknown[];
+  scenes: unknown[];
+  materials?: unknown[];
+  images: { bufferView: number }[];
+  meshes: { primitives: { attributes: Record<string, number>; indices: number; material?: number }[] }[];
+  accessors: Record<string, unknown>[];
+  bufferViews: { byteOffset: number; byteLength: number }[];
+}
+
 /** The JSON chunk of a GLB. */
-export function glbJson(glb: Uint8Array): Record<string, any> {
+export function glbJson(glb: Uint8Array): GlbJsonView {
   const length = new DataView(glb.buffer, glb.byteOffset).getUint32(12, true);
   return JSON.parse(new TextDecoder().decode(glb.subarray(20, 20 + length)));
 }
