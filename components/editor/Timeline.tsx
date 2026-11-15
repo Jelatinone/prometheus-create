@@ -55,14 +55,6 @@ export function Timeline({ rate, durationFrames, playhead, playing, sourceUs, ke
             <span className="block text-[10px] text-muted">frame {playhead}</span>
           </span>
           <div className="relative min-w-0 flex-1">
-            {keys.map((k) => (
-              <span
-                key={k}
-                className="pointer-events-none absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-accent"
-                style={{ left: `${(k / Math.max(1, last)) * 100}%` }}
-                aria-hidden
-              />
-            ))}
             <input
               type="range"
               min={0}
@@ -70,9 +62,19 @@ export function Timeline({ rate, durationFrames, playhead, playing, sourceUs, ke
               step={1}
               value={Math.min(playhead, last)}
               onChange={(e) => onSeek(Number(e.target.value))}
-              className="relative w-full accent-[var(--color-accent)]"
+              className="block w-full accent-[var(--color-accent)]"
               aria-label="Playhead (take frame)"
             />
+            {/* Keys on the track, inset by half the thumb so frame 0 and the last frame sit under the thumb's centre. */}
+            <div className="pointer-events-none absolute inset-y-0 right-2 left-2" aria-hidden>
+              {keys.map((k) => (
+                <span
+                  key={k}
+                  className="absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-accent ring-1 ring-panel"
+                  style={{ left: `${(k / Math.max(1, last)) * 100}%` }}
+                />
+              ))}
+            </div>
           </div>
           <span className="w-28 shrink-0 text-right font-mono text-xs tabular-nums" title="Source time comes from a source mapping, never from take time" data-testid="source-time">
             <span className="block text-[10px] text-muted">source</span>
