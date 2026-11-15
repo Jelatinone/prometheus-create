@@ -52,6 +52,17 @@ describe("normalizeGlb", () => {
     expect(ok(inspectGlb(n.bytes)).warnings).toEqual([]);
   });
 
+  it("reports the exact root TRS it added, so a splat can share the mesh's space", () => {
+    const zUpCm = buildBoxGlb({ size: [40, 20, 90] });
+    const n = ok(normalizeGlb(zUpCm, { sourceUnits: "cm", sourceUpAxis: "+Z" }));
+    const json = JSON.parse(new TextDecoder().decode(n.bytes.subarray(20, 20 + new DataView(n.bytes.buffer, n.bytes.byteOffset).getUint32(12, true))));
+    const root = json.nodes.find((node: { name?: string }) => node.name === NORMALIZATION_NODE_NAME);
+    close(n.rootTransform.translation, root.translation ?? [0, 0, 0]);
+    close(n.rootTransform.rotation, root.rotation ?? [0, 0, 0, 1]);
+    expect(n.rootTransform.scale).toBeCloseTo(root.scale?.[0] ?? 1, 9);
+    close(n.rootTransform.translation, n.recenterOffset.map((v) => -v));
+  });
+
   it("rejects non-GLB bytes, truncated files and mesh-less GLBs as INVALID_GEOMETRY", () => {
     const bad = (bytes: Uint8Array) => {
       const r = normalizeGlb(bytes, { sourceUnits: "m", sourceUpAxis: "+Y" });
