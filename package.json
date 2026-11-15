@@ -17,20 +17,26 @@
     "lane:create": "node scripts/lane.mjs create",
     "lane:setup": "node scripts/lane.mjs setup",
     "lane:check": "node scripts/lane.mjs check",
+    "db:migrate": "tsx db/migrate.mts",
+    "db:storage": "tsx db/provision-storage.mts",
     "skills:check": "node scripts/agent-skills.mjs check",
     "skills:sync": "node scripts/agent-skills.mjs sync"
   },
   "dependencies": {
-    "@fal-ai/client": "1.10.1",
     "next": "16.4.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "three": "0.187.0",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.119.0",
+    "pg": "8.23.1",
+    "@fal-ai/client": "1.10.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^22.20.5",
+    "@types/pg": "8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "0.187.0",
