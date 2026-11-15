@@ -151,7 +151,8 @@ describe("cookie session read", () => {
 describe("safeNext", () => {
   it("allows same-origin paths only", () => {
     expect(safeNext("/projects/new")).toBe("/projects/new");
-    for (const bad of [null, "", "https://evil.example", "//evil.example", "/\\evil.example", "projects"])
-      expect(safeNext(bad)).toBe("/projects");
+    for (const bad of [null, "", "https://evil.example", "//evil.example", "/\\evil.example", "projects", "/\t/evil.example", "/\n/evil.example", "/a\\b", "/\u0000x"])
+      expect(safeNext(bad), JSON.stringify(bad)).toBe("/projects");
+    expect(safeNext("/projects/prj_1?take=2#top")).toBe("/projects/prj_1?take=2#top");
   });
 });
