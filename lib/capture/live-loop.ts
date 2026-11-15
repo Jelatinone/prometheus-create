@@ -1,6 +1,6 @@
 /**
  * Live-call generation policy (HK-011 CP-022, ADR-004). Pure and clock-driven:
- * the driver (live-loop.mts) feeds it frames and job results and does what
+ * the driver (live-loop-cli.mts) feeds it frames and job results and does what
  * next() returns.
  *
  * - Only evidence frames received in this call are candidates; the newest

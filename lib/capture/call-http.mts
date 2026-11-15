@@ -1,7 +1,7 @@
 /** Existing Python FaceTime adapter plus live authenticated HTTP outbox relay.
  * Required env: INGEST_API_URL, INGEST_ACCESS_TOKEN, CAPTURE_PYTHON (absolute, or relative to the repo root).
  * tsx lib/capture/call-http.mts --project prj_... --seconds 35 [--prompt "chair" [--max-spend 0.10]]
- * With --prompt, the live loop (live-loop.mts, HK-011 CP-022) also segments fresh frames during the
+ * With --prompt, the live loop (live-loop-cli.mts, HK-011 CP-022) also segments fresh frames during the
  * call and starts at most one reconstruction before hang-up. Those are paid provider calls.
  */
 import { spawn } from "node:child_process";
@@ -57,7 +57,7 @@ while (!done && Date.now() < deadline) {
       const relay = spawn(process.execPath, ["--import", "tsx", "lib/capture/replay-http.mts", dir, "--watch-seconds", "150"], { cwd: root, env: process.env, stdio: "inherit" });
       relayDone = exited(relay);
       if (prompt) {
-        const loopArgs = ["--import", "tsx", "lib/capture/live-loop.mts", dir, "--prompt", prompt, "--seconds", option("--seconds") ?? "60"];
+        const loopArgs = ["--import", "tsx", "lib/capture/live-loop-cli.mts", dir, "--prompt", prompt, "--seconds", option("--seconds") ?? "60"];
         if (maxSpend) loopArgs.push("--max-spend", maxSpend);
         loopDone = exited(spawn(process.execPath, loopArgs, { cwd: root, env: process.env, stdio: "inherit" }));
       }

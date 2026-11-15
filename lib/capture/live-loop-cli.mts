@@ -1,6 +1,6 @@
 /** Live-call generation loop for one capture-agent outbox (HK-011 CP-022).
  * INGEST_API_URL=http://localhost:3005 INGEST_ACCESS_TOKEN=<short-lived user token>
- * tsx lib/capture/live-loop.mts <outbox> --prompt "chair" --seconds 35 [--max-spend 0.10]
+ * tsx lib/capture/live-loop-cli.mts <outbox> --prompt "chair" --seconds 35 [--max-spend 0.10]
  * Started by call-http.mts when it is given --prompt. Paid: segmentation $0.005/mask,
  * one reconstruction $0.02, capped by --max-spend. Writes <outbox>/live-loop-result.json.
  * Tokens stay in the environment, never arguments or logs.
@@ -19,7 +19,7 @@ const arg = (name: string) => {
 const prompt = arg("--prompt");
 const seconds = Number(arg("--seconds") ?? "35");
 const maxSpendUsd = Number(arg("--max-spend") ?? String(DEFAULT_LIVE_LOOP.maxSpendUsd));
-if (!process.argv[2] || !prompt) throw new Error('usage: tsx lib/capture/live-loop.mts <outbox> --prompt "chair" [--seconds 35] [--max-spend 0.10]');
+if (!process.argv[2] || !prompt) throw new Error('usage: tsx lib/capture/live-loop-cli.mts <outbox> --prompt "chair" [--seconds 35] [--max-spend 0.10]');
 if (!(maxSpendUsd > 0 && maxSpendUsd <= 0.5)) throw new Error("--max-spend must be in (0, 0.5] USD");
 const baseUrl = process.env.INGEST_API_URL;
 const token = process.env.INGEST_ACCESS_TOKEN;

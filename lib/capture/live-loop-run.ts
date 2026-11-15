@@ -1,6 +1,6 @@
 /**
  * Drive LiveLoopPolicy against the running app during a call (HK-011 CP-022).
- * Transport-agnostic so tests can script it; live-loop.mts wires fetch and
+ * Transport-agnostic so tests can script it; live-loop-cli.mts wires fetch and
  * the agent's outbox. Every provider step goes through POST /api/reconstruction
  * with the caller's token: one durable job ID per step, polled (never resubmitted).
  */
