@@ -21,7 +21,7 @@ submission_deadline: null
 release_owner: "Cody - integration, review, demo and submission owner"
 stable_branch: "production"
 base_release: "STABLE-V2 (local annotated tag at 06e97e7)"
-current_stable_release: "STABLE-V2 (never retarget)"
+current_stable_release: "STABLE-V3 (local annotated tag at c88214d; never retarget)"
 ```
 
 The 08:00 feature freeze and 10:00 finish are **Cody's working cutoffs**, not a newly verified organizer submission deadline. Earlier event-clock discrepancies remain in the archive; Cody owns official deadline/submission confirmation. Do not treat unknown rules as publication or eligibility approval.
@@ -94,7 +94,7 @@ Current layout, priorities, sequential execution, lighter feature checks and thi
 | CP-025 | DEFER | Full per-object timeline, clip visibility ranges and advanced export screen | Would require more UI/model work | Conflicts with removing permanent timelines and remaining capacity | Cody | deferred |
 | CP-024 / CP-021 | DEFER | Coaching and agentic playback | New work beyond the core | No build in this window; agentic design still needs approval | Cody | deferred |
 
-STABLE-V2 remains the existing **local annotated tag at 06e97e7**; never retarget it. A future stable tag is STABLE-V3 only if Cody requests promotion of an exact verified revision. No remote publication is implied by readiness.
+STABLE-V3 is the **local annotated tag at c88214d** (promoted at Cody's request after the full verifier passed there, 338 tests). STABLE-V2 stays at 06e97e7. Never retarget either. No remote publication is implied.
 
 ## 4. System architecture
 
@@ -587,5 +587,6 @@ At 08:45–09:30 rehearse the working build, retain representative exports and a
 | --- | --- | --- | --- | --- | --- | --- |
 | 1–6 | Historical | STABLE-V2 local | Existing tasks and ADR-001..005 | Prior agents for Cody | Archived v6 and docs/DECISIONS.md | Full historical intent/evidence retained |
 | 7 | 2026-11-15 | No new release | HK-012 / HK-013 / HK-014; CP-018 / CP-016 / CP-017 | Codex for Cody | Cody's explicit five-hour replan, light checks, sequential agents and confirmed left-rail/right-details layout; CP-020 passes at f317b7f0d2f8 | Finish realistic must-haves before 08:00; protect 08:00–10:00 for stability/polish |
+| 7 | 2026-11-15 | STABLE-V3 local (c88214d) | CP-018 / CP-016 A–E / CP-019 / CP-020 / CP-017 | Claude for Cody | Cody asked for cleanup and /create-stable; `npm run verify` passes on clean c88214d in a detached worktree (338 tests, live platform included). Unfinished CP-025 parked on `wip/CP-025-clips` (db6a2b5) | Stable point after the stability window; rollback STABLE-V2 |
 
 **Next agent:** CP-018 (HK-012) and CP-016 A to D (HK-013) are `ready_for_review`. CP-017 (HK-014) is `ready_for_review`: the full verifier passes at `0cfd49e` (338 tests), the security review is done with two fixes, the journey rehearsal and one approved live Generate pass, and Generate can reuse a frame's earlier results (HK-013 subpass E, approved by Cody). Read AGENTS.md, this v7 continuation and docs/changes/HK-014.md "Remaining for the window". Open with Cody: his look at the layout. No new features after 08:00.
