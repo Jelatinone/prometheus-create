@@ -45,7 +45,7 @@ const TABS: { id: CaptureTab; label: string }[] = [
 
 const DEFAULT_FACETIME: FaceTimeStatus = {
   state: "unavailable",
-  reason: "FaceTime capture runs in the capture agent (services/capture-agent) and is not connected to this page yet.",
+  reason: "FaceTime calls are started from the capture agent. Their frames appear in Generate.",
 };
 
 function browserError(e: unknown): ContractError {
@@ -279,12 +279,12 @@ export function CapturePanel({ ingestor, faceTime = DEFAULT_FACETIME, onEntry }:
 
       <div className="p-4">
         <div role="tabpanel" id="capture-panel-upload" aria-labelledby="capture-tab-upload" hidden={tab !== "upload"} className="space-y-3">
-          <p className="text-sm text-muted">PNG, JPEG or WebP up to 25 MB. EXIF rotation is applied so masks line up with what you see.</p>
+          <p className="text-sm text-muted">PNG, JPEG or WebP, up to 25 MB.</p>
           <FilePicker label="Choose photo…" accept="image/png,image/jpeg,image/webp" disabled={busy} onFile={(f) => ingestStill(f, "upload")} />
         </div>
 
         <div role="tabpanel" id="capture-panel-camera" aria-labelledby="capture-tab-camera" hidden={tab !== "camera"} className="space-y-3">
-          <p className="text-sm text-muted">Live camera needs HTTPS or localhost. On a phone over plain HTTP, use Take photo.</p>
+          <p className="text-sm text-muted">Live camera needs HTTPS or localhost. Otherwise use Take photo.</p>
           <video ref={cameraVideo} className={`max-h-72 w-full rounded border border-line bg-panel-2 object-contain ${cameraOn ? "" : "hidden"}`} muted playsInline />
           <div className="flex flex-wrap gap-2">
             {cameraOn ? (
@@ -304,7 +304,7 @@ export function CapturePanel({ ingestor, faceTime = DEFAULT_FACETIME, onEntry }:
         </div>
 
         <div role="tabpanel" id="capture-panel-video" aria-labelledby="capture-tab-video" hidden={tab !== "video"} className="space-y-3">
-          <p className="text-sm text-muted">MP4, MOV or WebM up to 50 MB and 30 s. Pick the frames to keep; the clip is stored once.</p>
+          <p className="text-sm text-muted">MP4, MOV or WebM, up to 50 MB and 30 s.</p>
           <FilePicker label="Choose video…" accept="video/mp4,video/quicktime,video/webm" disabled={busy} onFile={loadClip} />
           <video ref={clipVideo} className={`max-h-72 w-full rounded border border-line bg-panel-2 object-contain ${clipInfo ? "" : "hidden"}`} muted playsInline />
           {clipInfo && (
@@ -335,14 +335,10 @@ export function CapturePanel({ ingestor, faceTime = DEFAULT_FACETIME, onEntry }:
         </div>
 
         <div role="tabpanel" id="capture-panel-facetime" aria-labelledby="capture-tab-facetime" hidden={tab !== "facetime"} className="space-y-3">
-          <p className="text-sm">
-            A Chert FaceTime call routes the caller&apos;s camera through the capture agent into this same ingestion path. Calls go only to a
-            consenting test participant.
-          </p>
           <p className={`text-sm ${faceTime.state === "ready" ? "text-ok" : "text-muted"}`} role="status">
-            {faceTime.state === "ready" ? "Capture agent connected." : `Not available: ${faceTime.reason}`}
+            {faceTime.state === "ready" ? "Capture agent connected." : faceTime.reason}
           </p>
-          <Button disabled={faceTime.state !== "ready"}>Start FaceTime capture</Button>
+          {faceTime.state === "ready" && <Button>Start FaceTime capture</Button>}
         </div>
       </div>
 
@@ -365,11 +361,10 @@ export function CapturePanel({ ingestor, faceTime = DEFAULT_FACETIME, onEntry }:
                     {e.label} <span className="font-normal text-muted">· {e.at}</span>
                   </p>
                   {e.ok && e.outcome ? (
-                    <p className="font-mono text-xs break-all">
-                      <span className="text-ok">{e.outcome.result.status}</span> · {e.outcome.envelope.sourceId} · {e.outcome.result.observationId} · seq{" "}
-                      {e.outcome.result.sequence}
-                      {e.outcome.result.outOfOrder ? " · out of order" : ""} · {e.outcome.envelope.frame.width}×{e.outcome.envelope.frame.height}
-                      {e.outcome.orientation && e.outcome.orientation !== 1 ? ` · EXIF ${e.outcome.orientation} normalized` : ""}
+                    <p className="text-xs text-muted" title={`${e.outcome.envelope.sourceId} · ${e.outcome.result.observationId} · sequence ${e.outcome.result.sequence}`}>
+                      <span className="text-ok">{e.outcome.result.status}</span> · {e.outcome.envelope.frame.width}×{e.outcome.envelope.frame.height}
+                      {e.outcome.result.outOfOrder ? " · out of order" : ""}
+                      {e.outcome.orientation && e.outcome.orientation !== 1 ? " · rotated upright" : ""}
                     </p>
                   ) : (
                     <p className="font-mono text-xs text-bad">

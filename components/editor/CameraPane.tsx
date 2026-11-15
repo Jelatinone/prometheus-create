@@ -46,7 +46,6 @@ export function CameraPane(props: Props) {
   return <div className="space-y-4 p-3 text-sm">
     <div>
       <h2 className="font-serif font-semibold">Render camera</h2>
-      <p className="mt-1 text-xs text-muted">The active camera makes images and video. Free view lets you navigate without changing it.</p>
       {manifest.scene.cameras.length > 0 && <select aria-label="Active render camera" value={manifest.take.activeCameraId ?? ""} onChange={e => props.onChoose(e.target.value)} className="mt-2 h-8 w-full rounded-md border border-line bg-canvas px-2 text-xs">
         {!manifest.take.activeCameraId && <option value="">Choose a camera</option>}
         {manifest.scene.cameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -74,7 +73,7 @@ export function CameraPane(props: Props) {
         <label className="text-xs text-muted">Seconds<NumberField name="Take duration seconds" value={manifest.take.durationFrames / fps} onChange={n => props.onDuration(Math.round(n * fps))} /></label>
         <label className="text-xs text-muted">Frames<NumberField name="Take duration frames" digits={0} value={manifest.take.durationFrames} onChange={props.onDuration} /></label>
       </div>
-      <p className="mt-1 text-[11px] text-muted">{manifest.take.frameRate.num}/{manifest.take.frameRate.den} fps · shortening keeps existing keys safe.</p>
+      <p className="mt-1 text-[11px] text-muted">{manifest.take.frameRate.num}/{manifest.take.frameRate.den} fps</p>
     </div>
     <div className="border-t border-line pt-3">
       <div className="flex items-center justify-between gap-2"><h3 className="font-serif font-semibold">Camera keys</h3><span className="text-xs text-muted">frame {frame}</span></div>
@@ -94,7 +93,7 @@ export function CameraPane(props: Props) {
     <div className="border-t border-line pt-3 text-xs">
       <h3 className="font-serif text-sm font-semibold">Start from capture</h3>
       <button className="mt-1 text-xs text-muted underline hover:text-accent" onClick={props.onRefreshCaptures}>Refresh capture info</button>
-      {!choice ? <p className="mt-1 text-muted">No captured timing is available in this project. Set the duration and camera yourself.</p> : <>
+      {!choice ? <p className="mt-1 text-muted">No captured timing in this project.</p> : <>
         <select aria-label="Camera capture source" value={choice.source.id} onChange={e => setCaptureId(e.target.value)} className="mt-2 h-8 w-full rounded border border-line bg-canvas px-2">
           {captures.map((c, i) => <option key={c.source.id} value={c.source.id}>Capture {i + 1} · {c.source.media.kind.replaceAll("_", " ")}</option>)}
         </select>

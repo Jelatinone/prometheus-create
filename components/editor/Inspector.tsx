@@ -139,7 +139,7 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
       </section>
 
       {empty ? null : !selected ? (
-        <p className="p-3 text-xs text-muted">Select an object in the viewport or the list to edit it.</p>
+        <p className="p-3 text-xs text-muted">Select an object to edit it.</p>
       ) : (
         <div className="space-y-3 p-3">
           <div className="flex items-center justify-between">
@@ -205,7 +205,6 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
             {selected.provenance.observationIds.length > 0 && <div className="text-muted">{selected.provenance.observationIds.length} source observation(s)</div>}
           </div>
 
-          <p className="text-[11px] text-muted">Physics and joints are not in this build.</p>
         </div>
       )}
     </aside>

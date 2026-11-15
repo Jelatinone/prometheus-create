@@ -611,11 +611,11 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const shownObjects = present.scene.objects.filter((o) => o.visible);
   const nothingDrawn = shownObjects.length > 0 && !layers.mesh && !shownObjects.some((o) => drawsSplat(o, layers));
   const icon =
-    "grid size-8 place-items-center rounded-lg text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
+    "grid size-8.5 place-items-center rounded-lg text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
   const labelled =
     "flex h-8.5 items-center gap-1.5 rounded-lg px-2.5 text-sm text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
   const toolButton = (on: boolean) =>
-    `grid size-8 place-items-center rounded-lg disabled:opacity-35 ${on ? "bg-accent/15 text-accent" : "text-ink hover:bg-panel-2 hover:text-accent"}`;
+    `grid size-8.5 place-items-center rounded-lg disabled:opacity-35 ${on ? "bg-accent/15 text-accent" : "text-ink hover:bg-panel-2 hover:text-accent"}`;
   const sep = <span className="mx-1 h-5 w-px bg-line" aria-hidden />;
   const loadingOverlay = (
     <LoadingOverlay
@@ -655,7 +655,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         </span>
         {sep}
         <select
-          className="h-8 min-w-0 rounded-lg bg-transparent px-1.5 text-sm hover:bg-panel-2"
+          className="h-8.5 min-w-0 rounded-lg bg-transparent px-1.5 text-sm hover:bg-panel-2"
           value={take.id}
           onChange={(e) => void switchTake(e.target.value)}
           disabled={!!busy}
@@ -983,7 +983,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       {exportOpen && (
         <ExportDialog takeName={take.name} frame={frame} animated={duration > 0} dirty={dirty} busy={!!busy} error={exportError} progress={loadingOverlay}
           cameraReady={!!activeCamera} videoLabel={duration > 0 && videoFormat ? `Video (.${videoFormat.extension})` : null}
-          videoDescription={`${(duration / framesPerSecond(take.frameRate)).toFixed(2)} seconds at ${framesPerSecond(take.frameRate).toFixed(2)} fps. Active render camera; current view size (up to 1280 px). No audio.`}
+          videoDescription={`${(duration / framesPerSecond(take.frameRate)).toFixed(2)} s at ${framesPerSecond(take.frameRate).toFixed(2)} fps, up to 1280 px, no audio.`}
           progressLabel={videoProgress ? `Rendering frame ${videoProgress.completed} of ${videoProgress.total}` : null}
           onCancelExport={busy === "Exporting VIDEO" ? () => videoAbort.current?.abort() : undefined}
           onClose={() => { if (!exporting.current) setExportOpen(false); }} onExport={(format) => void exportFile(format)} />

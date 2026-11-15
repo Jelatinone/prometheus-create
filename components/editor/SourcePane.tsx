@@ -42,7 +42,7 @@ export function SourcePane({ api, actor, projectId, manifest, selected }: {
   return (
     <div className="space-y-3 text-sm">
       {!selected ? (
-        <p className="text-xs text-muted">Select an object to see the captured frame it came from.</p>
+        <p className="text-xs text-muted">Select an object to see its captured frame.</p>
       ) : !observationId ? (
         <p className="text-xs text-muted">{selected.name} was not made from a captured frame ({selected.provenance.kind}).</p>
       ) : (
@@ -76,7 +76,7 @@ export function SourcePane({ api, actor, projectId, manifest, selected }: {
       <div className="text-xs">
         <div className="font-semibold">Source mappings in this take</div>
         {mappings.length === 0 ? (
-          <p className="text-muted">None. Take time is the editor&apos;s own clock; no captured clip plays inside this take.</p>
+          <p className="text-muted">None.</p>
         ) : (
           <ul className="mt-1 space-y-0.5">
             {mappings.map((m, i) => (

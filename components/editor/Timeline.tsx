@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The persistent take timeline (CP-013): play/pause, a frame scrubber with the
+ * The take timeline (CP-013), shown in the Playback pop-up: play/pause, a frame scrubber with the
  * selected object's keys, take time, and source time shown separately (only
  * when a source mapping covers the playhead). Scrubbing is local: it changes
  * what the viewport shows and never calls a provider.
@@ -28,7 +28,7 @@ interface Props {
 }
 
 export function Timeline({ rate, durationFrames, playhead, playing, sourceUs, keys, canKey, keyTarget = "object", onPlay, onSeek, onAnimate, onToggleKey }: Props) {
-  const icon = "grid size-8 place-items-center rounded-lg text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
+  const icon = "grid size-8.5 place-items-center rounded-lg text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
   const still = durationFrames <= 0;
   const last = Math.max(0, durationFrames - 1);
   const onKey = keys.includes(playhead);
@@ -42,8 +42,8 @@ export function Timeline({ rate, durationFrames, playhead, playing, sourceUs, ke
       </button>
       {still ? (
         <>
-          <span className="text-sm text-muted">Still take: a single frame. Animate it to scrub, key objects and play.</span>
-          <button className="ml-auto flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm hover:bg-panel-2 hover:text-accent" onClick={onAnimate} title="Enable playback; edit duration in the Camera pane">
+          <span className="text-sm text-muted">Still take: one frame.</span>
+          <button className="ml-auto flex h-8.5 items-center gap-1.5 rounded-lg px-2.5 text-sm hover:bg-panel-2 hover:text-accent" onClick={onAnimate} title="Enable playback; edit duration in the Camera pane">
             <FilmIcon className="size-5" />
             Animate
           </button>

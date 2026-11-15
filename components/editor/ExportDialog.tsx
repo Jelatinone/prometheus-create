@@ -23,9 +23,9 @@ interface Props {
 }
 
 const formats = [
-  { id: "png", label: "Image (.png)", Icon: PhotoIcon, description: "Active render camera and layer at the paused playhead, without editor guides." },
-  { id: "glb", label: "3D scene (.glb)", Icon: CubeIcon, description: "Visible meshes at the paused playhead, in meters. Splat appearance is not included." },
-  { id: "zip", label: "Project (.zip)", Icon: ArchiveBoxIcon, description: "All saved takes and their referenced assets. Import from Saves to reopen. Capture history is not included." },
+  { id: "png", label: "Image (.png)", Icon: PhotoIcon, description: "The render camera's view at the playhead." },
+  { id: "glb", label: "3D scene (.glb)", Icon: CubeIcon, description: "Visible meshes, in meters. Splats are not included." },
+  { id: "zip", label: "Project (.zip)", Icon: ArchiveBoxIcon, description: "All saved takes and their assets. Reopen it from Saves." },
 ] as const;
 
 /** Local dialog chrome; export work is covered by the editor's shared overlay. */
@@ -118,7 +118,7 @@ export function ExportDialog({ takeName, frame, animated, dirty, busy, error, pr
         {progress}
         {busy && onCancelExport && <div className="absolute inset-x-4 bottom-4 z-[60] rounded-lg border border-line bg-panel p-3 text-center shadow-sm">
           <p className="mb-2 text-xs text-muted" aria-live="polite">{progressLabel ?? "Preparing video frames"}</p>
-          <button type="button" data-cancel-export className="h-8 rounded-md border border-line bg-panel px-3 text-sm hover:border-accent hover:text-accent" onClick={onCancelExport}>Cancel export</button>
+          <button type="button" data-cancel-export className="h-8.5 rounded-md border border-line bg-panel px-3 text-sm hover:border-accent hover:text-accent" onClick={onCancelExport}>Cancel export</button>
         </div>}
       </dialog>
   );
