@@ -175,7 +175,7 @@ depends_on: ["CP-016"]
 owner: "One linear stability agent on production"
 approval: "approved"
 approval_ref: "Cody chat 2026-11-15: compact remaining work until 10:00 A.M.; final two hours stability/polish; sequential agents; light feature checks; Layers and simplified UI/Generate/frame picking required; confirmed left mode rail/right details."
-status: "planned"
+status: "ready_for_review"
 acceptance_gate: "Run one integrated npm run verify; review auth/ownership, private assets, server-only secrets, paid-job resubmission controls, and actual dependency findings. Fix demo blockers/high-risk defects with targeted rechecks; run one short core journey and verify saved outputs. Document remaining risks, fallback and exact revision; no publication without Cody."
 cut_fallback: "Keep the known-good local build, fix only blocking/high-risk defects, and document lesser issues. Do not spend the reserved window adding features."
 evidence_ref: "docs/changes/HK-014.md"
@@ -588,4 +588,4 @@ At 08:45–09:30 rehearse the working build, retain representative exports and a
 | 1–6 | Historical | STABLE-V2 local | Existing tasks and ADR-001..005 | Prior agents for Cody | Archived v6 and docs/DECISIONS.md | Full historical intent/evidence retained |
 | 7 | 2026-11-15 | No new release | HK-012 / HK-013 / HK-014; CP-018 / CP-016 / CP-017 | Codex for Cody | Cody's explicit five-hour replan, light checks, sequential agents and confirmed left-rail/right-details layout; CP-020 passes at f317b7f0d2f8 | Finish realistic must-haves before 08:00; protect 08:00–10:00 for stability/polish |
 
-**Next agent:** CP-018 (HK-012) and CP-016 A to D (HK-013) are `ready_for_review`. CP-017 (HK-014) is in progress: the full verifier passes at `0cfd49e` (338 tests), the security review is done with two fixes, the journey rehearsal and one approved live Generate pass, and Generate can reuse a frame's earlier results (HK-013 subpass E, approved by Cody). Read AGENTS.md, this v7 continuation and docs/changes/HK-014.md "Remaining for the window". Open with Cody: his look at the layout. No new features after 08:00.
+**Next agent:** CP-018 (HK-012) and CP-016 A to D (HK-013) are `ready_for_review`. CP-017 (HK-014) is `ready_for_review`: the full verifier passes at `0cfd49e` (338 tests), the security review is done with two fixes, the journey rehearsal and one approved live Generate pass, and Generate can reuse a frame's earlier results (HK-013 subpass E, approved by Cody). Read AGENTS.md, this v7 continuation and docs/changes/HK-014.md "Remaining for the window". Open with Cody: his look at the layout. No new features after 08:00.

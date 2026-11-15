@@ -86,7 +86,7 @@ Open <http://localhost:3000>; it starts at sign-in. Enter your email and the one
   - The rail on the left picks the mode: **Objects**, **Camera**, **Generate** or **Source**. The right pane shows that mode's details and the bottom toolbar shows its actions.
     - **Objects:** select, move, rotate, scale and Import GLB; with an object selected also hide, duplicate and delete.
     - **Camera:** Align to view and Key from view; the pane edits the render camera, its keys and the take duration.
-    - **Generate:** choose a captured frame, describe what to find, then generate the found objects and add them to the take. Results are kept per frame.
+    - **Generate:** choose a captured frame, describe what to find, then generate the found objects and add them to the take. Results are kept per frame. **Already generated** lists the frame's finished results (for example from a FaceTime call); **Load** reuses one without a new paid job.
     - **Generate** and **Source** also show **Capture** (upload, phone camera, video).
   - The bottom toolbar always has **Playback** (play, seek and keys), **Layers** (Mesh and Splat, independently), pan, frame, camera view and grid.
   - The header has undo, redo, **Save**, **Fork** (copies the saved revision into a new take) and **Export** (image, 3D scene, video, project). The take menu switches between takes.
