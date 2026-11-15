@@ -25,6 +25,8 @@ interface Props {
   onAttachSplat(id: string, file: File): void;
   /** Why the selected object's splat is not drawn (load/parse failure), if it is not. */
   splatFallback: string | null;
+  /** Keyframe: this object is animated, so transform edits set a key at the playhead. */
+  scope?: "scene" | "keyframe";
 }
 
 const fmt = (n: number, digits = 3) => (Number.isFinite(n) ? n.toFixed(digits) : "–");
@@ -98,7 +100,7 @@ function NameField({ initial, onCommit }: { initial: string; onCommit(name: stri
   );
 }
 
-export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible, onSplatLayer, onAttachSplat, splatFallback }: Props) {
+export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible, onSplatLayer, onAttachSplat, splatFallback, scope = "scene" }: Props) {
 
   const empty = manifest.scene.objects.length === 0;
   return (
@@ -140,8 +142,11 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
         <div className="space-y-3 p-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Inspector</h2>
-            <span className="rounded bg-panel-2 px-1.5 py-0.5 text-[10px] font-semibold" title="Edits change this take's saved scene, not a keyframe">
-              Scope: Scene
+            <span
+              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${scope === "keyframe" ? "bg-accent/15 text-accent" : "bg-panel-2"}`}
+              title={scope === "keyframe" ? "Animated: edits set a key at the playhead" : "Edits change this take's scene, not a keyframe"}
+            >
+              Scope: {scope === "keyframe" ? "Keyframe" : "Scene"}
             </span>
           </div>
           <NameField key={`${selected.id}:${selected.name}`} initial={selected.name} onCommit={(n) => onRename(selected.id, n)} />
