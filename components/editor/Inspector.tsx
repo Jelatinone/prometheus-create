@@ -5,7 +5,7 @@
  * (position m, rotation °, uniform scale), dimensions, geometry and evidence.
  * Numeric fields commit on Enter or blur, one undoable edit each.
  */
-import { CubeIcon, EyeIcon, EyeSlashIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { ArrowUpTrayIcon, CubeIcon, EyeIcon, EyeSlashIcon, SparklesIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
 import type { Transform, Vec3 } from "@/lib/contracts/common";
 import type { TakeManifest } from "@/lib/contracts/revision";
@@ -23,7 +23,7 @@ interface Props {
   /** Persisted per-object layer: true draws the splat (when it loads), false the mesh. */
   onSplatLayer(id: string, splat: boolean): void;
   /** Generated objects: fetch the splat stored with their generation job (no new provider job). */
-  onLoadGeneratedSplat?(id: string): void;
+  onAttachSplat(id: string, file: File): void;
   /** Why the selected object's splat is not drawn (load/parse failure), if it is not. */
   splatFallback: string | null;
   /** Keyframe: this object is animated, so transform edits set a key at the playhead. */
@@ -101,7 +101,7 @@ function NameField({ initial, onCommit }: { initial: string; onCommit(name: stri
   );
 }
 
-export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible, onSplatLayer, onLoadGeneratedSplat, splatFallback, scope = "scene" }: Props) {
+export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible, onSplatLayer, onAttachSplat, splatFallback, scope = "scene" }: Props) {
 
   const empty = manifest.scene.objects.length === 0;
   return (
@@ -180,7 +180,7 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
             </div>
           </div>
 
-          <LayerSection object={selected} fallback={splatFallback} onSplatLayer={onSplatLayer} onLoadGeneratedSplat={onLoadGeneratedSplat} />
+          <LayerSection object={selected} fallback={splatFallback} onSplatLayer={onSplatLayer} onAttachSplat={onAttachSplat} />
 
         </div>
       )}
@@ -188,17 +188,17 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
   );
 }
 
-/** Mesh / Splat layer for one object. Only controls backed by real data are shown. */
+/** The object's splat: replace it from a .ply file, and choose whether it is drawn. */
 function LayerSection({
   object,
   fallback,
   onSplatLayer,
-  onLoadGeneratedSplat,
+  onAttachSplat,
 }: {
   object: SceneObject;
   fallback: string | null;
   onSplatLayer(id: string, splat: boolean): void;
-  onLoadGeneratedSplat?(id: string): void;
+  onAttachSplat(id: string, file: File): void;
 }) {
   const state = splatState(object);
   const on = state === "available" && !!object.splat?.enabled;
@@ -206,24 +206,26 @@ function LayerSection({
     `flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-xs ${active ? "bg-accent/15 text-accent" : "hover:text-accent"}`;
   return (
     <div>
-      <div className="mb-0.5 text-xs text-muted">Splat</div>
-      {state === "none" ? (
+      <div className="mb-1 flex items-center justify-between text-xs text-muted">
+        <span>Splat</span>
+        <label className="flex cursor-pointer items-center gap-1 hover:text-accent" title="Choose a 3DGS splat (.ply) in this object's local space">
+          <ArrowUpTrayIcon className="size-3.5" />
+          {state === "none" ? "Add splat" : "Replace splat"}
+          <input
+            type="file"
+            accept=".ply"
+            className="sr-only"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) onAttachSplat(object.id, f);
+            }}
+          />
+        </label>
+      </div>
+      {state !== "none" && (
         <>
-          <p className="text-[11px] text-muted">Mesh only: no splat attached.</p>
-          {object.provenance.jobId && onLoadGeneratedSplat && (
-            <button
-              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line px-2 py-1 text-xs hover:text-accent"
-              onClick={() => onLoadGeneratedSplat(object.id)}
-              title="Fetch the Gaussian splat stored with this object's generation job (no new provider job)"
-            >
-              <SparklesIcon className="size-4" />
-              Load generated splat
-            </button>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="flex gap-1 rounded-lg border border-line bg-canvas p-0.5" role="group" aria-label="Splat for this object" title="Whether this object's splat is part of the Splat layer (Layers, top toolbar)">
+          <div className="flex gap-1 rounded-lg border border-line bg-canvas p-0.5" role="group" aria-label="Splat for this object">
             <button className={seg(!on)} aria-pressed={!on} onClick={() => onSplatLayer(object.id, false)}>
               <CubeIcon className="size-4" />
               Mesh only
@@ -233,7 +235,6 @@ function LayerSection({
               With splat
             </button>
           </div>
-          {state === "stale" && <p className="mt-1 text-[11px] text-muted">The splat was made for an older geometry revision, so it is not shown.</p>}
           {on && fallback && <p className="mt-1 text-[11px] text-bad">Splat unavailable: {fallback}</p>}
         </>
       )}

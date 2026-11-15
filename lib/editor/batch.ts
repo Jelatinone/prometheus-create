@@ -74,7 +74,7 @@ export interface Command {
   observationId: string;
   jobId: string;
   /** attach_splat: backfill the stored splat of a succeeded reconstruction (never submits). */
-  action: "segment" | "reconstruct" | "attach_splat";
+  action: "segment" | "reconstruct" | "attach_splat" | "detect";
   prompt?: string;
   maskAssetIds?: string[];
 }

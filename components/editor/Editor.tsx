@@ -8,6 +8,7 @@
  */
 import {
   ArrowDownOnSquareIcon,
+  ClockIcon,
   ArrowPathIcon,
   ArrowDownTrayIcon,
   ArrowsPointingOutIcon,
@@ -26,6 +27,7 @@ import {
   FolderOpenIcon,
   HandRaisedIcon,
   KeyIcon,
+  MagnifyingGlassIcon,
   PhotoIcon,
   PlayPauseIcon,
   SparklesIcon,
@@ -73,18 +75,17 @@ import { Toast } from "@/components/ui/Toast";
 import { ProjectTitle } from "./ProjectTitle";
 import { CapturePanel } from "@/components/capture/CapturePanel";
 import { Inspector } from "./Inspector";
-import { ALL_LAYERS, drawsSplat, type LayerView } from "@/lib/scene/splat";
+import { ALL_LAYERS, checkSplatPly, drawsSplat, type LayerView } from "@/lib/scene/splat";
 import { LayersMenu } from "./LayersMenu";
 import { ReconstructPanel } from "./ReconstructPanel";
-import { providerSplatFor, reconstructedObject } from "@/lib/editor/reconstruction";
-import { runJob } from "@/lib/editor/batch";
+import { reconstructedObject } from "@/lib/editor/reconstruction";
 import { defaultDurationFrames, evaluateAt, formatTakeTime, framesPerSecond, keyFrames, keyTrackOf, removeKey, setDuration, setKey, sourceAt } from "@/lib/editor/timeline";
 import { SourcePane } from "./SourcePane";
 import { Timeline } from "./Timeline";
 import { ExportDialog, type ExportFormat } from "./ExportDialog";
 import { exportProject } from "@/lib/editor/project-archive";
 import type { Observation, Result, TakeManifest } from "@/lib/contracts";
-import { activeCamera as renderCamera, cameraFov, cameraFromView, cameraInterpolation, cameraTrack, chooseCamera, editCamera, moveCameraKey, removeCameraKey, resizeTake, seedCamera, setCameraKey } from "@/lib/editor/camera";
+import { activeCamera as renderCamera, cameraFov, cameraFromView, cameraInterpolation, cameraTrack, chooseCamera, editCamera, moveCameraKey, removeCameraKey, captureTiming, resizeTake, seedCamera, setCameraKey } from "@/lib/editor/camera";
 import { CameraPane, type CaptureChoice } from "./CameraPane";
 import { supportedVideoFormat, videoSize, type VideoFormat, type VideoProgress } from "@/lib/export/video";
 
@@ -158,6 +159,8 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const [captureCount, setCaptureCount] = useState(0);
   const [cameraView, setCameraView] = useState(false);
   const [captures, setCaptures] = useState<CaptureChoice[] | null>(null);
+  const [captureId, setCaptureId] = useState("");
+  const findRef = useRef<{ findAll(): void }>(null);
   const [playhead, setPlayhead] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -411,30 +414,21 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     [dirty, open],
   );
 
-  /** CP-014: the splat stored with a generated object's job, via attach_splat (resume only; never a provider submit). */
-  const loadGeneratedSplat = useCallback(
-    async (objectId: string) => {
-      const object = historyRef.current ? findObject(historyRef.current.present, objectId) : null;
-      const jobId = object?.provenance.jobId;
-      const sourceId = object?.provenance.sourceIds[0];
-      const observationId = object?.provenance.observationIds[0];
-      if (!object || !jobId || !sourceId || !observationId) return setNotice({ tone: "bad", text: "This object has no generation job to take a splat from." });
-      setBusy("Loading splat");
-      const r = await runJob(
-        (command) => api.request(actor, "POST", "/api/reconstruction", command),
-        { projectId, sourceId, observationId, jobId, action: "attach_splat" },
-        { jobId, stage: "pending" },
-        { onUpdate: () => {} },
-      );
+  /** Replace (or add) an object's splat from a local .ply file. */
+  const attachSplatFile = useCallback(
+    async (objectId: string, file: File) => {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const check = checkSplatPly(bytes);
+      if (!check.ok) return setNotice({ tone: "bad", text: `${file.name} is not a usable splat (${check.reason}); the mesh stays.` });
+      setBusy("Uploading splat");
+      const asset = await storeProjectAsset(assetDeps, projectId, bytes, { kind: "splat", mimeType: "application/octet-stream", origin: "upload" });
       setBusy(null);
-      if (r.job.stage !== "done" || !r.outcome) return setNotice({ tone: "bad", text: `Could not load the splat: ${r.job.error ?? "the splat job did not finish"}` });
-      const splat = providerSplatFor(object, r.outcome as Parameters<typeof providerSplatFor>[1]);
-      if (!splat.ok) return setNotice({ tone: "bad", text: `${splat.error.message}.` });
+      if (!asset.ok) return setNotice({ tone: "bad", text: `Splat upload failed: ${asset.error.code} ${asset.error.message}` });
       setSplatFallbacks((m) => ({ ...m, [objectId]: null }));
-      apply((h) => commit(h, attachSplat(h.present, objectId, splat.value.assetId)));
-      setNotice({ tone: "ok", text: "Generated splat attached and shown. Save to keep it." });
+      apply((h) => commit(h, attachSplat(h.present, objectId, asset.value.id)));
+      setNotice({ tone: "ok", text: `Attached ${file.name} (${check.info.vertexCount.toLocaleString()} splats). Save to keep it.` });
     },
-    [api, actor, projectId, apply],
+    [assetDeps, projectId, apply],
   );
 
   const importGlb = useCallback(
@@ -597,6 +591,10 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const chrome = "rounded-xl border border-line bg-panel shadow-sm";
   const shownObjects = present.scene.objects.filter((o) => o.visible);
   const nothingDrawn = shownObjects.length > 0 && !layers.mesh && !shownObjects.some((o) => drawsSplat(o, layers));
+  // Capture the toolbar's camera actions follow (chosen in the Camera pane).
+  const captureChoice = captures?.find((c) => c.source.id === captureId) ?? captures?.[0] ?? null;
+  const captureTimingNow = captureChoice ? captureTiming(captureChoice.source, captureChoice.observations, present.take.frameRate) : null;
+  const captureEstimates = captureChoice?.observations.filter((o) => o.mode === "evidence" && o.camera).length ?? 0;
   const hint =
     present.scene.objects.length === 0
       ? "This take has no objects yet. Import a GLB, or capture a photo for reference."
@@ -759,8 +757,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
               onRemove={key => activeCamera && apply(h => commit(h, removeCameraKey(h.present, activeCamera.id, key)))}
               onMove={(from, to) => activeCamera && applyCameraResult(moveCameraKey(present, activeCamera.id, from, to))}
               onInterpolation={mode => activeCamera && apply(h => commit(h, cameraInterpolation(h.present, activeCamera.id, mode)))}
-              onSeed={choice => applyCameraResult(seedCamera(present, choice.source, choice.observations))}
-              onRefreshCaptures={() => setCaptures(null)}
+              captureId={captureId} onCaptureId={setCaptureId}
             />
           </div>
         )}
@@ -774,13 +771,13 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             onRename={(id, name) => apply((h) => commit(h, renameObject(h.present, id, name)))}
             onVisible={(id, v) => apply((h) => commit(h, setObjectVisible(h.present, id, v)))}
             onSplatLayer={(id, on) => apply((h) => commit(h, setSplatEnabled(h.present, id, on)))}
-            onLoadGeneratedSplat={(id) => void loadGeneratedSplat(id)}
+            onAttachSplat={(id, file) => void attachSplatFile(id, file)}
             splatFallback={selectedObject ? (splatFallbacks[selectedObject.id] ?? null) : null}
           />
         )}
         {pane === "generate" && (
           <div className={`h-full overflow-auto p-3 ${chrome}`}>
-            <ReconstructPanel api={api} actor={actor} projectId={projectId} takeId={take.id} captureCount={captureCount} takeJobIds={present.scene.objects.flatMap((o) => (o.provenance.jobId ? [o.provenance.jobId] : []))} onApply={(requestedTake, name, observation, outcome, placement) => {
+            <ReconstructPanel findRef={findRef} api={api} actor={actor} projectId={projectId} takeId={take.id} captureCount={captureCount} takeJobIds={present.scene.objects.flatMap((o) => (o.provenance.jobId ? [o.provenance.jobId] : []))} onApply={(requestedTake, name, observation, outcome, placement) => {
               const current = historyRef.current;
               if (!current) return false;
               const r = reconstructedObject(current.present, requestedTake, name, observation, outcome, placement);
@@ -901,7 +898,21 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
               <KeyIcon className="size-5" />
               Key from view
             </button>
+            <button className={labelled} disabled={!captureTimingNow} onClick={() => captureTimingNow && applyCameraResult(resizeTake(present, captureTimingNow.frames))} title={captureTimingNow ? "Make the take as long as the chosen capture" : "The chosen capture has no usable length"}>
+              <ClockIcon className="size-5" />
+              Capture length
+            </button>
+            <button className={labelled} disabled={!captureChoice || !captureEstimates} onClick={() => captureChoice && applyCameraResult(seedCamera(present, captureChoice.source, captureChoice.observations))} title={captureEstimates ? "Key the render camera from the capture's recorded camera poses" : "The chosen capture has no recorded camera poses"}>
+              <VideoCameraIcon className="size-5" />
+              Follow capture
+            </button>
           </>
+        )}
+        {pane === "generate" && (
+          <button className={labelled} onClick={() => findRef.current?.findAll()} title="Find the objects in the selected frame; no description needed">
+            <MagnifyingGlassIcon className="size-5" />
+            Find objects
+          </button>
         )}
         {(pane === "generate" || pane === "source") && (
           <button

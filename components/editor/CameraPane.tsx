@@ -13,8 +13,9 @@ interface Props {
   onChoose(id: string): void;
   onPose(pose: Transform): void; onFov(degrees: number): void; onDuration(frames: number): void;
   onSeek(frame: number): void; onRemove(frame: number): void; onMove(from: number, to: number): void;
-  onInterpolation(mode: Keyframe["interpolation"]): void; onSeed(choice: CaptureChoice): void;
-  onRefreshCaptures(): void;
+  onInterpolation(mode: Keyframe["interpolation"]): void;
+  /** Which capture the toolbar's capture actions use. */
+  captureId: string; onCaptureId(id: string): void;
 }
 
 function NumberField({ name, value, onChange, digits = 3 }: { name: string; value: number; onChange(value: number): void; digits?: number }) {
@@ -34,14 +35,12 @@ function NumberDraft({ name, value, onChange, digits }: { name: string; value: n
 
 export function CameraPane(props: Props) {
   const { manifest, camera, frame, captures } = props;
-  const [captureId, setCaptureId] = useState("");
   const base = activeCamera(manifest);
   const track = base ? cameraTrack(manifest, base.id) : null;
   const fps = framesPerSecond(manifest.take.frameRate);
-  const choice = captures.find(c => c.source.id === captureId) ?? captures[0];
+  const choice = captures.find(c => c.source.id === props.captureId) ?? captures[0];
   const timing = choice ? captureTiming(choice.source, choice.observations, manifest.take.frameRate) : null;
   const estimates = choice?.observations.filter(o => o.mode === "evidence" && o.camera).length ?? 0;
-  const button = "flex min-h-8 items-center justify-center gap-1.5 rounded-md border border-line bg-panel px-2 text-xs hover:border-accent hover:text-accent disabled:opacity-40";
   const rotation = camera ? quatToEulerDeg(camera.transform.rotation) : [0, 0, 0] as Vec3;
   return <div className="space-y-4 p-3 text-sm">
     <div>
@@ -91,15 +90,13 @@ export function CameraPane(props: Props) {
       </>}
     </div>
     <div className="border-t border-line pt-3 text-xs">
-      <h3 className="font-serif text-sm font-semibold">Start from capture</h3>
+      <h3 className="font-serif text-sm font-semibold">Capture to follow</h3>
       {!choice ? <p className="mt-1 text-muted">No captured timing in this project.</p> : <>
-        <select aria-label="Camera capture source" value={choice.source.id} onChange={e => setCaptureId(e.target.value)} className="mt-2 h-8 w-full rounded border border-line bg-canvas px-2">
+        <select aria-label="Camera capture source" value={choice.source.id} onChange={e => props.onCaptureId(e.target.value)} className="mt-2 h-8 w-full rounded border border-line bg-canvas px-2">
           {captures.map((c, i) => <option key={c.source.id} value={c.source.id}>Capture {i + 1} · {c.source.media.kind.replaceAll("_", " ")}</option>)}
         </select>
-        <button className={`${button} mt-2 w-full`} disabled={!timing} onClick={() => timing && props.onDuration(timing.frames)}>Use captured length{timing ? ` (${(timing.frames / fps).toFixed(2)} s)` : ""}</button>
-        <p className="mt-1 text-muted">{timing?.label ?? (choice.source.media.kind === "image" ? "A still image has no clip duration." : "Not enough recorded timing to determine a length.")}</p>
-        <button className={`${button} mt-2 w-full`} disabled={!estimates} onClick={() => props.onSeed(choice)}>Use capture camera estimates</button>
-        <p className="mt-1 text-muted">{estimates ? `${estimates} recorded camera estimate(s).` : "No recorded camera poses. Camera motion stays authored."}</p>
+        <p className="mt-2 text-muted">{timing ? `Length ${(timing.frames / fps).toFixed(2)} s. ` : choice.source.media.kind === "image" ? "A still image has no length. " : "No usable timing. "}{estimates ? `${estimates} recorded camera pose(s).` : "No recorded camera poses."}</p>
+        <p className="mt-1 text-muted">Use the toolbar to match the take to this capture.</p>
       </>}
     </div>
   </div>;

@@ -917,3 +917,33 @@ export async function resumeSegmentation(
   if (!succeeded.ok) return succeeded;
   return ok({ job: succeeded.value, maskAssets, maskStats: stats, providerOutput: fetched.output });
 }
+
+/** General object detector used to find objects without a typed description (CP-033). */
+export const DETECT_MODEL = "fal-ai/florence-2-large/object-detection";
+const DETECT_MAX_LABELS = 6;
+
+/**
+ * Names the kinds of object in a captured frame with no prompt (Florence-2
+ * detection), so each name can drive one SAM 3 find. A small single request:
+ * no job record, nothing stored, and the caller decides what to find.
+ */
+export async function detectObjects(deps: ReconstructionDeps, req: { projectId: string; observation: Observation }): Promise<Result<{ labels: string[] }>> {
+  const image = await uploadAsset(deps, req.projectId, req.observation.frame.assetId, "frame");
+  if (!image.ok) return image;
+  try {
+    const { requestId } = await deps.fal.submit(DETECT_MODEL, { image_url: image.value });
+    const started = Date.now();
+    for (;;) {
+      const status = await deps.fal.status(DETECT_MODEL, requestId);
+      if (status.status === "COMPLETED") break;
+      if (Date.now() - started > 60_000) return err("PROVIDER_UNAVAILABLE", "object detection took too long");
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    const output = (await deps.fal.result(DETECT_MODEL, requestId)) as { results?: { bboxes?: { label?: string }[] } };
+    const labels = [...new Set((output.results?.bboxes ?? []).map((b) => (b.label ?? "").trim().toLowerCase()).filter(Boolean))];
+    return ok({ labels: labels.slice(0, DETECT_MAX_LABELS) });
+  } catch (e) {
+    const failure = providerFailure(e, "detect objects");
+    return err(failure.code, failure.message, failure.details);
+  }
+}

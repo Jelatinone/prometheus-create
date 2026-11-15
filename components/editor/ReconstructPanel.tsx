@@ -11,7 +11,8 @@
  * loaded: an existing job ID only resumes on the server, so nothing is paid twice.
  */
 import { ArrowPathIcon, CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon, ExclamationTriangleIcon, MagnifyingGlassIcon, PlusIcon, SparklesIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { newId } from "@/lib/contracts/common";
 import type { Actor, Observation, ReconstructionJob } from "@/lib/contracts";
 import {
   addFind,
@@ -46,8 +47,10 @@ interface Saved {
 /** Jobs with a driver loop in this page; a dev double mount never drives a job twice. */
 const activeJobs = new Set<string>();
 
-export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captureCount = 0, takeJobIds = [] }: {
+export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captureCount = 0, takeJobIds = [], findRef }: {
   api: HttpBackend; actor: NonNullable<Actor>; projectId: string; takeId: string;
+  /** Lets the toolbar run Find objects (no prompt) on the current frame. */
+  findRef?: Ref<{ findAll(): void }>;
   /** Jobs whose objects are already in the take, so they are not offered again. */
   takeJobIds?: string[];
   /** Rises when a frame is captured elsewhere on the page, so the frame list follows it. */
@@ -69,6 +72,7 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   const [masks, setMasks] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
+  const [detecting, setDetecting] = useState(false);
   const alive = useRef(true);
   const savedRef = useRef<Saved | null>(null);
   useEffect(() => {
@@ -252,6 +256,27 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
     persist({ ...base, batch: next }); // the new job ID is stored before its request
     void driveFind(next.finds[next.finds.length - 1].key);
   }
+
+  /** Find objects without a description: name what is in the frame, then one find per name. */
+  async function findAll() {
+    if (!frame || detecting) return;
+    setDetecting(true);
+    setError("");
+    const r = await api.request<{ labels: string[] }>(actor, "POST", "/api/reconstruction", {
+      projectId, sourceId: frame.sourceId, observationId: frame.id, jobId: newId("job"), action: "detect",
+    });
+    setDetecting(false);
+    if (!r.ok) return setError(`Could not find objects: ${r.error.message}`);
+    if (!r.value.labels.length) return setError("Nothing recognisable in this frame. Describe what to look for instead.");
+    const base = savedRef.current ?? { batch: startBatch({ id: frame.id, sourceId: frame.sourceId, projectId }, takeId), frame, applied: [] };
+    let batch = base.batch;
+    for (const label of r.value.labels) batch = addFind(batch, label);
+    const added = batch.finds.filter((f) => !base.batch.finds.some((g) => g.key === f.key));
+    if (!added.length) return setError("Already looking for everything found in this frame.");
+    persist({ ...base, batch }); // every new job ID is stored before its request
+    for (const f of added) void driveFind(f.key);
+  }
+  useImperativeHandle(findRef, () => ({ findAll: () => void findAll() }));
 
   function generate() {
     const s = savedRef.current;
@@ -477,6 +502,7 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
           {!sameTake && <p className="text-xs text-muted">Switch back to the take that started this to add its objects.</p>}
         </div>
       )}
+      {detecting && <p role="status" className="flex items-center gap-2 text-sm text-muted"><Spinner className="size-4" /> Finding objects in this frame…</p>}
       {error && <p role="alert" className="text-sm text-bad">{error}</p>}
     </section>
   );

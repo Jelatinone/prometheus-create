@@ -3,7 +3,7 @@ import { AssetId, JobId, ObservationId, ProjectId, SourceId, err, type Backend, 
 import type { BlobStore } from "@/lib/capture/blob-store";
 import type { FalQueue } from "./fal-queue";
 import { readBody, respond } from "@/lib/server/http";
-import { backfillSplat, previewMesh, resumeReconstruction, resumeSegmentation, runReconstruction, runSegmentation, splatBackfillJobId } from "./runner";
+import { backfillSplat, detectObjects, previewMesh, resumeReconstruction, resumeSegmentation, runReconstruction, runSegmentation, splatBackfillJobId } from "./runner";
 
 // HTTP adapter shapes are local; shared contracts and backend ports remain unchanged.
 export const ReconstructionCommand = z.strictObject({
@@ -14,7 +14,7 @@ export const ReconstructionCommand = z.strictObject({
    * mesh_preview: `jobId` is a succeeded reconstruction; stores its cached
    * simplified mesh (CP-010) if missing. Local CPU only, never a provider call.
    */
-  action: z.enum(["segment", "reconstruct", "poll", "attach_splat", "mesh_preview"]),
+  action: z.enum(["segment", "reconstruct", "poll", "attach_splat", "mesh_preview", "detect"]),
   prompt: z.string().trim().min(1).max(200).optional(),
   maskAssetIds: z.array(AssetId).min(1).max(1).optional(),
 });
@@ -35,6 +35,7 @@ export async function reconstructionCommand(
   const observation = observations.value.find(o => o.id === cmd.observationId);
   if (!observation) return respond(err("NOT_FOUND", "captured frame not found"));
   const deps = () => ({ ...ctx.backend, actor: ctx.actor, blobs: ctx.blobs, fal: ctx.fal(), execution: "poll-once" as const });
+  if (cmd.action === "detect") return respond(await detectObjects(deps(), { projectId: cmd.projectId, observation }));
   if (cmd.action === "attach_splat") {
     // Lock the backfill job (the original is terminal and never changes).
     return lock(`${cmd.projectId}:${await splatBackfillJobId(cmd.jobId)}`, async () => {
