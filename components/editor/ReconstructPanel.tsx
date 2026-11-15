@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Generate objects from one captured frame (S4 phase 1, dynamic count), as
- * three steps: 1 choose the frame, 2 describe what to find (each description
+ * Generate objects from a capture, as three steps: 1 choose the capture,
+ * 2 describe what to find (each description
  * finds every instance in the frame, one segmentation), 3 generate the listed
  * objects and add them to the take. Job IDs are stored before each request,
  * so a reload resumes the same jobs; retries follow lib/editor/batch. Results
@@ -10,7 +10,7 @@
  * FaceTime call, another browser or an earlier session) are listed and can be
  * loaded: an existing job ID only resumes on the server, so nothing is paid twice.
  */
-import { ArrowPathIcon, CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon, ExclamationTriangleIcon, FilmIcon, MagnifyingGlassIcon, PlusIcon, SparklesIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, FilmIcon, MagnifyingGlassIcon, PlusIcon, SparklesIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { newId } from "@/lib/contracts/common";
 import type { Actor, Observation, ReconstructionJob } from "@/lib/contracts";
@@ -77,7 +77,7 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   const [detecting, setDetecting] = useState(false);
   const [multiview, setMultiview] = useState<string | null>(null);
   /** Fast: one frame (SAM 3D). Detailed: four frames of the whole capture (Trellis), slower. */
-  const [quality, setQuality] = useState<"fast" | "detailed">("fast");
+  const [quality, setQuality] = useState<"fast" | "detailed" | null>(null);
   const alive = useRef(true);
   const savedRef = useRef<Saved | null>(null);
   useEffect(() => {
@@ -192,6 +192,13 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   }, [key, projectId, refresh, activate, readKept]);
 
   const frame = saved?.frame ?? frames.find((o) => o.id === selected);
+  const captureFrames = frames.filter(o => o.sourceId === frame?.sourceId);
+  const canMultiView = captureFrames.filter(o => o.mode === "evidence").length >= 2;
+  const effectiveQuality = canMultiView ? quality ?? "detailed" : "fast";
+  const knownFrames = saved && !frames.some(o => o.id === saved.frame.id) ? [saved.frame, ...frames] : frames;
+  const captures = [...new Set(knownFrames.map(o => o.sourceId))].map(sourceId => ({
+    sourceId, frames: knownFrames.filter(o => o.sourceId === sourceId),
+  }));
   useEffect(() => {
     let live = true;
     if (!frame) return;
@@ -222,7 +229,8 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   /** Switch to another captured frame. This frame's searches and results are kept and come back when it is chosen again. */
   function chooseFrame(id: string) {
     const s = savedRef.current;
-    if (busy || id === (s?.frame.id ?? selected)) return;
+    if (busy || multiview || id === (s?.frame.id ?? selected)) return;
+    setQuality(null);
     const kept = readKept();
     if (s && (s.batch.finds.length || s.batch.objects.length)) kept[s.frame.id] = s;
     const next = kept[id] ?? null;
@@ -317,7 +325,7 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   function generate() {
     const s = savedRef.current;
     if (!s || !toGenerate(s.batch).length) return;
-    if (quality === "detailed" && onImportGlb) {
+    if (effectiveQuality === "detailed" && onImportGlb) {
       void (async () => {
         for (const o of toGenerate(s.batch)) await fromVideo(o);
       })();
@@ -393,11 +401,6 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
       </div>
     ) : null;
 
-  const index = frames.findIndex((o) => o.id === frame?.id);
-  const stepFrame = (delta: number) => {
-    const next = frames[index + delta];
-    if (next) chooseFrame(next.id);
-  };
   const readyToAdd = saved ? objects.filter((o) => o.mesh?.stage === "done" && outcomes[o.key] && !saved.applied.includes(o.key)) : [];
   const sameTake = !saved || saved.batch.takeId === takeId;
   const heading = "flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted uppercase";
@@ -406,27 +409,24 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   return (
     <section className="space-y-4" aria-label="Generate objects">
       <div className="space-y-1.5">
-        <h3 className={heading}><span className={number}>1</span>Frame</h3>
+        <h3 className={heading}><span className={number}>1</span>Capture</h3>
         {frames.length || saved ? (
           <>
             <div className="flex items-center gap-1">
-              <button className={small} disabled={busy || index <= 0} onClick={() => stepFrame(-1)} title="Previous frame in the list" aria-label="Previous frame">
-                <ChevronLeftIcon className="size-4" />
-              </button>
-              <select id="reconstruct-frame" aria-label="Captured frame" className="h-7.5 min-w-0 flex-1 rounded-md border border-line bg-panel px-1.5 text-xs" value={frame?.id ?? ""} disabled={busy} title={busy ? "Wait for the running jobs before changing frame" : "Results are kept per frame"} onChange={(e) => chooseFrame(e.target.value)}>
-                {saved && !frames.some((o) => o.id === saved.frame.id) && <option value={saved.frame.id}>Frame {saved.frame.sequence}</option>}
-                {frames.map((o) => <option key={o.id} value={o.id}>Frame {o.sequence} · {new Date(o.receivedAt).toLocaleTimeString()}{keptFrames.includes(o.id) ? " · has results" : ""}</option>)}
+              <select aria-label="Capture" className="h-7.5 min-w-0 flex-1 rounded-md border border-line bg-panel px-1.5 text-xs" value={frame?.sourceId ?? ""} disabled={busy || !!multiview} onChange={e => {
+                const capture = captures.find(c => c.sourceId === e.target.value);
+                const next = capture?.frames.find(o => keptFrames.includes(o.id)) ?? capture?.frames[0];
+                if (next) chooseFrame(next.id);
+              }}>
+                {captures.map((capture, i) => <option key={capture.sourceId} value={capture.sourceId}>Capture {i + 1} · {capture.frames.length} {capture.frames.length === 1 ? "photo" : "frames"}</option>)}
               </select>
-              <button className={small} disabled={busy || index < 0 || index >= frames.length - 1} onClick={() => stepFrame(1)} title="Next frame in the list" aria-label="Next frame">
-                <ChevronRightIcon className="size-4" />
-              </button>
-              <button className={small} onClick={() => void refresh()} title="Refresh frames" aria-label="Refresh frames">
+              <button className={small} onClick={() => void refresh()} disabled={busy || !!multiview} title="Refresh captures" aria-label="Refresh captures">
                 <ArrowPathIcon className="size-4" />
               </button>
             </div>
             {/* Signed private asset URL, refreshed whenever the frame selection changes. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {preview && <img src={preview} alt="Selected captured frame" className="max-h-56 w-full rounded-lg bg-black object-contain" />}
+            {preview && <img src={preview} alt="Capture preview" className="max-h-56 w-full rounded-lg bg-black object-contain" />}
           </>
         ) : (
           <p className="text-sm text-muted">No captured frames yet. Use Capture below.</p>
@@ -542,8 +542,8 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
               {onImportGlb && (
                 <div className="flex gap-1 rounded-lg border border-line bg-canvas p-0.5 text-xs" role="group" aria-label="Generation quality">
                   {([["fast", "Fast", "One frame (SAM 3D), about 30 s"], ["detailed", "Detailed", "Four frames of the whole video (Trellis), slower; about $0.04 each"]] as const).map(([id, label, hint]) => (
-                    <button key={id} title={hint} aria-pressed={quality === id} onClick={() => setQuality(id)}
-                      className={`flex-1 rounded-md px-2 py-1 ${quality === id ? "bg-accent/15 text-accent" : "hover:text-accent"}`}>{label}</button>
+                    <button key={id} title={hint} disabled={!!multiview || (id === "detailed" && !canMultiView)} aria-pressed={effectiveQuality === id} onClick={() => setQuality(id)}
+                      className={`flex-1 rounded-md px-2 py-1 ${effectiveQuality === id ? "bg-accent/15 text-accent" : "hover:text-accent"}`}>{label}</button>
                   ))}
                 </div>
               )}

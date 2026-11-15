@@ -64,13 +64,13 @@ async function readFile(file: File): Promise<Uint8Array> {
   return new Uint8Array(await file.arrayBuffer());
 }
 
-function Button({ children, disabled, onClick, primary }: { children: ReactNode; disabled?: boolean; onClick?: () => void; primary?: boolean }) {
+function Button({ children, disabled, onClick, primary, fullWidth }: { children: ReactNode; disabled?: boolean; onClick?: () => void; primary?: boolean; fullWidth?: boolean }) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`rounded border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`${fullWidth ? "w-full" : ""} rounded border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
         primary ? "border-ink bg-ink text-canvas hover:bg-accent hover:border-accent" : "border-line bg-panel text-ink hover:text-accent hover:underline"
       }`}
     >
@@ -349,7 +349,7 @@ export function CapturePanel({ ingestor, faceTime = DEFAULT_FACETIME, onEntry, o
                   className="mt-1 block w-full accent-ink"
                 />
               </label>
-              <Button primary disabled={busy} onClick={captureClipFrame}>
+              <Button primary fullWidth disabled={busy} onClick={captureClipFrame}>
                 Use this frame
               </Button>
             </div>
