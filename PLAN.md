@@ -45,7 +45,7 @@ current_stable_release: null
 | Priority | Checkpoint | Track | Outcome | Why here |
 | --- | --- | --- | --- | --- |
 | 1 | CP-019 unified export | B | One Export button opens one modal: PNG (current playhead), GLB, video (CP-020), project .zip. It replaces the separate PNG/GLB buttons | *prereq* of CP-020 and CP-025; also the end of the demo journey |
-| 2 | CP-020 camera track, spline and video | B | A camera track per take: an editable spline the view camera follows; seeded from capture camera estimates where they exist, otherwise authored; a 5 s video export along it. It absorbs CP-015 | Video output is the biggest missing piece of the demo (Best General, FaZe clips); *prereq* of CP-025 and CP-021 |
+| 2 | CP-020 camera track, spline and video | B | A camera track per take: an editable spline, seeded from real capture camera estimates where available, otherwise authored; one active render camera with independent free navigation; user-defined duration with optional ingest-length initialization, and video export of that take. It absorbs CP-015 | Video output is the biggest missing piece of the demo (Best General, FaZe clips); *prereq* of CP-025 and CP-021. Duration/camera scope updated by Cody during CP-020; five seconds is a default, not a provider limit |
 | 3 | CP-025 timeline editor and export screen | B | Added 2026-11-15 at Cody's request. Each object has its own track with a clip range: outside its range the object is absent, so trimming half its duration makes it disappear for that half. Keys sit on their track. A full export screen chooses the range, duration, frame rate, resolution and camera, and replaces the fixed 5 s clip | Cody named it as needed; it turns one fixed clip into authored takes |
 | 4 | CP-018 layers menu and hover highlight | B | Top-toolbar Layers pop-up: Mesh and Splat toggles, independently (both or none allowed). Hovering an object highlights it in the accent colour, including when only the splat is visible (raycast against the mesh layer) (ADR-005) | Editor polish; small and independent |
 | 5 | CP-024 capture coaching | A | Guidance over the call from simple coverage and motion metrics: "move slower", "move faster", "keep the chair in view", "capture more of the scene". Spoken by ElevenLabs TTS, or as text in the return-video status line | Cody prefers agent audio muted or off, so the text fallback is likely; the Chert proof (CP-022/023) already exists |
@@ -919,14 +919,14 @@ evidence_ref: "docs/changes/HK-012.md"
 
 ```yaml
 id: "CP-020"
-objective: "Camera track and editable spline the camera follows, seeded from capture camera estimates where available; 5 s video export along it (absorbs CP-015)"
+objective: "Editable camera keys/spline with one active render camera and independent free navigation; real capture estimates only; user-defined duration (optionally initialized from ingest length) and video export (absorbs CP-015). Smooth key interpolation explicitly approved by Cody during CP-020."
 task_ids: ["HK-012"]
 depends_on: ["CP-013", "CP-019"]
 owner: "Track B agent"
 approval: "approved"
 approval_ref: "Cody chat 2026-11-15 (plan revision before merging Track B into track-a)"
 status: "planned"
-acceptance_gate: "Camera keys or spline points edit like object keys (undo, fork, save); playback and PNG/video use the camera path; video exported in the tested browser's supported format matches the playhead scene; capture-seeded path only when real estimates exist (otherwise labelled authored); npm run verify passes."
+acceptance_gate: "Camera keys or spline points edit like object keys (undo, fork, save); free navigation is independent of the active render camera; playback and PNG/video use the camera path; duration is user-editable and can initialize from real source timing without fabricating motion; video exported in the tested browser's supported format matches the playhead scene and chosen duration; capture-seeded path only when real estimates exist (otherwise labelled authored); npm run verify passes."
 cut_fallback: "Authored camera keys only; PNG at playhead"
 evidence_ref: "docs/changes/HK-012.md"
 ```
