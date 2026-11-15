@@ -155,10 +155,11 @@ export async function runLiveLoop(opts: LiveLoopRun): Promise<LiveLoopResult> {
     } else if (action.kind === "reconstruct") {
       const jobId = opts.newJobId();
       policy.reconstructStarted(now());
-      const rec = (result.reconstruction = {
+      const rec: NonNullable<LiveLoopResult["reconstruction"]> = {
         jobId, observationId: action.observationId, maskAssetId: action.maskAssetId, beforeHangUp: policy.reconstruction!.beforeHangUp,
         startedAtMs: now(), finishedAtMs: null, state: "submitting", error: null, meshAssetId: null, splatAssetId: null, previewMeshAssetId: null,
-      });
+      };
+      result.reconstruction = rec;
       const r = await send({ action: "reconstruct", jobId, observationId: action.observationId, maskAssetIds: [action.maskAssetId] });
       if (r.status >= 400 || r.status === 0) {
         rec.state = "submit_failed";
