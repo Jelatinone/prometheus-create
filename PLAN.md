@@ -13,10 +13,10 @@ schema_version: 2
 project_name: "Prometheus::create"
 event_name: "HackUTA 2026"
 project_status: "ideation"
-plan_version: 3
+plan_version: 4
 approval: "proposed"
 approval_ref: null
-updated_at: "2026-11-14T23:27:00-06:00"
+updated_at: "2026-11-14T23:50:00-06:00"
 timezone: "America/Chicago"
 code_start: "2026-11-14T12:00:00-06:00"
 code_end: "2026-11-15T00:00:00-06:00"
@@ -32,7 +32,44 @@ current_stable_release: null
 
 ## 1. Product contract
 
-### Current continuation: one agent on production (2026-11-14)
+### Current continuation v4: Track A and Track B (2026-11-14 23:50)
+
+**Authority:** Cody asked to split PLAN v3's still-unimplemented continuation into **Track A** and **Track B** for two agents working in parallel over the next four hours. He starts each agent with `implement-next-checkpoint` on a named track. This replaces v3's "one agent, one branch" rule. It does not replace v3's objective, scope, exclusions, acceptance rules, risks or budget, which still apply (read the v3 block below). At the split, production is at `be482e2` and none of the v3 steps 1–5 is implemented. The only work done is that the paid round-table PLY was recovered locally. Contracts still need Cody's approval. No push, tag or deployment is authorized. The official-clock warning above is unchanged: Cody's four-hour window is his instruction, not a corrected event deadline.
+
+**Tracks** (ownership globs in `lanes.json` under the keys `track-a` and `track-b`; protocol in `docs/LANES.md`):
+
+| Track | Task / note | Branch / worktree | Dev port | Checkpoints in order | Owns (summary) |
+| --- | --- | --- | --- | --- | --- |
+| **A: generation** | HK-011, `docs/changes/HK-011.md` | `feat/HK-011-track-a` at `../prometheus-create-capture` | 3001 | CP-007 → CP-008 → CP-009 → CP-010 | `lib/reconstruction`, `app/api/reconstruction`, `tests/reconstruction`, capture paths |
+| **B: editor** | HK-012, `docs/changes/HK-012.md` | `feat/HK-012-track-b` at `../prometheus-create-editor` | 3003 | CP-011 → CP-012 → CP-013 → CP-014 → CP-015 | `components/editor`, `lib/editor`, `lib/scene`, `lib/export`, editor/scene tests, package files |
+
+**Running a track:** "Implement the next checkpoint on Track A" means `implement-next-checkpoint` assigned to HK-011, on its branch and worktree. It selects the earliest Track A checkpoint (§5) whose status is not yet `ready_for_review` or `complete`. **Track rule (approved with this split):** a same-track predecessor at `ready_for_review` on that track's branch satisfies `depends_on`, so an agent continues without waiting for integration. A **cross-track** dependency (CP-014 needs CP-008) is satisfied only once that checkpoint is merged into `production`. The agent then runs `git merge production` on its track branch. Each run implements exactly one checkpoint, records evidence in its section of the task note, sets that checkpoint to `ready_for_review` and stops. Task note `checkpoint_id` names the checkpoint in progress.
+
+No agent is assigned to the platform lane (HK-003). A change needed in `lib/server`, `app/api/assets` or `db` is proposed in the requesting task note, and the agent works around it rather than waiting. HK-002 and HK-004 notes remain the history and handoff for this work; they are not reopened.
+
+**Seams fixed now so that neither track waits on the other:**
+
+- **S1 splat asset.** Kind `splat`, binary little-endian 3DGS PLY (`x y z`, `f_dc_0..2`, `opacity`, `scale_0..2`, `rot_0..3`; extra properties allowed). Its centres, scales and rotations are already in the **same object-local space as the normalized mesh** (`geometry.assetId`). The editor applies no extra normalization: both layers sit under one object transform. The file must fit the 50 MB object cap, which is the Supabase bucket limit and is not raised. The recovered provider PLY is 57.1 MB (839,808 splats × 17 float32), so Track A compacts it, for example by dropping unused normals (≈47 MB) or quantizing. It is labelled inferred, never measured depth.
+- **S2 outcome.** `ReconstructionOutcome` (Track A-owned type in `lib/reconstruction/runner.ts`) gains `splatAsset: Asset | null`. The job's existing `output.splatAssetId` is set to the same ID. No shared contract changes. A missing or invalid provider splat still yields a succeeded mesh-only job (`splatAsset: null`) plus a recorded warning.
+- **S3 editor attach.** `lib/editor/reconstruction.ts` sets `SceneObject.splat = { assetId, enabled: false, validForGeometryRevision: geometry.geometryRevision }` when `outcome.splatAsset` exists. Splat bytes load through the existing private asset download route.
+- **S4 batch generate.** Phase 1 runs one user action as **2–3 single-mask child jobs** on the existing API (one durable `jobId` per mask, existing single-mask limit). Track B owns this phase and can ship it without Track A changes. Phase 2 is Track A's investigation of one multi-mask provider job (`individual_glbs` / `individual_splats` / metadata). That phase changes the API or contracts only through a proposal approved by Cody.
+- **S5 already-paid round table.** Track A provides a no-cost path that gives the existing round-table job in `prj_ba1f1945c81d48ac9aecf6bb01dc07fa` a stored `splat` asset in S1 form. The source is the saved provider output, or the recovered file `C:/Workflows/Personal/prometheus-create/.verify/v2/round-table-provider.ply`. It makes no new fal request. Through this path Track B gets the same `splatAsset` as a fresh job.
+
+**Checkpoints per track** (full records in §5; v3 step numbers in brackets; target times are pacing, not deadlines):
+
+| Order | Track A: generation (HK-011) | Track B: editor (HK-012) |
+| --- | --- | --- |
+| 1 (~00:50) | **CP-007** [1] Provider splat to S1 asset: pick `gaussian_splat`, validate the PLY header, apply `normalizeGlb`'s normalization, compact under 50 MB, store as `splat`, S2 outcome, mesh-only fallback. Prove S1 numerically: transformed splat centre bounds vs normalized mesh `localBounds`. | **CP-011** [1] Spark splat layer: check compatibility with three 0.187 and the installed docs, then add a viewport splat layer from a local PLY (synthetic fixture plus the recovered file in dev). Mesh/Splat switch, mesh-only fallback, S3 attach. |
+| 2 (~01:45) | **CP-008** [1] S5: the existing round-table job gets a stored S1 splat with no fal call, and a real reload from private storage. | **CP-012** [2]+[3] One object transform drives both layers (translate/rotate/scale, undo, fork, save/reload; no double normalization). S4 phase-1 batch Generate: 2–3 child jobs, per-job status, partial failure/retry without resubmitting a paid job. |
+| 3 (~02:45) | **CP-009** [3] Multi-object phase 2: bounded inspection of `individual_*`/metadata mapping. The result is a proposal (API/contract delta plus evidence) or a recorded "child jobs only" decision. **A live multi-mask call needs Cody's approval first** (~$0.02 job + $0.005/mask). | **CP-013** [4] Persistent bottom timeline (play/pause, scrub, time display) and a context-aware right pane (Generate / Objects-Inspector / Source). PNG export at the current playhead and view; source time and take time stay distinct; scrubbing makes no provider calls. |
+| 4 | **CP-010** [5b] *Deferrable.* Cached simplified-mesh derivative with the original kept and a visual comparison before any 100k default. | **CP-014** [1–2] Real aligned pair: the CP-008 round-table splat and mesh shown, switched and moved together in the browser on real data. *Cross-track: needs CP-008 merged.* |
+| 5 (~03:45 freeze) | n/a | **CP-015** [5a] *Deferrable.* A 5-second authored clip export from the evaluated scene. |
+
+**Integration rhythm:** each agent makes small scoped commits on its own track branch and never commits on `production`. A checkpoint reaches `ready_for_review` only after `npm run verify` passes and its evidence table is in the task note. Cody, or one integrator session, merges ready checkpoints into `production` and marks them `complete`. CP-007/CP-008 should be merged as soon as they are ready, because CP-014 waits on them. If time runs short, defer CP-010 and CP-015 rather than holding the other track. Each agent rolls back its own commits only; the baseline is `be482e2`.
+
+**Shared-file rules:** `package.json`/lock edits (Spark) belong to Track B only. Track A adds no client dependency without noting it. Neither agent edits PLAN, AGENTS, `lanes.json`, contracts, fixtures or the other track's note; deviations are proposed in its own note. A dev server started by `next dev` may rewrite `AGENTS.md`; leave that diff uncommitted on track branches. Only Track A may spend fal money, and only with Cody's approval. Track B tests against existing assets and fixtures.
+
+### Historical continuation v3: one agent on production (2026-11-14)
 
 **Authority and precedence:** Cody's current chat explicitly requests merging the V2 work into production without a tag, one agent on one branch, and a revised plan prioritizing Gaussian splats, 2–3 objects, and editor/timeline flow. This approved continuation supersedes the old lane scheduling and splats-after-motion order for the bounded work below. The historical registry and lane definitions remain for compatibility and history; they are not instructions to launch workers or switch worktrees. Work in the root checkout on `production`; no parallel agents. Existing task notes HK-002 (generation) and HK-004 (editor) own the continuation. Shared contracts still require Cody's approval before changes. This is not blanket approval of every older proposed checkpoint, release, or deployment. No push or new tag is authorized here.
 
@@ -442,6 +479,10 @@ The first task includes creating the starter because none exists. Toolkit kickof
 | HK-008 | CP-005 | feat/HK-008-motion | Cody | Minimal timeline, animation, optional Rapier, video export | HK-007 | Only after confirmed extra time: short take, basic motion/physics and supported video playback. | planned |
 | HK-009 | CP-005 | feat/HK-009-appearance | Cody | Optional Spark adapter or return-preview adapter, targeted checks | HK-008 | Choose at most one stretch: aligned splats OR duplex FaceTime preview. | planned |
 | HK-010 | CP-006 | chore/HK-010-final | Cody | Release, evidence, video, submission records | HK-008 | Confirmed-window final regression, final artifacts, receipt and rehearsal. | planned |
+| HK-011 | CP-007, CP-008, CP-009, CP-010 | feat/HK-011-track-a | Track A agent (assigned by Cody) | `lanes.json` → `track-a`; docs/changes/HK-011.md | HK-002, HK-004 (merged in production `be482e2`) | Per checkpoint record below; `npm run verify` plus checkpoint evidence in the note. | planned |
+| HK-012 | CP-011, CP-012, CP-013, CP-014, CP-015 | feat/HK-012-track-b | Track B agent (assigned by Cody) | `lanes.json` → `track-b`; docs/changes/HK-012.md | HK-002, HK-004 (merged in production `be482e2`); CP-014 also needs CP-008 | Per checkpoint record below; `npm run verify` plus checkpoint evidence in the note. | planned |
+
+**Tracks A and B (v4, approved 2026-11-14):** HK-011 and HK-012 each span one track's ordered checkpoints on a single branch, under the track rule in §1 "Current continuation v4". The "one owner" text above and the lane replan below are historical for this work.
 
 ### Parallel lanes (proposed replan)
 
@@ -569,6 +610,152 @@ status: "planned"
 acceptance_gate: "FINAL on exact integrated revision with accessible artifacts and observed receipt"
 cut_fallback: "Retain early submission if updates are not allowed or the later build regresses"
 evidence_ref: null
+```
+
+Checkpoints CP-007 to CP-015 are the v4 Tracks A and B (§1 "Current continuation v4"). They are approved because Cody's chat instruction of 2026-11-14 23:40 asked for exactly this split, executed through `implement-next-checkpoint`. That approval covers only the scope written in each record: no contract change, push, tag, deployment or unapproved fal spend. Seams S1–S5 are defined in §1.
+
+### CP-007
+
+```yaml
+id: "CP-007"
+objective: "Track A 1: persist the provider Gaussian splat as an S1 splat asset aligned with the normalized mesh, exposed as outcome.splatAsset"
+task_ids: ["HK-011"]
+depends_on: []
+owner: "Track A agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
+status: "planned"
+acceptance_gate: "Runner tests with a synthetic PLY: valid splat stored (kind splat, under 50 MB, S1 space), output.splatAssetId set, outcome.splatAsset returned; missing or invalid PLY gives a mesh-only success with a warning; no paid call. A numeric S1 check on the recovered round-table PLY against its normalized mesh bounds is recorded. npm run verify passes."
+cut_fallback: "Mesh-only jobs unchanged; record the transform blocker exactly"
+evidence_ref: "docs/changes/HK-011.md"
+```
+
+### CP-008
+
+```yaml
+id: "CP-008"
+objective: "Track A 2: give the already-paid round-table job a stored S1 splat without a new fal request (S5)"
+task_ids: ["HK-011"]
+depends_on: ["CP-007"]
+owner: "Track A agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
+status: "planned"
+acceptance_gate: "In private project prj_ba1f1945c81d48ac9aecf6bb01dc07fa the round-table job resolves to a splat asset that downloads from private storage after a restart and parses as S1; fal request count unchanged; npm run verify passes."
+cut_fallback: "Track B uses a local S1 file for CP-014 with the gap recorded"
+evidence_ref: "docs/changes/HK-011.md"
+```
+
+### CP-009
+
+```yaml
+id: "CP-009"
+objective: "Track A 3: decide how a 2–3 object request maps provider individual outputs to masks (S4 phase 2)"
+task_ids: ["HK-011"]
+depends_on: ["CP-008"]
+owner: "Track A agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4 (paid call still needs separate approval)"
+status: "planned"
+acceptance_gate: "Either a proposal in HK-011 (API/contract delta, evidence of index-to-mask mapping and relative placement) or a recorded child-jobs-only decision; any live call approved by Cody beforehand and its spend reported; npm run verify passes."
+cut_fallback: "Child jobs only (Track B CP-012 already ships them)"
+evidence_ref: "docs/changes/HK-011.md"
+```
+
+### CP-010
+
+```yaml
+id: "CP-010"
+objective: "Track A 4 (deferrable): cached simplified-mesh derivative for interactive preview"
+task_ids: ["HK-011"]
+depends_on: ["CP-007"]
+owner: "Track A agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
+status: "planned"
+acceptance_gate: "Derivative stored separately with the original kept and referenced; a visual comparison is recorded before any 100k default; no fal charge; npm run verify passes."
+cut_fallback: "Defer; full-resolution mesh stays the only geometry"
+evidence_ref: "docs/changes/HK-011.md"
+```
+
+### CP-011
+
+```yaml
+id: "CP-011"
+objective: "Track B 1: Spark-backed splat layer with a Mesh/Splat switch and mesh-only fallback (S3 attach)"
+task_ids: ["HK-012"]
+depends_on: []
+owner: "Track B agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
+status: "planned"
+acceptance_gate: "Spark version and three 0.187 compatibility recorded; a browser renders a local PLY splat on an object, switches layers, falls back to mesh on a missing or invalid splat; S3 attach unit-tested; npm run verify passes."
+cut_fallback: "Mesh-only view unchanged; record the renderer blocker after one bounded attempt"
+evidence_ref: "docs/changes/HK-012.md"
+```
+
+### CP-012
+
+```yaml
+id: "CP-012"
+objective: "Track B 2: one object transform for both layers, and batch Generate as 2–3 child jobs (S4 phase 1)"
+task_ids: ["HK-012"]
+depends_on: ["CP-011"]
+owner: "Track B agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
+status: "planned"
+acceptance_gate: "Translate/rotate/scale, undo, fork and save/reload keep the splat and mesh together with no double normalization; one Generate action tracks 2–3 durable child jobs with real per-job states; partial failure and retry never resubmit a job that has a request ID; npm run verify passes."
+cut_fallback: "Single-object Generate stays; transforms remain mesh-only if splats are unavailable"
+evidence_ref: "docs/changes/HK-012.md"
+```
+
+### CP-013
+
+```yaml
+id: "CP-013"
+objective: "Track B 3: persistent bottom timeline, context-aware right pane, PNG at the current playhead"
+task_ids: ["HK-012"]
+depends_on: ["CP-012"]
+owner: "Track B agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
+status: "planned"
+acceptance_gate: "Play/pause, scrub and time display; PNG exports exactly the current playhead, view and layer with no separate frame selector; source time and take time remain distinct; scrubbing makes no provider calls; npm run verify passes."
+cut_fallback: "Static take with existing PNG export"
+evidence_ref: "docs/changes/HK-012.md"
+```
+
+### CP-014
+
+```yaml
+id: "CP-014"
+objective: "Track B 4: real round-table splat and mesh shown, switched and moved together on real data"
+task_ids: ["HK-012"]
+depends_on: ["CP-013", "CP-008"]
+owner: "Track B agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
+status: "planned"
+acceptance_gate: "After merging production with CP-008, the browser shows the stored round-table splat aligned with its mesh, switches layers, moves both together, saves and reloads; screenshots recorded; no fal call; npm run verify passes."
+cut_fallback: "Show mesh with the splat alignment gap described; no fabricated splat claims"
+evidence_ref: "docs/changes/HK-012.md"
+```
+
+### CP-015
+
+```yaml
+id: "CP-015"
+objective: "Track B 5 (deferrable): 5-second authored clip export from the evaluated scene"
+task_ids: ["HK-012"]
+depends_on: ["CP-013"]
+owner: "Track B agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
+status: "planned"
+acceptance_gate: "A 5 s clip matches the playhead-evaluated scene frame by frame at the take rate; no provider calls during export; npm run verify passes."
+cut_fallback: "Defer; PNG at the playhead remains the export"
+evidence_ref: "docs/changes/HK-012.md"
 ```
 
 Only Cody can update accepted architecture, integration, and gate status. Follow the toolkit sequence: kickoff records -> plan checkpoint -> implement the assigned checkpoint -> test identified revision -> review integration -> authorized stable promotion -> demo preparation -> submission preflight -> handoff/recap. `ready_for_review` is not `merged`, and a passing test is not proof of deployment or submission.
