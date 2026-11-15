@@ -5,6 +5,7 @@
  * (position m, rotation °, uniform scale), dimensions, geometry and evidence.
  * Numeric fields commit on Enter or blur, one undoable edit each.
  */
+import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
 import type { Transform, Vec3 } from "@/lib/contracts/common";
 import type { TakeManifest } from "@/lib/contracts/revision";
@@ -18,8 +19,6 @@ interface Props {
   onTransform(id: string, t: Transform): void;
   onRename(id: string, name: string): void;
   onVisible(id: string, visible: boolean): void;
-  onDuplicate(id: string): void;
-  onDelete(id: string): void;
 }
 
 const fmt = (n: number, digits = 3) => (Number.isFinite(n) ? n.toFixed(digits) : "–");
@@ -93,11 +92,10 @@ function NameField({ initial, onCommit }: { initial: string; onCommit(name: stri
   );
 }
 
-export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible, onDuplicate, onDelete }: Props) {
-  const small = "rounded border border-line px-2 py-0.5 text-xs hover:border-accent hover:text-accent";
+export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible }: Props) {
 
   return (
-    <aside className="flex min-h-0 flex-col overflow-y-auto border-l border-line bg-panel text-sm" aria-label="Inspector">
+    <aside className="flex h-full min-h-0 flex-col overflow-y-auto rounded-xl border border-line bg-panel text-sm shadow-sm" aria-label="Inspector">
       <section className="border-b border-line p-3">
         <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Objects</h2>
         {manifest.scene.objects.length === 0 ? (
@@ -115,12 +113,13 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
                   {o.provenance.kind === "fixture" && <span className="ml-1 text-[10px] opacity-70">(fixture)</span>}
                 </button>
                 <button
-                  className="w-12 text-[10px] text-muted hover:text-accent"
+                  className="grid size-6 place-items-center rounded text-muted hover:text-accent"
                   onClick={() => onVisible(o.id, !o.visible)}
                   aria-pressed={o.visible}
+                  aria-label={o.visible ? `Hide ${o.name}` : `Show ${o.name}`}
                   title={o.visible ? "Hide" : "Show"}
                 >
-                  {o.visible ? "shown" : "hidden"}
+                  {o.visible ? <EyeIcon className="size-4" /> : <EyeSlashIcon className="size-4" />}
                 </button>
               </li>
             ))}
@@ -164,7 +163,7 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
             <div className="text-xs text-muted">Dimensions (m)</div>
             <div className="font-mono text-sm">{objectDimensions(selected).map((d) => fmt(d)).join(" × ")}</div>
             <div className="text-[11px] text-muted">
-              {selected.dimensionsStatus === "user_confirmed" ? "✓ User confirmed" : "≈ Estimated: not a physical measurement"}
+              {selected.dimensionsStatus === "user_confirmed" ? "User confirmed" : "Estimated: not a physical measurement"}
             </div>
           </div>
 
@@ -190,14 +189,6 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
             {selected.provenance.observationIds.length > 0 && <div className="text-muted">{selected.provenance.observationIds.length} source observation(s)</div>}
           </div>
 
-          <div className="flex gap-1.5">
-            <button className={small} onClick={() => onDuplicate(selected.id)} title="Duplicate (Ctrl+D)">
-              Duplicate
-            </button>
-            <button className={`${small} hover:border-bad hover:text-bad`} onClick={() => onDelete(selected.id)} title="Delete (Del)">
-              Delete
-            </button>
-          </div>
           <p className="text-[11px] text-muted">Physics and joints are not in this build.</p>
         </div>
       )}

@@ -6,6 +6,7 @@
  * details. Open (or double-click) slides this page left to reveal the editor.
  * Projects are private to their owner; there is no sharing in this build.
  */
+import { ArrowDownTrayIcon, ArrowUpTrayIcon, PlusIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadProjectAsset } from "@/lib/capture/assets";
@@ -19,11 +20,11 @@ import { PlatformBlobStore } from "@/lib/platform/blob-store";
 import { retargetedFixture } from "@/lib/platform/fixture-project";
 import type { HttpBackend } from "@/lib/platform/http-backend";
 import { EditorViewport } from "@/lib/scene/viewport";
+import { Logo } from "@/components/ui/Logo";
 
 interface Props {
   api: HttpBackend;
   actor: NonNullable<Actor>;
-  userLabel: string;
   active: boolean;
   openProjectId: string | null;
   onOpen(projectId: string): void;
@@ -53,7 +54,7 @@ function downloadBlob(data: Blob, name: string) {
 const button = "inline-flex items-center gap-1.5 rounded-md border border-line bg-panel px-3 py-1.5 text-sm hover:border-accent hover:text-accent disabled:opacity-40";
 const primary = "inline-flex items-center gap-1.5 rounded-md border border-ink bg-ink px-3 py-1.5 text-sm text-canvas hover:border-accent hover:bg-accent disabled:opacity-40";
 
-export function SavesPage({ api, actor, userLabel, active, openProjectId, onOpen, refreshKey }: Props) {
+export function SavesPage({ api, actor, active, openProjectId, onOpen, refreshKey }: Props) {
   const blobs = useMemo(() => new PlatformBlobStore({ api, actor }), [api, actor]);
   const deps = useMemo(() => ({ projects: api.projects, assets: api.assets, blobs, actor }), [api, blobs, actor]);
   const [projects, setProjects] = useState<Project[] | null>(null);
@@ -156,8 +157,8 @@ export function SavesPage({ api, actor, userLabel, active, openProjectId, onOpen
       aria-hidden={!active}
       inert={!active}
     >
-      <header className="grid grid-cols-[minmax(0,1fr)_clamp(170px,22vw,320px)_minmax(0,1fr)] items-center gap-4 border-b border-line bg-panel px-5 py-3.5 max-md:grid-cols-[auto_1fr]">
-        <span className="font-semibold">Prometheus::create</span>
+      <header className="grid grid-cols-[minmax(0,1fr)_clamp(170px,22vw,320px)_minmax(0,1fr)] items-center gap-4 border-b border-line bg-panel py-3.5 pr-16 pl-5 max-md:grid-cols-[auto_1fr]">
+        <Logo />
         <input
           className="h-8 w-full min-w-0 rounded-md border border-line bg-canvas px-2.5 text-sm outline-none focus:border-accent"
           type="search"
@@ -168,13 +169,16 @@ export function SavesPage({ api, actor, userLabel, active, openProjectId, onOpen
         />
         <div className="flex flex-wrap items-center justify-end gap-2 max-md:col-span-2 max-md:justify-center">
           <button className={primary} onClick={() => void create()} disabled={!!busy}>
-            + New
+            <PlusIcon className="size-4" />
+            New
           </button>
           <Link className={button} href="/projects/new" title="Create the labelled axis-box fixture project">
-            + Example
+            <PlusIcon className="size-4" />
+            Example
           </Link>
           <button className={button} onClick={() => fileInput.current?.click()} disabled={!!busy} title="Import a project .zip downloaded from here">
-            ↥ Import .zip
+            <ArrowUpTrayIcon className="size-4" />
+            Import (.zip)
           </button>
           <input
             ref={fileInput}
@@ -186,11 +190,6 @@ export function SavesPage({ api, actor, userLabel, active, openProjectId, onOpen
               e.target.value = "";
             }}
           />
-          <form action="/auth/signout" method="post">
-            <button type="submit" className="px-1 text-sm text-muted underline hover:text-accent" title={`Signed in as ${userLabel}`}>
-              Sign out
-            </button>
-          </form>
         </div>
       </header>
 
@@ -201,8 +200,8 @@ export function SavesPage({ api, actor, userLabel, active, openProjectId, onOpen
         >
           {busy ? `${busy}…` : message?.text}
           {!busy && (
-            <button className="ml-3 text-muted hover:text-accent" onClick={() => setMessage(null)} aria-label="Dismiss">
-              ✕
+            <button className="ml-3 inline-grid align-middle text-muted hover:text-accent" onClick={() => setMessage(null)} aria-label="Dismiss">
+              <XMarkIcon className="size-4" />
             </button>
           )}
         </p>
@@ -238,12 +237,12 @@ export function SavesPage({ api, actor, userLabel, active, openProjectId, onOpen
                   <td className="px-2 text-right" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
                     <button
                       className="grid size-7 place-items-center rounded-md text-muted hover:bg-panel-2 hover:text-ink disabled:opacity-40"
-                      aria-label={`Download ${p.title} as .zip`}
-                      title="Download .zip"
+                      aria-label={`Download ${p.title} (.zip)`}
+                      title="Download (.zip)"
                       disabled={!!busy}
                       onClick={() => void download(p)}
                     >
-                      ↓
+                      <ArrowDownTrayIcon className="size-4" />
                     </button>
                   </td>
                 </tr>
@@ -288,7 +287,8 @@ export function SavesPage({ api, actor, userLabel, active, openProjectId, onOpen
               </dl>
               <div className="mt-auto flex justify-end gap-2 pt-3">
                 <button className={button} onClick={() => void download(project)} disabled={!!busy}>
-                  ↓ Download .zip
+                  Download (.zip)
+                  <ArrowDownTrayIcon className="size-4" />
                 </button>
                 <button className={primary} onClick={() => onOpen(project.id)}>
                   Open

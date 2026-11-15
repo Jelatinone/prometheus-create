@@ -45,7 +45,7 @@ export interface ViewportCallbacks {
   onAssetError?(assetId: string, message: string): void;
 }
 
-const CANVAS = new Color("#f3f0e9");
+const CANVAS = new Color("#cbc8c1"); // --color-stage
 const SELECT = 0xff6842;
 
 export class EditorViewport {
@@ -78,7 +78,7 @@ export class EditorViewport {
     const sun = new DirectionalLight(0xffffff, 2.2);
     sun.position.set(2.5, 4, 3);
     this.scene.add(sun);
-    const grid = new GridHelper(10, 40, 0xb9b2a5, 0xd9d3c7);
+    const grid = new GridHelper(10, 40, 0x8f8a80, 0xb3afa7);
     this.helpers.add(grid);
     this.scene.add(this.helpers);
 

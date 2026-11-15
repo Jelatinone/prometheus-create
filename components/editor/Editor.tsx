@@ -6,6 +6,30 @@
  * right inspector, bottom take bar, and a capture drawer. Data goes through the
  * platform client (HttpBackend + PlatformBlobStore) with the session cookie.
  */
+import {
+  ArrowPathIcon,
+  ArrowsPointingOutIcon,
+  ArrowsRightLeftIcon,
+  ArrowUpTrayIcon,
+  ArrowUturnLeftIcon,
+  ArrowUturnRightIcon,
+  CameraIcon,
+  CheckCircleIcon,
+  CloudArrowUpIcon,
+  CubeIcon,
+  CursorArrowRaysIcon,
+  DocumentDuplicateIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  FolderOpenIcon,
+  PhotoIcon,
+  Square2StackIcon,
+  Squares2X2Icon,
+  TrashIcon,
+  VideoCameraIcon,
+  ViewfinderCircleIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { inspectGlb } from "@/lib/assets/glb";
@@ -41,7 +65,6 @@ import { Inspector } from "./Inspector";
 interface Props {
   projectId: string;
   actor: NonNullable<Actor>;
-  userLabel: string;
   /** Slides the save viewer back in (Studio); without it the logo links to /projects. */
   onShowSaves?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
@@ -55,11 +78,11 @@ interface Loaded {
 
 type Notice = { tone: "ok" | "bad" | "info"; text: string; conflict?: boolean } | null;
 
-const TOOLS: { id: Tool; label: string; key: string; hint: string }[] = [
-  { id: "select", label: "Select", key: "V", hint: "Click an object to select it" },
-  { id: "move", label: "Move", key: "W", hint: "Drag the arrows to move" },
-  { id: "rotate", label: "Rotate", key: "E", hint: "Drag the rings to rotate" },
-  { id: "scale", label: "Scale", key: "R", hint: "Drag any handle; scale stays uniform" },
+const TOOLS: { id: Tool; label: string; key: string; hint: string; icon: typeof CursorArrowRaysIcon }[] = [
+  { id: "select", label: "Select", key: "V", hint: "click an object to select it", icon: CursorArrowRaysIcon },
+  { id: "move", label: "Move", key: "W", hint: "drag the arrows to move", icon: ArrowsRightLeftIcon },
+  { id: "rotate", label: "Rotate", key: "E", hint: "drag the rings to rotate", icon: ArrowPathIcon },
+  { id: "scale", label: "Scale", key: "R", hint: "drag any handle; scale stays uniform", icon: ArrowsPointingOutIcon },
 ];
 
 function download(data: Blob, name: string) {
@@ -75,7 +98,7 @@ function slug(text: string) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "take";
 }
 
-export function Editor({ projectId, actor, userLabel, onShowSaves, onDirtyChange }: Props) {
+export function Editor({ projectId, actor, onShowSaves, onDirtyChange }: Props) {
   const api = useMemo(() => new HttpBackend(), []);
   const blobs = useMemo(() => new PlatformBlobStore({ api, actor }), [api, actor]);
   const assetDeps = useMemo(() => ({ assets: api.assets, blobs, actor }), [api, blobs, actor]);
@@ -332,176 +355,146 @@ export function Editor({ projectId, actor, userLabel, onShowSaves, onDirtyChange
         </Link>
       </main>
     );
-  if (!loaded || !present || !history) return <p className="p-6 text-muted">Opening the editor…</p>;
+  if (!loaded || !present || !history) return <p className="fixed inset-0 z-30 bg-stage p-6 text-muted">Opening the editor…</p>;
 
   const take = present.take;
   const selectedObject = findObject(present, selected);
   const activeCamera = present.scene.cameras.find((c) => c.id === take.activeCameraId) ?? null;
-  const button = "rounded border border-line bg-panel px-2.5 py-1 text-sm hover:border-accent hover:text-accent disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink";
+  const parentName = take.parent ? (loaded.takes.find((t) => t.takeId === take.parent!.takeId)?.name ?? "another take") : null;
+  const chrome = "rounded-xl border border-line bg-panel shadow-sm";
+  const icon =
+    "grid size-8 place-items-center rounded-lg text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
+  const labelled =
+    "flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
+  const toolButton = (on: boolean) => `${icon} ${on ? "bg-ink text-canvas hover:bg-ink hover:text-canvas" : ""}`;
+  const sep = <span className="mx-1 h-5 w-px bg-line" aria-hidden />;
 
   return (
-    <div className="fixed inset-0 z-30 grid grid-rows-[auto_1fr_auto] overflow-hidden bg-canvas text-ink">
-      {/* Top bar */}
-      <header className="flex flex-wrap items-center gap-2 border-b border-line bg-panel px-3 py-2">
-        {onShowSaves ? (
-          <button className={button} onClick={onShowSaves} title="Back to your saves">
-            ← Saves
-          </button>
-        ) : (
-          <Link href="/projects" className="font-semibold hover:text-accent" title="All projects">
-            Prometheus::create
-          </Link>
-        )}
-        <span className="text-muted">/</span>
-        <span className="max-w-48 truncate font-medium" title={loaded.project.title}>
-          {loaded.project.title}
-        </span>
-        <label className="ml-2 flex items-center gap-1 text-sm">
-          <span className="text-muted">Take</span>
-          <select
-            className="rounded border border-line bg-canvas px-1.5 py-1"
-            value={take.id}
-            onChange={(e) => void switchTake(e.target.value)}
-            disabled={!!busy}
-          >
-            {loaded.takes.map((t) => (
-              <option key={t.takeId} value={t.takeId}>
-                {t.name}
-                {t.parent ? "" : " (original)"} · r{t.headRevision}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className={`text-sm ${dirty ? "text-bad" : "text-ok"}`} aria-live="polite">
-          {busy ? `${busy}…` : dirty ? "● Unsaved changes" : `✓ Saved r${loaded.revision.number}`}
-        </span>
-        <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          <button className={button} onClick={() => apply(undo)} disabled={!history.past.length} title="Undo (Ctrl+Z)">
-            Undo
-          </button>
-          <button className={button} onClick={() => apply(redo)} disabled={!history.future.length} title="Redo (Ctrl+Shift+Z)">
-            Redo
-          </button>
-          <button className={button} onClick={() => void save()} disabled={!dirty || !!busy} title="Save a new revision (Ctrl+S)">
-            Save
-          </button>
-          <button className={button} onClick={() => void fork()} disabled={!!busy} title="Copy the saved revision into a new take">
-            Fork take
-          </button>
-          <label className={`${button} cursor-pointer`} title="Add a GLB mesh to this take">
-            Import GLB
-            <input
-              type="file"
-              accept=".glb,model/gltf-binary"
-              className="sr-only"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                e.target.value = "";
-                if (f) void importGlb(f);
-              }}
-            />
-          </label>
-          <button className={button} onClick={() => setCaptureOpen((v) => !v)} aria-pressed={captureOpen}>
-            Capture
-          </button>
-          <button className={button} onClick={() => void exportPng()} title="Download the current view as PNG">
-            Export PNG
-          </button>
-          <button className={button} onClick={() => void exportGlb()} title="Download the visible objects as GLB">
-            Export GLB
-          </button>
-          <span className="ml-1 hidden text-xs text-muted lg:inline" title="Signed in">
-            {userLabel}
-          </span>
-        </div>
-      </header>
-
-      {notice && (
-        <div
-          role={notice.tone === "bad" ? "alert" : "status"}
-          className={`absolute bottom-12 left-1/2 z-40 flex max-w-2xl -translate-x-1/2 items-start gap-3 rounded border bg-panel px-3 py-2 text-sm shadow ${
-            notice.tone === "bad" ? "border-bad text-bad" : notice.tone === "ok" ? "border-ok text-ok" : "border-line text-ink"
-          }`}
-        >
-          <span>{notice.text}</span>
-          {notice.conflict && (
-            <button className={button} onClick={() => void open(take.id)}>
-              Reload
-            </button>
-          )}
-          <button className="text-muted hover:text-accent" onClick={() => setNotice(null)} aria-label="Dismiss">
-            ✕
-          </button>
-        </div>
+    <div className="fixed inset-0 z-30 overflow-hidden bg-stage text-ink">
+      {/* Viewport fills the screen; chrome floats over it. */}
+      <div ref={viewportEl} className="absolute inset-0" />
+      {present.scene.objects.length === 0 && (
+        <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-muted">
+          This take has no objects yet. Import a GLB, or capture a photo for reference.
+        </p>
       )}
 
-      <div className="grid min-h-0 grid-cols-[auto_1fr_18rem]">
-        {/* Left tools */}
-        <nav className="flex flex-col gap-1 border-r border-line bg-panel p-1.5" aria-label="Tools">
-          {TOOLS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTool(t.id)}
-              aria-pressed={tool === t.id}
-              title={`${t.label} (${t.key}): ${t.hint}`}
-              className={`w-16 rounded px-1 py-1.5 text-xs ${tool === t.id ? "bg-ink text-canvas" : "hover:text-accent"}`}
-            >
-              {t.label}
-              <span className="block text-[10px] opacity-70">{t.key}</span>
-            </button>
+      {/* Project chip: saves, project, take, saved state */}
+      <div className={`absolute top-3 left-3 flex h-11 max-w-[min(560px,calc(100vw-34rem))] items-center gap-1 px-1.5 ${chrome}`}>
+        {onShowSaves ? (
+          <button className={icon} onClick={onShowSaves} title="Saves" aria-label="Back to saves">
+            <FolderOpenIcon className="size-5" />
+          </button>
+        ) : (
+          <Link className={icon} href="/projects" title="Saves" aria-label="Back to saves">
+            <FolderOpenIcon className="size-5" />
+          </Link>
+        )}
+        <span className="truncate px-1 font-serif font-semibold" title={loaded.project.title}>
+          {loaded.project.title}
+        </span>
+        {sep}
+        <select
+          className="h-8 min-w-0 rounded-lg bg-transparent px-1.5 text-sm hover:bg-panel-2"
+          value={take.id}
+          onChange={(e) => void switchTake(e.target.value)}
+          disabled={!!busy}
+          aria-label="Take"
+          title={parentName ? `Forked from ${parentName}` : "Original take"}
+        >
+          {loaded.takes.map((t) => (
+            <option key={t.takeId} value={t.takeId}>
+              {t.name}
+              {t.parent ? "" : " (original)"} · r{t.headRevision}
+            </option>
           ))}
-          <button
-            className="w-16 rounded px-1 py-1.5 text-xs text-muted"
-            disabled
-            title="Lasso masks are not in this build (V1 uses imported or fixture meshes)"
-          >
-            Lasso
-            <span className="block text-[10px]">later</span>
-          </button>
-          <hr className="my-1 border-line" />
-          <button className="w-16 rounded px-1 py-1.5 text-xs hover:text-accent" onClick={() => viewport.current?.frame()} title="Frame selection (F)">
-            Frame
-            <span className="block text-[10px] opacity-70">F</span>
-          </button>
-          <button
-            className="w-16 rounded px-1 py-1.5 text-xs hover:text-accent disabled:opacity-40"
-            onClick={() => activeCamera && viewport.current?.viewThrough(activeCamera)}
-            disabled={!activeCamera}
-            title={activeCamera ? `View through ${activeCamera.name}` : "This take has no camera"}
-          >
-            Camera
-          </button>
-          <button className="w-16 rounded px-1 py-1.5 text-xs hover:text-accent" onClick={() => setGrid((g) => !g)} aria-pressed={grid}>
-            Grid
-          </button>
-        </nav>
-
-        {/* Viewport */}
-        <section className="relative min-h-0 min-w-0">
-          <div ref={viewportEl} className="absolute inset-0" />
-          {present.scene.objects.length === 0 && (
-            <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-muted">
-              This take has no objects yet. Import a GLB, or capture a photo for reference.
-            </p>
+        </select>
+        <span className={`flex shrink-0 items-center gap-1 px-1.5 text-xs ${dirty ? "text-bad" : "text-ok"}`} aria-live="polite">
+          {busy ? (
+            `${busy}…`
+          ) : dirty ? (
+            <>
+              <span className="size-2 rounded-full bg-bad" aria-hidden />
+              Unsaved
+            </>
+          ) : (
+            <>
+              <CheckCircleIcon className="size-4" />
+              Saved r{loaded.revision.number}
+            </>
           )}
-          {captureOpen && (
-            <aside className="absolute bottom-3 left-3 top-3 z-10 w-[26rem] max-w-[calc(100%-1.5rem)] overflow-auto rounded border border-line bg-panel p-3 shadow-lg">
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="font-semibold">Capture</h2>
-                <button className="text-muted hover:text-accent" onClick={() => setCaptureOpen(false)} aria-label="Close capture">
-                  ✕
-                </button>
-              </div>
-              <p className="mb-2 text-xs text-muted">
-                Photos, camera frames and video frames are saved to this project as sources (private storage). Reconstruction from a capture is not wired
-                into this build.
-              </p>
-              <CapturePanel ingestor={ingestor} />
-            </aside>
-          )}
-        </section>
+        </span>
+      </div>
 
-        {/* Right inspector */}
+      {/* Actions (the account button sits to their right on every screen) */}
+      <div className={`absolute top-3 right-15 flex h-11 items-center gap-0.5 px-1.5 ${chrome}`}>
+        <button className={icon} onClick={() => apply(undo)} disabled={!history.past.length} title="Undo (Ctrl+Z)" aria-label="Undo">
+          <ArrowUturnLeftIcon className="size-5" />
+        </button>
+        <button className={icon} onClick={() => apply(redo)} disabled={!history.future.length} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
+          <ArrowUturnRightIcon className="size-5" />
+        </button>
+        {sep}
+        <button className={labelled} onClick={() => void save()} disabled={!dirty || !!busy} title="Save a new revision (Ctrl+S)">
+          <CloudArrowUpIcon className="size-5" />
+          Save
+        </button>
+        <button className={labelled} onClick={() => void fork()} disabled={!!busy} title="Fork: copy the saved revision into a new take">
+          <Square2StackIcon className="size-5" />
+          Fork
+        </button>
+        {sep}
+        <label className={`${icon} cursor-pointer`} title="Import GLB mesh" aria-label="Import GLB mesh">
+          <ArrowUpTrayIcon className="size-5" />
+          <input
+            type="file"
+            accept=".glb,model/gltf-binary"
+            className="sr-only"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) void importGlb(f);
+            }}
+          />
+        </label>
+        <button
+          className={toolButton(captureOpen)}
+          onClick={() => setCaptureOpen((v) => !v)}
+          aria-pressed={captureOpen}
+          title="Capture (upload, camera, video)"
+          aria-label="Capture"
+        >
+          <CameraIcon className="size-5" />
+        </button>
+        {sep}
+        <button className={labelled} onClick={() => void exportPng()} title="Download the current view as PNG">
+          <PhotoIcon className="size-5" />
+          PNG
+        </button>
+        <button className={labelled} onClick={() => void exportGlb()} title="Download the visible objects as GLB">
+          <CubeIcon className="size-5" />
+          GLB
+        </button>
+      </div>
+
+      {captureOpen && (
+        <aside className={`absolute top-17 bottom-20 left-3 z-10 w-[26rem] max-w-[calc(100%-1.5rem)] overflow-auto p-3 ${chrome}`}>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-serif font-semibold">Capture</h2>
+            <button className={icon} onClick={() => setCaptureOpen(false)} aria-label="Close capture">
+              <XMarkIcon className="size-5" />
+            </button>
+          </div>
+          <p className="mb-2 text-xs text-muted">
+            Photos, camera frames and video frames are saved to this project as sources (private storage). Reconstruction from a capture is not wired
+            into this build.
+          </p>
+          <CapturePanel ingestor={ingestor} />
+        </aside>
+      )}
+
+      {/* Inspector */}
+      <div className="absolute top-17 right-3 bottom-20 w-72">
         <Inspector
           manifest={present}
           selected={selectedObject}
@@ -509,33 +502,102 @@ export function Editor({ projectId, actor, userLabel, onShowSaves, onDirtyChange
           onTransform={(id, t) => apply((h) => commit(h, setObjectTransform(h.present, id, cleanTransform(t))))}
           onRename={(id, name) => apply((h) => commit(h, renameObject(h.present, id, name)))}
           onVisible={(id, v) => apply((h) => commit(h, setObjectVisible(h.present, id, v)))}
-          onDuplicate={(id) => {
-            const copy = newId("object");
-            apply((h) => commit(h, duplicateObject(h.present, id, copy)));
-            setSelected(copy);
-          }}
-          onDelete={(id) => {
-            apply((h) => commit(h, removeObject(h.present, id)));
-            setSelected(null);
-          }}
         />
       </div>
 
-      {/* Bottom take bar */}
-      <footer className="flex flex-wrap items-center gap-4 border-t border-line bg-panel px-3 py-1.5 text-xs text-muted">
-        <span>
-          <span className="text-ink">{take.name}</span> · revision {loaded.revision.number} ({loaded.revision.origin})
-        </span>
-        <span>
-          {take.parent
-            ? `Forked from ${loaded.takes.find((t) => t.takeId === take.parent!.takeId)?.name ?? take.parent.takeId}`
-            : "Original take"}
-        </span>
-        <span>{present.scene.objects.length} object(s)</span>
-        <span className="ml-auto" title="The take timeline (keyframes, playback) is not in this build">
-          Timeline: still take (playback comes later)
-        </span>
-      </footer>
+      {/* Context-aware toolbar: tools and view always; object actions with a selection */}
+      <div className={`absolute bottom-3 left-1/2 flex h-12 -translate-x-1/2 items-center gap-0.5 px-1.5 ${chrome}`} role="toolbar" aria-label="Tools">
+        {TOOLS.map((t) => {
+          const Icon = t.icon;
+          const needsSelection = t.id !== "select" && !selectedObject;
+          return (
+            <button
+              key={t.id}
+              className={toolButton(tool === t.id)}
+              onClick={() => setTool(t.id)}
+              aria-pressed={tool === t.id}
+              title={`${t.label} (${t.key}): ${needsSelection ? "select an object first" : t.hint}`}
+              aria-label={t.label}
+            >
+              <Icon className="size-5" />
+            </button>
+          );
+        })}
+        {sep}
+        <button className={icon} onClick={() => viewport.current?.frame()} title="Frame selection (F)" aria-label="Frame selection">
+          <ViewfinderCircleIcon className="size-5" />
+        </button>
+        <button
+          className={icon}
+          onClick={() => activeCamera && viewport.current?.viewThrough(activeCamera)}
+          disabled={!activeCamera}
+          title={activeCamera ? `View through ${activeCamera.name}` : "This take has no camera"}
+          aria-label="View through take camera"
+        >
+          <VideoCameraIcon className="size-5" />
+        </button>
+        <button className={toolButton(grid)} onClick={() => setGrid((g) => !g)} aria-pressed={grid} title="Grid" aria-label="Grid">
+          <Squares2X2Icon className="size-5" />
+        </button>
+        {selectedObject && (
+          <>
+            {sep}
+            <span className="max-w-40 truncate px-1.5 text-sm font-medium" title={selectedObject.name}>
+              {selectedObject.name}
+            </span>
+            <button
+              className={icon}
+              onClick={() => apply((h) => commit(h, setObjectVisible(h.present, selectedObject.id, !selectedObject.visible)))}
+              title={selectedObject.visible ? "Hide" : "Show"}
+              aria-label={selectedObject.visible ? "Hide object" : "Show object"}
+            >
+              {selectedObject.visible ? <EyeIcon className="size-5" /> : <EyeSlashIcon className="size-5" />}
+            </button>
+            <button
+              className={icon}
+              onClick={() => {
+                const copy = newId("object");
+                apply((h) => commit(h, duplicateObject(h.present, selectedObject.id, copy)));
+                setSelected(copy);
+              }}
+              title="Duplicate (Ctrl+D)"
+              aria-label="Duplicate object"
+            >
+              <DocumentDuplicateIcon className="size-5" />
+            </button>
+            <button
+              className={`${icon} hover:text-bad`}
+              onClick={() => {
+                apply((h) => commit(h, removeObject(h.present, selectedObject.id)));
+                setSelected(null);
+              }}
+              title="Delete (Del)"
+              aria-label="Delete object"
+            >
+              <TrashIcon className="size-5" />
+            </button>
+          </>
+        )}
+      </div>
+
+      {notice && (
+        <div
+          role={notice.tone === "bad" ? "alert" : "status"}
+          className={`absolute bottom-18 left-1/2 z-40 flex max-w-2xl -translate-x-1/2 items-start gap-3 rounded-xl border bg-panel px-3 py-2 text-sm shadow ${
+            notice.tone === "bad" ? "border-bad text-bad" : notice.tone === "ok" ? "border-ok text-ok" : "border-line text-ink"
+          }`}
+        >
+          <span>{notice.text}</span>
+          {notice.conflict && (
+            <button className="rounded-lg border border-line px-2 py-0.5 text-ink hover:text-accent" onClick={() => void open(take.id)}>
+              Reload
+            </button>
+          )}
+          <button className="text-muted hover:text-accent" onClick={() => setNotice(null)} aria-label="Dismiss">
+            <XMarkIcon className="size-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

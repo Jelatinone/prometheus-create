@@ -21,5 +21,5 @@ async function EditorForUser({ params }: { params: Promise<{ projectId: string }
   const { projectId } = await params;
   const user = await sessionUser(await nextCookieJar());
   if (!user) redirect(`/login?next=${encodeURIComponent(`/projects/${projectId}`)}`);
-  return <Studio actor={user.actor} userLabel={user.email ?? user.actor.userId} initialProjectId={projectId} />;
+  return <Studio actor={user.actor} initialProjectId={projectId} />;
 }

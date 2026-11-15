@@ -13,11 +13,10 @@ import { SavesPage } from "./SavesPage";
 
 interface Props {
   actor: NonNullable<Actor>;
-  userLabel: string;
   initialProjectId?: string;
 }
 
-export function Studio({ actor, userLabel, initialProjectId }: Props) {
+export function Studio({ actor, initialProjectId }: Props) {
   const api = useMemo(() => new HttpBackend(), []);
   const [openId, setOpenId] = useState<string | null>(initialProjectId ?? null);
   const [savesShown, setSavesShown] = useState(!initialProjectId);
@@ -59,8 +58,8 @@ export function Studio({ actor, userLabel, initialProjectId }: Props) {
 
   return (
     <>
-      {openId && <Editor key={openId} projectId={openId} actor={actor} userLabel={userLabel} onShowSaves={showSaves} onDirtyChange={onDirtyChange} />}
-      <SavesPage api={api} actor={actor} userLabel={userLabel} active={savesShown} openProjectId={openId} onOpen={open} refreshKey={refresh} />
+      {openId && <Editor key={openId} projectId={openId} actor={actor} onShowSaves={showSaves} onDirtyChange={onDirtyChange} />}
+      <SavesPage api={api} actor={actor} active={savesShown} openProjectId={openId} onOpen={open} refreshKey={refresh} />
     </>
   );
 }

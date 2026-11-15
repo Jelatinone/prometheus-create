@@ -21,5 +21,5 @@ async function SavesForUser() {
   await connection();
   const user = await sessionUser(await nextCookieJar());
   if (!user) redirect("/login?next=/projects");
-  return <Studio actor={user.actor} userLabel={user.email ?? user.actor.userId} />;
+  return <Studio actor={user.actor} />;
 }
