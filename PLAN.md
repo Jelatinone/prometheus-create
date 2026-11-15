@@ -12,7 +12,7 @@ project_status: "building"
 plan_version: 8
 approval: "approved"
 approval_ref: "Cody chat 2026-11-15: compact remaining work until 10:00 A.M.; final two hours stability/polish; sequential agents; light feature checks; Layers and simplified UI/Generate/frame picking required; confirmed left mode rail/right details."
-updated_at: "2026-11-15T08:00:00-06:00"
+updated_at: "2026-11-15T10:36:47-06:00"
 timezone: "America/Chicago"
 code_start: "2026-11-14T12:00:00-06:00"
 code_end: "2026-11-15T10:00:00-06:00"
@@ -21,7 +21,7 @@ submission_deadline: null
 release_owner: "Cody - integration, review, demo and submission owner"
 stable_branch: "production"
 base_release: "STABLE-V2 (local annotated tag at 06e97e7)"
-current_stable_release: "STABLE-V3 (local annotated tag at c88214d; never retarget)"
+current_stable_release: "STABLE-V3.5 (published; tested code 9823d700ed3ab9707ce19fd6fd90d5a98bd45c32; never retarget)"
 ```
 
 The 08:00 feature freeze and 10:00 finish are **Cody's working cutoffs**, not a newly verified organizer submission deadline. Earlier event-clock discrepancies remain in the archive; Cody owns official deadline/submission confirmation. Do not treat unknown rules as publication or eligibility approval.
@@ -600,6 +600,9 @@ Preserve the short, honest journey: existing real capture → select frame → r
 At 08:45–09:30 rehearse the working build, retain representative exports and a known-good fallback. Cody owns narration/video/submission; the final half-hour is buffer, not another feature slot. Repository access, deployment and actual submission must be checked separately if requested. Nothing here claims submission, remote publication or a new stable tag.
 
 ## 9. Approved updates and gate log
+
+**Published release — 2026-11-15T10:36:47-06:00:** Cody explicitly requested create-stable and push. `STABLE-V3.5` is an annotated tag on clean integrated `9823d700ed3ab9707ce19fd6fd90d5a98bd45c32`; full npm run verify passed (342 tests in 39 files, skills, typecheck, lint, production build). Atomic origin push and remote peeled tag confirmed. Includes the merged mobile layouts, capture/scene continuation and capture-based multi-frame UI. Detailed gate/publication/limits: HK-014. Prior published rollback: `STABLE-V3.4` (`c6ed13457b8ec2decf52deaa03cea98264f505d6`). A following documentation-only commit records this result; tag remains on tested code.
+
 
 | Plan version | Date | Release | Accepted task IDs / ADR IDs | Updated by | Approval/evidence | Why |
 | --- | --- | --- | --- | --- | --- | --- |
