@@ -61,12 +61,31 @@ describe("levelPlacements", () => {
   it("levels a frame's objects together: mean up becomes +Y, the lowest base rests on 0, layout preserved", () => {
     const a = objectPlacement(pose, root);
     const b = objectPlacement({ ...pose, translation: [0.6, 0.1, 2.1] }, root);
-    const [la, lb] = levelPlacements([a, b]);
+    const [la, lb] = levelPlacements([a, b], "shared");
     close(la.up, [0, 1, 0], 5);
     close(lb.up, [0, 1, 0], 5);
     expect(Math.min(la.position[1], lb.position[1])).toBeCloseTo(0, 9);
     const dist = (p: { position: Vec3 }, r: { position: Vec3 }) => Math.hypot(...p.position.map((v, i) => v - r.position[i]));
     expect(dist(la, lb)).toBeCloseTo(dist(a, b), 9);
     expect(levelPlacements([])).toEqual([]);
+  });
+});
+
+describe("levelPlacements default ('each')", () => {
+  it("stands every object upright on y = 0 even when the jobs' orientations disagree, keeping horizontal spacing", () => {
+    const a = objectPlacement(pose, root);
+    // A second job whose pose estimate is tilted ~13° relative to the first.
+    const tilt: QuatXYZW = [Math.sin((13 * Math.PI) / 360), 0, 0, Math.cos((13 * Math.PI) / 360)];
+    const [w, x, y, z] = q;
+    const tq = [tilt[3] * w - tilt[0] * x, tilt[3] * x + tilt[0] * w, tilt[3] * y - tilt[0] * z, tilt[3] * z + tilt[0] * y];
+    const b = objectPlacement({ ...pose, rotationWxyz: tq as [number, number, number, number], translation: [0.6, 0.1, 2.1] }, root);
+    const [la, lb] = levelPlacements([a, b]);
+    for (const p of [la, lb]) {
+      close(p.up, [0, 1, 0], 6);
+      expect(p.position[1]).toBe(0);
+    }
+    const shared = levelPlacements([a, b], "shared");
+    const flat = (p: { position: Vec3 }, r: { position: Vec3 }) => Math.hypot(p.position[0] - r.position[0], p.position[2] - r.position[2]);
+    expect(flat(la, lb)).toBeCloseTo(flat(shared[0], shared[1]), 9);
   });
 });

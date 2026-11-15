@@ -40,11 +40,16 @@ Image-to-3D jobs against `fal-ai/sam-3/image` (masks) and `fal-ai/sam-3/3d-objec
   - The camera frame is PyTorch3D-style (+X left, +Y up, +Z forward). The canonical scene frame is a 180° turn about Y.
   - On the round table, the placement reproduces the provider's posed splat to 0.45 mm mean.
 - **Kept on resume.** The pose JSON is stored as `rawAssetIds[1]` (`provider_raw`, `application/json`); `[0]` is always the GLB. `outcome.placement` is a transform for the normalized mesh / S1 space, `{ position, rotation, scale, up }`, plus `placementNote` when it is missing. Jobs finished before CP-009 have no stored pose.
-- **Decision: 2–3 objects means one single-mask job per object.** A job output has one `meshAssetId`, so a multi-mask job cannot be represented without a contract change. Every child job on the same frame is posed in that frame's camera, so `levelPlacements([...])` lays them out together:
-  - It rotates them about the camera so their mean up is +Y.
-  - It puts the lowest base on y = 0.
-  - Their relative layout is preserved.
-- **Not yet measured.** How consistent separate jobs' depth/scale estimates are needs a paid live test (two 3D jobs on one frame, ~$0.04 plus a $0.005 mask). Propose a contract change for one multi-mask job, which would share a single depth estimate, only if that test shows unacceptable drift.
+- **Decision: 2–3 objects means one single-mask job per object.** A job output has one `meshAssetId`, so a multi-mask job cannot be represented without a contract change. Every child job on the same frame is posed in that frame's camera, so `levelPlacements([...])` lays them out together.
+- **Segmentation.** It asks for every matching instance (`return_multiple_masks`, up to `SEGMENT_MAX_MASKS` = 3, with scores), so one prompt can yield the 2–3 masks.
+- **Measured (paid live test, 2026-11-15, $0.05).** Two chairs of the same model from one frame, as two separate jobs:
+  - Scale and spacing are consistent: 0.56×0.90×0.58 m vs 0.57×0.96×0.66 m, and they sit 1.6 m apart.
+  - Orientation estimates drift by **13.5°**. With shared leveling, each object then stays tilted 6.7° and the bases are 0.18 m apart.
+- **Default layout.** Hence the default `levelPlacements(list)` ("each" mode):
+  - Positions come from the shared leveling.
+  - Each object is then stood upright on its own, with its base on y = 0.
+  - `"shared"` keeps each object's provider orientation and real elevation differences (e.g. tiers).
+- **Contract change not needed.** A single multi-mask job would share one pose estimate, but it would need a contract change. Propose it only if manual tests show the "each" layout is wrong.
 - **Scale.** `placement.scale` is the provider's metric estimate: the round table is 0.576 m wide instead of the unit-normalized 1 m. It is still an estimate; keep `dimensionsStatus: "estimated"`.
 
 ## Timeouts: what happens and why it converges

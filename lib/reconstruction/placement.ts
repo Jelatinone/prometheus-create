@@ -114,21 +114,28 @@ function rotationBetween(u: Vec3, v: Vec3): QuatXYZW {
 }
 
 /**
- * Level a set of objects reconstructed from ONE frame: rotate all of them
- * together about the camera so their mean up is +Y, then drop them so the
- * lowest base rests on y = 0. Relative positions and orientations are
- * preserved; the camera stays at x = z = 0. Assumes reconstructed objects are
- * upright in their own frame (true for the observed SAM 3D outputs).
+ * Lay out objects reconstructed from ONE frame in a level scene.
+ *
+ * All positions are rotated together about the camera so the objects' mean up
+ * is +Y (relative spacing is preserved). Then, in the default "each" mode,
+ * every object is stood upright on its own and its base rests on y = 0:
+ * separate jobs agree on scale and spacing but their orientation estimates
+ * drift (13.5° between two chairs in the HK-011 CP-009 live test), which in
+ * "shared" mode shows up as tilt and floating bases. "shared" keeps each
+ * object's provider orientation and real elevation differences (e.g. tiers)
+ * and only drops the lowest base to y = 0. Assumes upright objects.
  */
-export function levelPlacements(placements: ScenePlacement[]): ScenePlacement[] {
+export function levelPlacements(placements: ScenePlacement[], mode: "each" | "shared" = "each"): ScenePlacement[] {
   if (placements.length === 0) return [];
   const sum = placements.reduce<Vec3>((a, p) => [a[0] + p.up[0], a[1] + p.up[1], a[2] + p.up[2]], [0, 0, 0]);
   const len = Math.hypot(...sum);
   const level = len > 1e-9 ? rotationBetween([sum[0] / len, sum[1] / len, sum[2] / len], [0, 1, 0]) : ([0, 0, 0, 1] as QuatXYZW);
   const turned = placements.map((p) => {
-    const rotation = normalizeQuat(quatMultiply(level, p.rotation));
+    let rotation = normalizeQuat(quatMultiply(level, p.rotation));
+    if (mode === "each") rotation = normalizeQuat(quatMultiply(rotationBetween(rotateVec(rotation, [0, 1, 0]), [0, 1, 0]), rotation));
     return { ...p, position: rotateVec(level, p.position), rotation, up: rotateVec(rotation, [0, 1, 0]) };
   });
+  if (mode === "each") return turned.map((p) => ({ ...p, position: [p.position[0], 0, p.position[2]] as Vec3 }));
   const floor = Math.min(...turned.map((p) => p.position[1]));
   return turned.map((p) => ({ ...p, position: [p.position[0], p.position[1] - floor, p.position[2]] as Vec3 }));
 }
