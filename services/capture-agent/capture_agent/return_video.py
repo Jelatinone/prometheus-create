@@ -26,9 +26,11 @@ SIZE = (540, 960)
 STATUS_HEIGHT = 120
 FPS = 4
 #: Where FaceTime draws the far-end (our) video inside the caller capture, as a
-#: fraction of the cropped phone picture. Measured on the CP-022 call
-#: (1280x720 capture, picture x 400-880, tile x 425-592 / y 587-697), padded.
-ECHO_TILE = (0.03, 0.8, 0.42, 0.985)
+#: fraction of the cropped phone picture. With our portrait track it is a
+#: portrait tile: measured on the CP-023 call (1280x720 capture, picture
+#: x 400-880, tile x 424-514 / y 503-698), padded. (Without our video it was a
+#: dark landscape tile, x 425-592 / y 587-697, which is dark anyway.)
+ECHO_TILE = (0.03, 0.68, 0.26, 0.985)
 INK = (23, 25, 29)
 PAPER = (243, 240, 233)
 RED = (229, 72, 77)
