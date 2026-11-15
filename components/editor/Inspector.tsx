@@ -94,18 +94,19 @@ function NameField({ initial, onCommit }: { initial: string; onCommit(name: stri
 
 export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible }: Props) {
 
+  const empty = manifest.scene.objects.length === 0;
   return (
     <aside className="flex h-full min-h-0 flex-col overflow-y-auto rounded-xl border border-line bg-panel text-sm shadow-sm" aria-label="Inspector">
-      <section className="border-b border-line p-3">
+      <section className={`p-3 ${empty ? "flex flex-1 flex-col" : "border-b border-line"}`}>
         <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Objects</h2>
-        {manifest.scene.objects.length === 0 ? (
-          <p className="text-xs text-muted">None yet.</p>
+        {empty ? (
+          <p className="grid flex-1 place-items-center text-base text-muted">None Yet</p>
         ) : (
           <ul className="space-y-0.5">
             {manifest.scene.objects.map((o) => (
               <li key={o.id} className="flex items-center gap-1">
                 <button
-                  className={`min-w-0 flex-1 truncate rounded px-1.5 py-0.5 text-left ${o.id === selected?.id ? "bg-ink text-canvas" : "hover:text-accent"}`}
+                  className={`min-w-0 flex-1 truncate rounded px-1.5 py-0.5 text-left ${o.id === selected?.id ? "bg-accent/15 text-accent" : "hover:text-accent"}`}
                   onClick={() => onSelect(o.id)}
                   aria-current={o.id === selected?.id}
                 >
@@ -127,7 +128,7 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
         )}
       </section>
 
-      {!selected ? (
+      {empty ? null : !selected ? (
         <p className="p-3 text-xs text-muted">Select an object in the viewport or the list to edit it.</p>
       ) : (
         <div className="space-y-3 p-3">

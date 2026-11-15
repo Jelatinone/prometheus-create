@@ -6,26 +6,29 @@
  * details. Open (or double-click) slides this page left to reveal the editor.
  * Projects are private to their owner; there is no sharing in this build.
  */
-import { ArrowDownTrayIcon, ArrowUpTrayIcon, PlusIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import Link from "next/link";
+import { ArrowDownTrayIcon, ArrowUpTrayIcon, ChevronDownIcon, PlusIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadProjectAsset } from "@/lib/capture/assets";
 import { newId } from "@/lib/contracts/common";
 import type { Actor } from "@/lib/contracts/ports";
 import { collectAssetIds, type TakeManifest } from "@/lib/contracts/revision";
 import type { Project } from "@/lib/contracts/scene";
+import { createExample, EXAMPLES, type ExampleProject } from "@/lib/editor/examples";
 import { exportProject, importProject, MAX_ARCHIVE_BYTES } from "@/lib/editor/project-archive";
 import { loadTake, type LoadedTake } from "@/lib/editor/session";
 import { PlatformBlobStore } from "@/lib/platform/blob-store";
 import { retargetedFixture } from "@/lib/platform/fixture-project";
 import type { HttpBackend } from "@/lib/platform/http-backend";
 import { EditorViewport } from "@/lib/scene/viewport";
+import { LoadingOverlay } from "@/components/ui/Loading";
 import { Logo } from "@/components/ui/Logo";
 
 interface Props {
   api: HttpBackend;
   actor: NonNullable<Actor>;
   active: boolean;
+  /** A project is opening behind this page: dim it until the editor is ready. */
+  opening: boolean;
   openProjectId: string | null;
   onOpen(projectId: string): void;
   /** Bumped by the studio when the page slides back in, to reload the list. */
@@ -54,7 +57,7 @@ function downloadBlob(data: Blob, name: string) {
 const button = "inline-flex items-center gap-1.5 rounded-md border border-line bg-panel px-3 py-1.5 text-sm hover:border-accent hover:text-accent disabled:opacity-40";
 const primary = "inline-flex items-center gap-1.5 rounded-md border border-ink bg-ink px-3 py-1.5 text-sm text-canvas hover:border-accent hover:bg-accent disabled:opacity-40";
 
-export function SavesPage({ api, actor, active, openProjectId, onOpen, refreshKey }: Props) {
+export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, refreshKey }: Props) {
   const blobs = useMemo(() => new PlatformBlobStore({ api, actor }), [api, actor]);
   const deps = useMemo(() => ({ projects: api.projects, assets: api.assets, blobs, actor }), [api, blobs, actor]);
   const [projects, setProjects] = useState<Project[] | null>(null);
@@ -65,6 +68,7 @@ export function SavesPage({ api, actor, active, openProjectId, onOpen, refreshKe
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
   const [reload, setReload] = useState(0);
+  const [examplesOpen, setExamplesOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -126,6 +130,15 @@ export function SavesPage({ api, actor, active, openProjectId, onOpen, refreshKe
     selectNew(projectId);
   };
 
+  const addExample = async (example: ExampleProject) => {
+    setExamplesOpen(false);
+    setBusy(`Creating ${example.name}`);
+    const r = await createExample(deps, example);
+    setBusy(null);
+    if (!r.ok) return setMessage({ tone: "bad", text: `Could not create the example: ${r.error.message}` });
+    selectNew(r.value.projectId);
+  };
+
   const download = async (p: Project) => {
     setBusy(`Packing ${p.title}`);
     const r = await exportProject(deps, p.id);
@@ -157,7 +170,7 @@ export function SavesPage({ api, actor, active, openProjectId, onOpen, refreshKe
       aria-hidden={!active}
       inert={!active}
     >
-      <header className="grid grid-cols-[minmax(0,1fr)_clamp(170px,22vw,320px)_minmax(0,1fr)] items-center gap-4 border-b border-line bg-panel py-3.5 pr-16 pl-5 max-md:grid-cols-[auto_1fr]">
+      <header className="grid grid-cols-[minmax(0,1fr)_clamp(170px,22vw,320px)_minmax(0,1fr)] items-center gap-4 border-b border-line bg-panel pr-17 pl-5 max-md:grid-cols-[auto_1fr] md:h-17">
         <Logo />
         <input
           className="h-8 w-full min-w-0 rounded-md border border-line bg-canvas px-2.5 text-sm outline-none focus:border-accent"
@@ -172,10 +185,28 @@ export function SavesPage({ api, actor, active, openProjectId, onOpen, refreshKe
             <PlusIcon className="size-4" />
             New
           </button>
-          <Link className={button} href="/projects/new" title="Create the labelled axis-box fixture project">
-            <PlusIcon className="size-4" />
-            Example
-          </Link>
+          <span className="relative" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setExamplesOpen(false)}>
+            <button className={button} onClick={() => setExamplesOpen((v) => !v)} aria-expanded={examplesOpen} aria-haspopup="menu" disabled={!!busy}>
+              <PlusIcon className="size-4" />
+              Example
+              <ChevronDownIcon className="size-4" />
+            </button>
+            {examplesOpen && (
+              <div role="menu" className="absolute right-0 top-full z-30 mt-1.5 w-72 rounded-xl border border-line bg-panel p-1.5 shadow-lg">
+                {EXAMPLES.map((x) => (
+                  <button
+                    key={x.id}
+                    role="menuitem"
+                    className="block w-full rounded-lg px-2.5 py-2 text-left hover:bg-panel-2"
+                    onClick={() => void addExample(x)}
+                  >
+                    <span className="block text-sm font-medium">{x.name}</span>
+                    <span className="block text-xs text-muted">{x.note}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </span>
           <button className={button} onClick={() => fileInput.current?.click()} disabled={!!busy} title="Import a project .zip downloaded from here">
             <ArrowUpTrayIcon className="size-4" />
             Import (.zip)
@@ -193,22 +224,19 @@ export function SavesPage({ api, actor, active, openProjectId, onOpen, refreshKe
         </div>
       </header>
 
-      {(busy || message) && (
-        <p
-          role={message?.tone === "bad" && !busy ? "alert" : "status"}
-          className={`border-b border-line px-5 py-1.5 text-sm ${busy ? "text-muted" : message?.tone === "bad" ? "text-bad" : "text-ok"}`}
-        >
-          {busy ? `${busy}…` : message?.text}
-          {!busy && (
-            <button className="ml-3 inline-grid align-middle text-muted hover:text-accent" onClick={() => setMessage(null)} aria-label="Dismiss">
-              <XMarkIcon className="size-4" />
-            </button>
-          )}
+      {message && (
+        <p role={message.tone === "bad" ? "alert" : "status"} className={`border-b border-line px-5 py-1.5 text-sm ${message.tone === "bad" ? "text-bad" : "text-ok"}`}>
+          {message.text}
+          <button className="ml-3 inline-grid align-middle text-muted hover:text-accent" onClick={() => setMessage(null)} aria-label="Dismiss">
+            <XMarkIcon className="size-4" />
+          </button>
         </p>
       )}
+      <LoadingOverlay show={!!busy || opening} className="z-50" />
 
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_380px] gap-4 px-5 py-4 max-md:grid-cols-1 max-md:overflow-auto">
-        <div className="overflow-auto rounded-xl border border-line bg-panel">
+        <div className="relative overflow-auto rounded-xl border border-line bg-panel">
+          <LoadingOverlay show={projects === null && !listError} />
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="sticky top-0 bg-panel text-left text-xs font-semibold text-muted">
@@ -249,7 +277,6 @@ export function SavesPage({ api, actor, active, openProjectId, onOpen, refreshKe
               ))}
             </tbody>
           </table>
-          {projects === null && !listError && <p className="px-3 py-2 text-sm text-muted">Loading saves…</p>}
           {listError && <p className="px-3 py-2 text-sm text-bad">Saves unavailable: {listError}</p>}
           {projects?.length === 0 && <p className="px-3 py-2 text-sm text-muted">No projects yet. Create one, add the example, or import a .zip.</p>}
           {!!projects?.length && !sorted.length && <p className="px-3 py-2 text-sm text-muted">No matching projects.</p>}
@@ -260,7 +287,8 @@ export function SavesPage({ api, actor, active, openProjectId, onOpen, refreshKe
             <>
               <div className="relative grid aspect-[4/3] place-items-center overflow-hidden rounded-lg border border-line bg-canvas">
                 {manifest && active && <ScenePreview key={`${project.id}:${take?.revision.id}`} manifest={manifest} deps={deps} />}
-                {!manifest && <span className="text-sm text-muted">{shown?.error ? `Preview unavailable: ${shown.error}` : "Loading preview…"}</span>}
+                {!manifest && shown?.error && <span className="text-sm text-muted">Preview unavailable: {shown.error}</span>}
+                <LoadingOverlay show={!manifest && !shown?.error} />
                 {manifest && manifest.scene.objects.length === 0 && (
                   <span className="pointer-events-none absolute text-sm text-muted">No objects yet</span>
                 )}
@@ -285,12 +313,12 @@ export function SavesPage({ api, actor, active, openProjectId, onOpen, refreshKe
                   </div>
                 ))}
               </dl>
-              <div className="mt-auto flex justify-end gap-2 pt-3">
-                <button className={button} onClick={() => void download(project)} disabled={!!busy}>
+              <div className="mt-auto grid grid-cols-2 gap-2 pt-3">
+                <button className={`${button} justify-center`} onClick={() => void download(project)} disabled={!!busy}>
                   Download (.zip)
                   <ArrowDownTrayIcon className="size-4" />
                 </button>
-                <button className={primary} onClick={() => onOpen(project.id)}>
+                <button className={`${primary} justify-center`} onClick={() => onOpen(project.id)}>
                   Open
                 </button>
               </div>
@@ -330,7 +358,7 @@ function ScenePreview({ manifest, deps }: { manifest: TakeManifest; deps: Parame
   return (
     <>
       <div ref={el} className="absolute inset-0" aria-label="3D preview (drag to orbit)" />
-      {!ready && manifest.scene.objects.length > 0 && <span className="pointer-events-none absolute text-sm text-muted">Loading preview…</span>}
+      <LoadingOverlay show={!ready && manifest.scene.objects.length > 0} />
     </>
   );
 }

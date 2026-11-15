@@ -17,10 +17,12 @@ import {
   GridHelper,
   Group,
   HemisphereLight,
+  MOUSE,
   type Object3D,
   PerspectiveCamera,
   Raycaster,
   Scene,
+  TOUCH,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -34,6 +36,8 @@ import type { TakeManifest } from "@/lib/contracts/revision";
 import type { Camera as SceneCamera } from "@/lib/contracts/scene";
 
 export type Tool = "select" | "move" | "rotate" | "scale";
+/** What a left-drag (one-finger drag) does: orbit around the target, or pan the view. Right-drag always pans. */
+export type Navigation = "orbit" | "pan";
 
 export interface ViewportCallbacks {
   onSelect(objectId: string | null): void;
@@ -205,6 +209,11 @@ export class EditorViewport {
     const forward = new Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
     this.orbit.target.copy(this.camera.position).addScaledVector(forward, 2);
     this.orbit.update();
+  }
+
+  setNavigation(mode: Navigation) {
+    this.orbit.mouseButtons.LEFT = mode === "pan" ? MOUSE.PAN : MOUSE.ROTATE;
+    this.orbit.touches.ONE = mode === "pan" ? TOUCH.PAN : TOUCH.ROTATE;
   }
 
   setGridVisible(visible: boolean) {

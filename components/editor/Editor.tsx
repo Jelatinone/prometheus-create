@@ -22,6 +22,7 @@ import {
   EyeIcon,
   EyeSlashIcon,
   FolderOpenIcon,
+  HandRaisedIcon,
   PhotoIcon,
   Square2StackIcon,
   Squares2X2Icon,
@@ -58,7 +59,8 @@ import {
 import { forkTake, loadTake, nextTakeName, saveTake } from "@/lib/editor/session";
 import { PlatformBlobStore } from "@/lib/platform/blob-store";
 import { HttpBackend } from "@/lib/platform/http-backend";
-import { EditorViewport, type Tool } from "@/lib/scene/viewport";
+import { EditorViewport, type Navigation, type Tool } from "@/lib/scene/viewport";
+import { LoadingOverlay, LoadingScreen, Spinner } from "@/components/ui/Loading";
 import { CapturePanel } from "@/components/capture/CapturePanel";
 import { Inspector } from "./Inspector";
 
@@ -68,6 +70,8 @@ interface Props {
   /** Slides the save viewer back in (Studio); without it the logo links to /projects. */
   onShowSaves?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
+  /** Called once the first take and its meshes are shown (or opening failed). */
+  onReady?: () => void;
 }
 
 interface Loaded {
@@ -98,7 +102,7 @@ function slug(text: string) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "take";
 }
 
-export function Editor({ projectId, actor, onShowSaves, onDirtyChange }: Props) {
+export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }: Props) {
   const api = useMemo(() => new HttpBackend(), []);
   const blobs = useMemo(() => new PlatformBlobStore({ api, actor }), [api, actor]);
   const assetDeps = useMemo(() => ({ assets: api.assets, blobs, actor }), [api, blobs, actor]);
@@ -127,6 +131,11 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange }: Props) 
   const present = history?.present ?? null;
   const dirty = !!(present && loaded && !sameManifest(present, loaded.revision.manifest));
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
+  const onReadyRef = useRef(onReady);
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
+  const [nav, setNav] = useState<Navigation>("orbit");
 
   /** Explicit (re)load of a take: switch, fork, conflict reload. */
   const open = useCallback(
@@ -148,7 +157,10 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange }: Props) 
     let live = true;
     void loadTake(api.projects, actor, projectId).then((r) => {
       if (!live) return;
-      if (!r.ok) return setLoadError(`${r.error.code}: ${r.error.message}`);
+      if (!r.ok) {
+        onReadyRef.current?.();
+        return setLoadError(`${r.error.code}: ${r.error.message}`);
+      }
       historyRef.current = startHistory(r.value.revision.manifest);
       setLoaded(r.value);
       setHistory(historyRef.current);
@@ -178,7 +190,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange }: Props) 
       onAssetError: (assetId, message) => setNotice({ tone: "bad", text: `Asset ${assetId} could not be shown: ${message}` }),
     });
     viewport.current = vp;
-    if (historyRef.current) vp.sync(historyRef.current.present);
+    if (historyRef.current) void vp.sync(historyRef.current.present).then(() => onReadyRef.current?.());
     return () => {
       vp.dispose();
       viewport.current = null;
@@ -193,6 +205,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange }: Props) 
   useEffect(() => viewport.current?.select(selected), [selected]);
   useEffect(() => viewport.current?.setTool(tool), [tool]);
   useEffect(() => viewport.current?.setGridVisible(grid), [grid]);
+  useEffect(() => viewport.current?.setNavigation(nav), [nav]);
 
   const save = useCallback(async () => {
     if (!present || !loaded || !dirty) return;
@@ -327,6 +340,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange }: Props) 
         const found = TOOLS.find((x) => x.key.toLowerCase() === k);
         if (found) setTool(found.id);
         else if (k === "f") viewport.current?.frame();
+        else if (k === "h") setNav((n) => (n === "pan" ? "orbit" : "pan"));
         else if ((k === "delete" || k === "backspace") && selected) {
           apply((h) => commit(h, removeObject(h.present, selected)));
           setSelected(null);
@@ -355,7 +369,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange }: Props) 
         </Link>
       </main>
     );
-  if (!loaded || !present || !history) return <p className="fixed inset-0 z-30 bg-stage p-6 text-muted">Opening the editor…</p>;
+  if (!loaded || !present || !history) return <LoadingScreen stage />;
 
   const take = present.take;
   const selectedObject = findObject(present, selected);
@@ -366,13 +380,15 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange }: Props) 
     "grid size-8 place-items-center rounded-lg text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
   const labelled =
     "flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
-  const toolButton = (on: boolean) => `${icon} ${on ? "bg-ink text-canvas hover:bg-ink hover:text-canvas" : ""}`;
+  const toolButton = (on: boolean) =>
+    `grid size-8 place-items-center rounded-lg disabled:opacity-35 ${on ? "bg-accent/15 text-accent" : "text-ink hover:bg-panel-2 hover:text-accent"}`;
   const sep = <span className="mx-1 h-5 w-px bg-line" aria-hidden />;
 
   return (
     <div className="fixed inset-0 z-30 overflow-hidden bg-stage text-ink">
       {/* Viewport fills the screen; chrome floats over it. */}
       <div ref={viewportEl} className="absolute inset-0" />
+      <LoadingOverlay show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh"} />
       {present.scene.objects.length === 0 && (
         <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-muted">
           This take has no objects yet. Import a GLB, or capture a photo for reference.
@@ -411,7 +427,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange }: Props) 
         </select>
         <span className={`flex shrink-0 items-center gap-1 px-1.5 text-xs ${dirty ? "text-bad" : "text-ok"}`} aria-live="polite">
           {busy ? (
-            `${busy}…`
+            <Spinner className="size-4 border-2" />
           ) : dirty ? (
             <>
               <span className="size-2 rounded-full bg-bad" aria-hidden />
@@ -506,7 +522,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange }: Props) 
       </div>
 
       {/* Context-aware toolbar: tools and view always; object actions with a selection */}
-      <div className={`absolute bottom-3 left-1/2 flex h-12 -translate-x-1/2 items-center gap-0.5 px-1.5 ${chrome}`} role="toolbar" aria-label="Tools">
+      <div className={`absolute bottom-3 left-1/2 flex h-12 -translate-x-1/2 items-center gap-0.5 px-1.5 ${chrome}`} role="toolbar" aria-label="Tools and view">
         {TOOLS.map((t) => {
           const Icon = t.icon;
           const needsSelection = t.id !== "select" && !selectedObject;
@@ -523,22 +539,6 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange }: Props) 
             </button>
           );
         })}
-        {sep}
-        <button className={icon} onClick={() => viewport.current?.frame()} title="Frame selection (F)" aria-label="Frame selection">
-          <ViewfinderCircleIcon className="size-5" />
-        </button>
-        <button
-          className={icon}
-          onClick={() => activeCamera && viewport.current?.viewThrough(activeCamera)}
-          disabled={!activeCamera}
-          title={activeCamera ? `View through ${activeCamera.name}` : "This take has no camera"}
-          aria-label="View through take camera"
-        >
-          <VideoCameraIcon className="size-5" />
-        </button>
-        <button className={toolButton(grid)} onClick={() => setGrid((g) => !g)} aria-pressed={grid} title="Grid" aria-label="Grid">
-          <Squares2X2Icon className="size-5" />
-        </button>
         {selectedObject && (
           <>
             {sep}
@@ -578,6 +578,32 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange }: Props) 
             </button>
           </>
         )}
+        {/* View controls: static, always on the right */}
+        <span className="mx-1.5 h-7 w-px bg-line" aria-hidden />
+        <button
+          className={toolButton(nav === "pan")}
+          onClick={() => setNav((n) => (n === "pan" ? "orbit" : "pan"))}
+          aria-pressed={nav === "pan"}
+          title={nav === "pan" ? "Pan (H): left-drag pans; click to orbit again" : "Pan (H): left-drag pans instead of orbiting"}
+          aria-label="Pan"
+        >
+          <HandRaisedIcon className="size-5" />
+        </button>
+        <button className={icon} onClick={() => viewport.current?.frame()} title="Frame selection (F)" aria-label="Frame selection">
+          <ViewfinderCircleIcon className="size-5" />
+        </button>
+        <button
+          className={icon}
+          onClick={() => activeCamera && viewport.current?.viewThrough(activeCamera)}
+          disabled={!activeCamera}
+          title={activeCamera ? `View through ${activeCamera.name}` : "This take has no camera"}
+          aria-label="View through take camera"
+        >
+          <VideoCameraIcon className="size-5" />
+        </button>
+        <button className={toolButton(grid)} onClick={() => setGrid((g) => !g)} aria-pressed={grid} title="Grid" aria-label="Grid">
+          <Squares2X2Icon className="size-5" />
+        </button>
       </div>
 
       {notice && (
