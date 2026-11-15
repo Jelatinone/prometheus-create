@@ -13,6 +13,7 @@ Gotchas:
 - TypeScript scripts run through `tsx` as `.mts` files and import leaf modules (`lib/contracts/common`, `lib/contracts/registry`): Node cannot see re-exports of the CJS-transpiled `lib/contracts/index.ts`.
 - After editing a contract, run `npm run contracts:schema` (a test fails while the JSON Schema is stale). After regenerating the GLB fixture, update its hash in `fixtures/contracts`.
 - A fresh checkout or worktree needs `npm run lane:setup` once (pinned submodule, both skill sets checked, `npm ci`). Skills are ordinary tracked adapters in `.agents/skills` (Codex) and `.claude/skills` (Claude Code), with relative links into this checkout's toolkit. Do not recreate symlinks, junctions, or `skip-worktree` flags.
+- On Windows, run Node tools from a cwd whose drive letter is uppercase (`C:\...`). If `process.cwd()` starts with lowercase `c:`, vitest loads two instances of itself and every suite fails with "failed to find the current suite" or "reading 'config'". In Git Bash, `cd /c/Workflows && cd <repo>` fixes it; PowerShell is unaffected.
 - Shared tools run from the project root: `npm run skills:check` checks discovery files, `npm run skills:sync` refreshes intact adapters after a deliberate toolkit update, `npm run verify` runs all gates, and `npm run validate -- <contract> <file>` validates artifacts. See `docs/AGENT_SETUP.md` for manual migration of older worktrees.
 
 <!-- BEGIN:nextjs-agent-rules -->
