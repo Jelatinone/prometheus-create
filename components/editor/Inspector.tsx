@@ -6,7 +6,7 @@
  * Numeric fields commit on Enter or blur, one undoable edit each.
  */
 import { ArrowUpTrayIcon, CubeIcon, EyeIcon, EyeSlashIcon, SparklesIcon } from "@heroicons/react/24/outline";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Transform, Vec3 } from "@/lib/contracts/common";
 import type { TakeManifest } from "@/lib/contracts/revision";
 import { objectDimensions, type SceneObject } from "@/lib/contracts/scene";
@@ -28,6 +28,8 @@ interface Props {
   splatFallback: string | null;
   /** Keyframe: this object is animated, so transform edits set a key at the playhead. */
   scope?: "scene" | "keyframe";
+  /** Source details for the selected object, shown below a divider. */
+  source?: ReactNode;
 }
 
 const fmt = (n: number, digits = 3) => (Number.isFinite(n) ? n.toFixed(digits) : "–");
@@ -101,7 +103,7 @@ function NameField({ initial, onCommit }: { initial: string; onCommit(name: stri
   );
 }
 
-export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible, onSplatLayer, onAttachSplat, splatFallback, scope = "scene" }: Props) {
+export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible, onSplatLayer, onAttachSplat, splatFallback, scope = "scene", source }: Props) {
 
   const empty = manifest.scene.objects.length === 0;
   return (
@@ -182,6 +184,12 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
 
           <LayerSection object={selected} fallback={splatFallback} onSplatLayer={onSplatLayer} onAttachSplat={onAttachSplat} />
 
+          {source && (
+            <div className="border-t border-line pt-3">
+              <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Source</h2>
+              {source}
+            </div>
+          )}
         </div>
       )}
     </aside>

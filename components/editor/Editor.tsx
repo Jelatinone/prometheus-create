@@ -28,7 +28,6 @@ import {
   HandRaisedIcon,
   KeyIcon,
   MagnifyingGlassIcon,
-  PhotoIcon,
   PlayPauseIcon,
   SparklesIcon,
   Square2StackIcon,
@@ -106,13 +105,12 @@ interface Loaded {
   revision: Revision;
 }
 
-type Pane = "objects" | "camera" | "generate" | "source";
+type Pane = "objects" | "camera" | "generate";
 /** The mode rail: each mode sets the right-hand details and the bottom actions. */
 const MODES: { id: Pane; label: string; Icon: typeof CubeIcon }[] = [
   { id: "objects", label: "Objects", Icon: CubeIcon },
   { id: "camera", label: "Camera", Icon: VideoCameraIcon },
   { id: "generate", label: "Generate", Icon: SparklesIcon },
-  { id: "source", label: "Source", Icon: PhotoIcon },
 ];
 
 type Notice = { tone: "ok" | "bad" | "info"; text: string; conflict?: boolean } | null;
@@ -783,6 +781,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             onSplatLayer={(id, on) => apply((h) => commit(h, setSplatEnabled(h.present, id, on)))}
             onAttachSplat={(id, file) => void attachSplatFile(id, file)}
             splatFallback={selectedObject ? (splatFallbacks[selectedObject.id] ?? null) : null}
+            source={shownObject ? <SourcePane api={api} actor={actor} projectId={projectId} manifest={present} selected={shownObject} /> : null}
           />
         )}
         {pane === "generate" && (
@@ -796,11 +795,6 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
               setNotice({ tone: "ok", text: "Estimated mesh added. Save to keep it; dimensions are not calibrated." });
               return true;
             }} />
-          </div>
-        )}
-        {pane === "source" && (
-          <div className={`h-full overflow-auto p-3 ${chrome}`}>
-            <SourcePane api={api} actor={actor} projectId={projectId} manifest={present} selected={shownObject} />
           </div>
         )}
         </div>
@@ -922,7 +916,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             Find objects
           </button>
         )}
-        {(pane === "generate" || pane === "source") && (
+        {pane === "generate" && (
           <button
             className={`${labelled} ${captureOpen ? "bg-accent/15 text-accent" : ""}`}
             onClick={() => setCaptureOpen((v) => !v)}
