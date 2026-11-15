@@ -40,7 +40,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { Quat, Transform, Vec3 } from "@/lib/contracts/common";
 import type { TakeManifest } from "@/lib/contracts/revision";
 import type { Camera as SceneCamera, SceneObject } from "@/lib/contracts/scene";
-import { checkSplatPly, wantsSplat } from "./splat";
+import { ALL_LAYERS, checkSplatPly, drawsSplat, type LayerView } from "./splat";
 import { meshExportScene } from "./mesh-export";
 import { activeCamera, cameraTrack, type CameraView } from "@/lib/editor/camera";
 import { evaluateAt } from "@/lib/editor/timeline";
@@ -113,6 +113,9 @@ export class EditorViewport {
   private freeView: { view: CameraView; target: Vector3 } | null = null;
   private exporting = false;
   private readonly cameraPath = new Group();
+  /** View state (ADR-005): which layers are drawn. Never saved. */
+  private layers: LayerView = ALL_LAYERS;
+  private lastManifest: TakeManifest | null = null;
 
   constructor(private readonly container: HTMLElement, private readonly cb: ViewportCallbacks) {
     this.renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -171,6 +174,7 @@ export class EditorViewport {
 
   /** Reconciles the three.js scene with the manifest (add, update, remove); resolves once new meshes are shown. */
   sync(manifest: TakeManifest): Promise<void> {
+    this.lastManifest = manifest;
     const seen = new Set<string>();
     const loading: Promise<unknown>[] = [];
     for (const object of manifest.scene.objects) {
@@ -371,6 +375,13 @@ export class EditorViewport {
     this.orbit.touches.ONE = mode === "pan" ? TOUCH.PAN : TOUCH.ROTATE;
   }
 
+  /** Mesh and Splat layer toggles: view state, independent, either/both/none. A loaded splat is kept while its layer is off. */
+  setLayers(layers: LayerView) {
+    if (layers.mesh === this.layers.mesh && layers.splat === this.layers.splat) return;
+    this.layers = { ...layers };
+    if (this.lastManifest) void this.sync(this.lastManifest);
+  }
+
   setGridVisible(visible: boolean) {
     this.helpers.children[0].visible = visible;
   }
@@ -424,7 +435,7 @@ export class EditorViewport {
   /** Which layer this object should draw, loading its splat when first needed. */
   private async syncSplat(object: SceneObject, entry: ObjectEntry): Promise<void> {
     const wanted = entry.wantsSplat;
-    entry.wantsSplat = wantsSplat(object);
+    entry.wantsSplat = drawsSplat(object, this.layers);
     const assetId = object.splat?.assetId ?? null;
     // Switching back to an already-loaded splat: Spark re-sorts before it draws, so hold the mesh and overlay until then.
     if (!wanted && entry.wantsSplat && entry.splatStatus === "ready" && assetId === entry.splatAssetId) {
@@ -469,12 +480,12 @@ export class EditorViewport {
     this.applyLayers(entry);
   }
 
-  /** Splat only when wanted and drawn; otherwise the mesh (the fallback). While settling both are present so Spark can sort. */
+  /** The mesh follows the Mesh layer; the splat shows when wanted and loaded (while settling it is present so Spark can sort). */
   private applyLayers(entry: ObjectEntry) {
-    const settling = entry.wantsSplat && entry.splatStatus === "settling";
-    const splat = entry.wantsSplat && entry.splatStatus === "ready";
-    entry.splatLayer.visible = splat || settling;
-    entry.meshLayer.visible = !splat;
+    entry.splatLayer.visible = entry.wantsSplat && (entry.splatStatus === "ready" || entry.splatStatus === "settling");
+    entry.meshLayer.visible = this.layers.mesh;
+    // Both drawn: push the mesh's depth back slightly, or it cuts into the splats lying on its surface (moire).
+    depthBias(entry.meshLayer, entry.meshLayer.visible && entry.splatLayer.visible);
   }
 
   /** Each frame: a settling splat becomes ready once Spark has sorted and displayed it (or after a safety timeout). */
@@ -491,10 +502,10 @@ export class EditorViewport {
   }
 
   /** What each object is currently drawing (for the inspector and tests). */
-  layerOf(objectId: string): { showing: "mesh" | "splat"; splat: SplatStatus } | null {
+  layerOf(objectId: string): { mesh: boolean; splat: boolean; status: SplatStatus } | null {
     const entry = this.objects.get(objectId);
     if (!entry) return null;
-    return { showing: entry.splatLayer.visible ? "splat" : "mesh", splat: entry.splatStatus };
+    return { mesh: entry.meshLayer.visible, splat: entry.splatLayer.visible, status: entry.splatStatus };
   }
 
   private asset(assetId: string): Promise<Object3D | null> {
@@ -558,6 +569,17 @@ export class EditorViewport {
     this.select(id);
     this.cb.onSelect(id);
   };
+}
+
+function depthBias(layer: Group, on: boolean) {
+  layer.traverse((node) => {
+    if (!(node instanceof Mesh)) return;
+    for (const material of Array.isArray(node.material) ? node.material : [node.material]) {
+      material.polygonOffset = on;
+      material.polygonOffsetFactor = on ? 2 : 0;
+      material.polygonOffsetUnits = on ? 600 : 0;
+    }
+  });
 }
 
 function disposeSplats(layer: Group) {

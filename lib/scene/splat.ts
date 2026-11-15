@@ -76,7 +76,20 @@ export function splatState(object: SceneObject): SplatLayerState {
   return object.splat.validForGeometryRevision === object.geometry.geometryRevision ? "available" : "stale";
 }
 
-/** The layer the viewport should try to draw (it still falls back to the mesh if loading fails). */
+/** Whether this object opts in to the splat layer: a valid splat whose saved `enabled` is true. */
 export function wantsSplat(object: SceneObject): boolean {
   return splatState(object) === "available" && !!object.splat?.enabled;
+}
+
+/** Which layers the viewport draws. View state only: never saved with the take (ADR-005). */
+export interface LayerView {
+  mesh: boolean;
+  splat: boolean;
+}
+
+export const ALL_LAYERS: LayerView = { mesh: true, splat: true };
+
+/** ADR-005: an object draws its splat when the Splat layer is on and the object opts in. Its mesh follows the Mesh layer alone. */
+export function drawsSplat(object: SceneObject, layers: LayerView): boolean {
+  return layers.splat && wantsSplat(object);
 }

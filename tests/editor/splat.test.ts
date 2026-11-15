@@ -5,7 +5,7 @@ import { TakeManifest, type Asset } from "@/lib/contracts";
 import { attachSplat, findObject, setObjectTransform, setSplatEnabled, startHistory, commit, undo } from "@/lib/editor/model";
 import { attachedSplat } from "@/lib/editor/reconstruction";
 import type { ReconstructionOutcome } from "@/lib/reconstruction/runner";
-import { checkSplatPly, splatState, wantsSplat } from "@/lib/scene/splat";
+import { ALL_LAYERS, checkSplatPly, drawsSplat, splatState, wantsSplat } from "@/lib/scene/splat";
 import { loadFixture } from "../helpers/fixtures";
 
 const BOX = "obj_fixture_axis_box";
@@ -51,6 +51,20 @@ describe("splat layer edits", () => {
     expect(box().splat?.enabled).toBe(true);
     expect(TakeManifest.safeParse(h.present).success).toBe(true);
     expect(findObject(start, BOX)!.splat).toBeNull();
+  });
+
+  it("layer toggles are view state: the splat draws only with the Splat layer on and the object opted in (ADR-005)", () => {
+    const m = attachSplat(original(), BOX, "ast_box_splat_0001");
+    const box = findObject(m, BOX)!;
+    const before = structuredClone(m);
+    expect(drawsSplat(box, ALL_LAYERS)).toBe(true);
+    expect(drawsSplat(box, { mesh: false, splat: true })).toBe(true); // independent of the Mesh layer
+    expect(drawsSplat(box, { mesh: true, splat: false })).toBe(false);
+    expect(drawsSplat(box, { mesh: false, splat: false })).toBe(false);
+    expect(drawsSplat(findObject(setSplatEnabled(m, BOX, false), BOX)!, ALL_LAYERS)).toBe(false); // opted out
+    expect(drawsSplat(findObject(original(), BOX)!, ALL_LAYERS)).toBe(false); // no splat attached
+    expect(drawsSplat({ ...box, geometry: { ...box.geometry, geometryRevision: 2 } }, ALL_LAYERS)).toBe(false); // stale
+    expect(m).toEqual(before); // asking never edits the take
   });
 
   it("a splat for an older geometry revision is stale and never drawn", () => {
