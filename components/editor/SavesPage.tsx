@@ -241,7 +241,7 @@ export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, 
             <thead>
               <tr className="sticky top-0 bg-panel text-left text-xs font-semibold text-muted">
                 <th className="border-b border-line px-3 py-2.5">Name</th>
-                <th className="border-b border-line px-3 py-2.5 text-right">Created</th>
+                <th className="border-b border-line px-3 py-2.5 text-right max-sm:hidden">Created</th>
                 <th className="border-b border-line px-3 py-2.5 text-right">Edited</th>
                 <th className="w-12 border-b border-line" />
               </tr>
@@ -260,7 +260,7 @@ export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, 
                     </button>
                     {p.id === openProjectId && <em className="ml-2 text-xs font-semibold not-italic text-accent">Open</em>}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-muted">{when(p.createdAt)}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-muted max-sm:hidden">{when(p.createdAt)}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{when(p.updatedAt)}</td>
                   <td className="px-2 text-right" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
                     <button
