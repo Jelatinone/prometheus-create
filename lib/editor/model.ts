@@ -62,6 +62,22 @@ export function removeObject(manifest: TakeManifest, objectId: string): TakeMani
 }
 
 /** Same geometry asset, new id, offset so the copy is visible. */
+/** Persisted per-object layer choice (undoable, saved, forked like any edit). */
+export function setSplatEnabled(manifest: TakeManifest, objectId: string, enabled: boolean): TakeManifest {
+  const object = findObject(manifest, objectId);
+  if (!object?.splat || object.splat.enabled === enabled) return manifest;
+  return editObject(manifest, objectId, (o) => {
+    o.splat = { ...o.splat!, enabled };
+  });
+}
+
+/** Attaches an uploaded splat asset to an object for its current geometry revision and shows it. */
+export function attachSplat(manifest: TakeManifest, objectId: string, assetId: string): TakeManifest {
+  return editObject(manifest, objectId, (o) => {
+    o.splat = { assetId, enabled: true, validForGeometryRevision: o.geometry.geometryRevision };
+  });
+}
+
 export function duplicateObject(manifest: TakeManifest, objectId: string, newObjectId: string): TakeManifest {
   const source = findObject(manifest, objectId);
   if (!source) return manifest;

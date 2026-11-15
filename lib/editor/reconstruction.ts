@@ -1,5 +1,18 @@
-import { err, ok, type Observation, type Result, type SceneObject, type TakeManifest } from "@/lib/contracts";
+import { err, ok, type Asset, type Observation, type Result, type SceneObject, type TakeManifest } from "@/lib/contracts";
 import type { ReconstructionOutcome } from "@/lib/reconstruction/runner";
+
+/**
+ * S2/S3 (PLAN v4): Track A adds `splatAsset: Asset | null` to ReconstructionOutcome.
+ * Read it structurally until then, so this attach works before and after that lands.
+ */
+type OutcomeWithSplat = ReconstructionOutcome & { splatAsset?: Asset | null };
+
+/** S3 attach: the provider splat rides on the object, off by default, valid for this geometry revision. */
+export function attachedSplat(outcome: OutcomeWithSplat, geometryRevision: number): SceneObject["splat"] {
+  const asset = outcome.splatAsset;
+  if (!asset || asset.kind !== "splat" || asset.projectId !== outcome.job.projectId) return null;
+  return { assetId: asset.id, enabled: false, validForGeometryRevision: geometryRevision };
+}
 
 /** Explicit acceptance adds one object to the take that requested it, never replaces geometry. */
 export function reconstructedObject(manifest: TakeManifest, takeId: string, name: string, observation: Observation, outcome: ReconstructionOutcome): Result<SceneObject> {
@@ -15,6 +28,6 @@ export function reconstructedObject(manifest: TakeManifest, takeId: string, name
     transform: { position: [0, -outcome.geometry.localBounds.min[1], 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
     visible: true, dimensionsStatus: "estimated",
     provenance: { kind: "generated", sourceIds: [observation.sourceId], observationIds: [observation.id], jobId: outcome.job.id, provider: outcome.job.providerModel, note: "Estimated geometry from one captured view; hidden surfaces and scale are inferred." },
-    splat: null, collider: null, physics: null,
+    splat: attachedSplat(outcome, outcome.geometry.geometryRevision), collider: null, physics: null,
   });
 }
