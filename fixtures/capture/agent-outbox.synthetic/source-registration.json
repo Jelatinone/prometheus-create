@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "src_fixture_agent_call",
+  "projectId": "prj_fixture_agent_outbox",
+  "adapter": "chert_facetime",
+  "media": {
+    "kind": "live_stream",
+    "width": null,
+    "height": null
+  },
+  "assetId": null,
+  "contentHash": null,
+  "capturedAt": "2026-11-14T20:00:00.000Z",
+  "captureSessionId": "cap_fixture_agent_call",
+  "consent": {
+    "basis": "participant_opt_in",
+    "recordedAt": "2026-11-14T20:00:00.000Z",
+    "note": "SYNTHETIC FIXTURE: generated test frames through the agent builders; not a real Chert call"
+  }
+}

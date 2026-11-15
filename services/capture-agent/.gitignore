@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+# Live call output (real caller frames): local evidence only, never committed.
+outbox/

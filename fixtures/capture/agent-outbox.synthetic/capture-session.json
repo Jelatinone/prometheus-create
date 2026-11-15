@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "cap_fixture_agent_call",
+  "projectId": "prj_fixture_agent_outbox",
+  "kind": "chert_facetime",
+  "state": "ended",
+  "providerCallId": null,
+  "consent": {
+    "basis": "participant_opt_in",
+    "recordedAt": "2026-11-14T20:00:00.000Z",
+    "note": "SYNTHETIC FIXTURE: generated test frames through the agent builders; not a real Chert call"
+  },
+  "capabilities": {
+    "callerVideo": "available",
+    "agentVideo": "unknown"
+  },
+  "startedAt": "2026-11-14T20:00:00.000Z",
+  "endedAt": "2026-11-14T20:00:02.000Z",
+  "endReason": "synthetic fixture complete"
+}

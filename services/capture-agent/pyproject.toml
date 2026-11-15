@@ -1,0 +1,27 @@
+[project]
+name = "prometheus-capture-agent"
+version = "0.1.0"
+description = "Chert FaceTime / LiveKit caller frames -> Prometheus::create CT-002 ingest envelopes"
+requires-python = ">=3.11"
+dependencies = [
+  "jsonschema>=4.23,<5",
+  "pillow>=11,<12",
+]
+
+[project.optional-dependencies]
+# Live call transport (LiveKit room + caller video). Installed only for the live proof.
+live = [
+  "livekit>=1.0,<2",
+  "livekit-api>=1.0,<2",
+]
+dev = ["pytest>=8,<9"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["capture_agent"]
