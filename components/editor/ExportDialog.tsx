@@ -29,9 +29,15 @@ export function ExportDialog({ takeName, frame, animated, dirty, busy, error, on
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    panel.current?.querySelector<HTMLInputElement>("input:checked")?.focus();
     return () => previous?.focus();
   }, []);
+
+  useEffect(() => {
+    // Disabling a focused download button can move focus to the document body.
+    // Keep it inside the dialog while busy and after a recoverable failure.
+    if (busy) panel.current?.focus();
+    else panel.current?.querySelector<HTMLInputElement>("input:checked")?.focus();
+  }, [busy]);
 
   return (
     <div
@@ -55,8 +61,9 @@ export function ExportDialog({ takeName, frame, animated, dirty, busy, error, on
             const controls = [...e.currentTarget.querySelectorAll<HTMLElement>("button:enabled, input:checked")];
             const first = controls[0];
             const last = controls.at(-1);
-            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
-            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+            const onControl = controls.includes(document.activeElement as HTMLElement);
+            if (e.shiftKey && (document.activeElement === first || !onControl)) { e.preventDefault(); last?.focus(); }
+            else if (!e.shiftKey && (document.activeElement === last || !onControl)) { e.preventDefault(); first?.focus(); }
           }
         }}
       >

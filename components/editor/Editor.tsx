@@ -521,12 +521,9 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
 
   return (
     <div className="fixed inset-0 z-30 overflow-hidden bg-stage text-ink">
+      <div className="contents" inert={exportOpen}>
       {/* Viewport fills the screen; chrome floats over it. */}
       <div ref={viewportEl} className="absolute inset-0" />
-      <LoadingOverlay
-        show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat" || busy === "Loading splat" || !!busy?.startsWith("Exporting ") || Object.values(splatsLoading).some(Boolean)}
-        className={exportOpen ? "z-50" : ""}
-      />
       {present.scene.objects.length === 0 && (
         <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-muted">
           This take has no objects yet. Import a GLB, or capture a photo for reference.
@@ -633,11 +630,6 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           Export
         </button>
       </div>
-
-      {exportOpen && (
-        <ExportDialog takeName={take.name} frame={frame} animated={duration > 0} dirty={dirty} busy={!!busy} error={exportError}
-          onClose={() => { if (!exporting.current) setExportOpen(false); }} onExport={(format) => void exportFile(format)} />
-      )}
 
       {captureOpen && (
         <aside className={`absolute top-17 bottom-32 left-3 z-10 w-[26rem] max-w-[calc(100%-1.5rem)] overflow-auto p-3 ${chrome}`}>
@@ -832,6 +824,15 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             <XMarkIcon className="size-4" />
           </button>
         </div>
+      )}
+      </div>
+      <LoadingOverlay
+        show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat" || busy === "Loading splat" || !!busy?.startsWith("Exporting ") || Object.values(splatsLoading).some(Boolean)}
+        className={exportOpen ? "z-50" : ""}
+      />
+      {exportOpen && (
+        <ExportDialog takeName={take.name} frame={frame} animated={duration > 0} dirty={dirty} busy={!!busy} error={exportError}
+          onClose={() => { if (!exporting.current) setExportOpen(false); }} onExport={(format) => void exportFile(format)} />
       )}
     </div>
   );
