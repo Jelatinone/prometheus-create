@@ -24,6 +24,7 @@ import * as takes from "@/app/api/projects/[projectId]/takes/route";
 import * as projects from "@/app/api/projects/route";
 import * as reconstruction from "@/app/api/reconstruction/route";
 import * as reconstructionFrames from "@/app/api/reconstruction/frames/route";
+import * as captureCall from "@/app/api/capture/call/route";
 
 export const PLATFORM_ORIGIN = "http://platform.test";
 
@@ -34,6 +35,7 @@ type RouteModule = Partial<Record<"GET" | "POST", Handler>>;
 export const ROUTE_FILES = {
   "/api/reconstruction": reconstruction,
   "/api/reconstruction/frames": reconstructionFrames,
+  "/api/capture/call": captureCall,
   "/api/projects": projects,
   "/api/projects/[projectId]": projectById,
   "/api/projects/[projectId]/takes": takes,
