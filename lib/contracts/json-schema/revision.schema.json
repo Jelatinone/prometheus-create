@@ -321,7 +321,8 @@
                               "type": "string",
                               "enum": [
                                 "linear",
-                                "step"
+                                "step",
+                                "smooth"
                               ]
                             }
                           },

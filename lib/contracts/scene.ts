@@ -257,7 +257,8 @@ export type SourceMapping = z.infer<typeof SourceMapping>;
 export const Keyframe = z.strictObject({
   frame: z.int().nonnegative(),
   transform: Transform,
-  interpolation: z.enum(["linear", "step"]),
+  /** smooth: cubic position curve, shortest-path quaternion slerp, linear scale. */
+  interpolation: z.enum(["linear", "step", "smooth"]),
 });
 export type Keyframe = z.infer<typeof Keyframe>;
 

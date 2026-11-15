@@ -76,16 +76,33 @@ export function poseAt(keyframes: Keyframe[], frame: number): Transform {
   const b = keyframes[i];
   if (a.interpolation === "step") return a.transform;
   const t = (frame - a.frame) / (b.frame - a.frame);
-  return { position: lerp(a.transform.position, b.transform.position, t), rotation: slerp(a.transform.rotation, b.transform.rotation, t), scale: lerp(a.transform.scale, b.transform.scale, t) };
+  let position = lerp(a.transform.position, b.transform.position, t);
+  if (a.interpolation === "smooth") {
+    const prev = keyframes[Math.max(0, i - 2)];
+    const next = keyframes[Math.min(keyframes.length - 1, i + 1)];
+    const span = b.frame - a.frame;
+    const h00 = 2 * t ** 3 - 3 * t ** 2 + 1;
+    const h10 = t ** 3 - 2 * t ** 2 + t;
+    const h01 = -2 * t ** 3 + 3 * t ** 2;
+    const h11 = t ** 3 - t ** 2;
+    // Hermite tangents use actual key times, including unevenly spaced keys.
+    position = a.transform.position.map((p, axis) => {
+      const m0 = (b.transform.position[axis] - prev.transform.position[axis]) / (b.frame - prev.frame) * span;
+      const m1 = (next.transform.position[axis] - a.transform.position[axis]) / (next.frame - a.frame) * span;
+      return h00 * p + h10 * m0 + h01 * b.transform.position[axis] + h11 * m1;
+    }) as Vec3;
+  }
+  return { position, rotation: slerp(a.transform.rotation, b.transform.rotation, t), scale: lerp(a.transform.scale, b.transform.scale, t) };
 }
 
 /** The scene shown at a take frame: animated objects take their track pose, others keep the base. */
 export function evaluateAt(manifest: TakeManifest, frame: number): TakeManifest {
   const animated = manifest.take.tracks.filter(
-    (t): t is KeyTrack => t.driver === "keyframes" && t.target.kind === "object" && frame >= t.startFrame && frame < t.endFrame,
+    (t): t is KeyTrack => t.driver === "keyframes" && frame >= t.startFrame && frame < t.endFrame,
   );
   if (!animated.length) return manifest;
-  const byObject = new Map(animated.map((t) => [(t.target as { objectId: string }).objectId, t]));
+  const byObject = new Map(animated.filter(t => t.target.kind === "object").map((t) => [(t.target as { objectId: string }).objectId, t]));
+  const byCamera = new Map(animated.filter(t => t.target.kind === "camera").map((t) => [(t.target as { cameraId: string }).cameraId, t]));
   return {
     ...manifest,
     scene: {
@@ -93,6 +110,10 @@ export function evaluateAt(manifest: TakeManifest, frame: number): TakeManifest 
       objects: manifest.scene.objects.map((o): SceneObject => {
         const track = byObject.get(o.id);
         return track ? { ...o, transform: poseAt(track.keyframes, frame) } : o;
+      }),
+      cameras: manifest.scene.cameras.map(c => {
+        const track = byCamera.get(c.id);
+        return track ? { ...c, transform: poseAt(track.keyframes, frame) } : c;
       }),
     },
   };
