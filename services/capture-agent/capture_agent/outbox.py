@@ -31,7 +31,10 @@ class Outbox:
 
     def _write_json(self, name: str, doc: Any) -> Path:
         path = self.root / name
-        path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8", newline="\n")
+        # Publish complete JSON atomically for the HTTP relay following this folder.
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8", newline="\n")
+        temporary.replace(path)
         return path
 
     def registration(self, reg: dict[str, Any]) -> Path:
