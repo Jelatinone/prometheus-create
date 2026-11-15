@@ -74,6 +74,7 @@ import { Presence } from "@/components/ui/Presence";
 import { Toast } from "@/components/ui/Toast";
 import { ProjectTitle } from "./ProjectTitle";
 import { CapturePanel } from "@/components/capture/CapturePanel";
+import { FaceTimeModal } from "@/components/capture/FaceTimeModal";
 import { Inspector } from "./Inspector";
 import { ALL_LAYERS, checkSplatPly, drawsSplat, type LayerView } from "@/lib/scene/splat";
 import { LayersMenu } from "./LayersMenu";
@@ -153,6 +154,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [faceTimeOpen, setFaceTimeOpen] = useState(false);
   const [pane, setPane] = useState<Pane>("objects");
   const [playbackOpen, setPlaybackOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -744,7 +746,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
               <XMarkIcon className="size-5" />
             </button>
           </div>
-          <CapturePanel ingestor={ingestor} onEntry={(entry) => { if (entry.ok) setCaptureCount((n) => n + 1); }} />
+          <CapturePanel ingestor={ingestor} onEntry={(entry) => { if (entry.ok) setCaptureCount((n) => n + 1); }} onStartFaceTime={() => setFaceTimeOpen(true)} />
       </Presence>
 
       {/* Details for the current mode */}
@@ -900,21 +902,17 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         )}
         {pane === "camera" && (
           <>
-            <button className={labelled} disabled={cameraView} onClick={() => poseCameraFromView(false)} title={cameraView ? "Switch to free view first" : "Move the render camera to the current free view"}>
+            <button className={icon} disabled={cameraView} onClick={() => poseCameraFromView(false)} title={cameraView ? "Switch to free view first" : "Align to view: move the render camera to the current free view"} aria-label="Align to view">
               <ArrowDownOnSquareIcon className="size-5" />
-              Align to view
             </button>
-            <button className={labelled} disabled={cameraView} onClick={() => poseCameraFromView(true)} title={cameraView ? "Switch to free view first" : "Set a camera key at the playhead from the current free view"}>
+            <button className={icon} disabled={cameraView} onClick={() => poseCameraFromView(true)} title={cameraView ? "Switch to free view first" : "Key from view: set a camera key at the playhead from the current free view"} aria-label="Key from view">
               <KeyIcon className="size-5" />
-              Key from view
             </button>
-            <button className={labelled} disabled={!captureTimingNow} onClick={() => captureTimingNow && applyCameraResult(resizeTake(present, captureTimingNow.frames))} title={captureTimingNow ? "Make the take as long as the chosen capture" : "The chosen capture has no usable length"}>
+            <button className={icon} aria-label="Capture length" disabled={!captureTimingNow} onClick={() => captureTimingNow && applyCameraResult(resizeTake(present, captureTimingNow.frames))} title={captureTimingNow ? "Make the take as long as the chosen capture" : "The chosen capture has no usable length"}>
               <ClockIcon className="size-5" />
-              Capture length
             </button>
-            <button className={labelled} disabled={!captureChoice || !captureEstimates} onClick={() => captureChoice && applyCameraResult(seedCamera(present, captureChoice.source, captureChoice.observations))} title={captureEstimates ? "Key the render camera from the capture's recorded camera poses" : "The chosen capture has no recorded camera poses"}>
+            <button className={icon} aria-label="Follow capture" disabled={!captureChoice || !captureEstimates} onClick={() => captureChoice && applyCameraResult(seedCamera(present, captureChoice.source, captureChoice.observations))} title={captureEstimates ? "Key the render camera from the capture's recorded camera poses" : "The chosen capture has no recorded camera poses"}>
               <VideoCameraIcon className="size-5" />
-              Follow capture
             </button>
           </>
         )}
@@ -998,6 +996,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           </button>
         </div>
       )}
+      <FaceTimeModal open={faceTimeOpen} onClose={() => setFaceTimeOpen(false)} api={api} actor={actor} projectId={projectId} onSceneReady={() => { setFaceTimeOpen(false); void open(take.id); }} />
       {!exportOpen && loadingOverlay}
       {exportOpen && (
         <ExportDialog takeName={take.name} frame={frame} animated={duration > 0} dirty={dirty} busy={!!busy} error={exportError} progress={loadingOverlay}

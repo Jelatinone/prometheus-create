@@ -44,7 +44,7 @@ export function CameraPane(props: Props) {
   const rotation = camera ? quatToEulerDeg(camera.transform.rotation) : [0, 0, 0] as Vec3;
   return <div className="space-y-4 p-3 text-sm">
     <div>
-      <h2 className="font-serif font-semibold">Render camera</h2>
+      <h2 className="font-serif font-semibold">Render</h2>
       {manifest.scene.cameras.length > 1 && <select aria-label="Active render camera" value={manifest.take.activeCameraId ?? ""} onChange={e => props.onChoose(e.target.value)} className="mt-2 h-8 w-full rounded-md border border-line bg-canvas px-2 text-xs">
         {!manifest.take.activeCameraId && <option value="">Choose a camera</option>}
         {manifest.scene.cameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}

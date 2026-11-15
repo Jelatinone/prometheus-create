@@ -64,8 +64,12 @@ export function pointsFromGlb(bytes: Uint8Array): PointCloud {
  * One Gaussian per occupied voxel (averaged colour), converted to +Y up, centred
  * on the cloud and resting on y = 0. `voxel` is a fraction of the cloud's extent.
  */
-export function pointsToS1Splat(cloud: PointCloud, opts: { voxelFraction?: number; flipOpenCv?: boolean } = {}): Uint8Array {
-  const { voxelFraction = 1 / 400, flipOpenCv = true } = opts;
+export function pointsToS1Splat(
+  cloud: PointCloud,
+  opts: { voxelFraction?: number; flipOpenCv?: boolean; down?: [number, number, number]; levelByPlane?: boolean; targetExtent?: number } = {},
+): Uint8Array {
+  const { voxelFraction = 1 / 400, flipOpenCv = true, down, targetExtent } = opts;
+  const level = down ? rotationTo(down, [0, 1, 0]) : opts.levelByPlane ? rotationTo(planeDown(cloud), [0, 1, 0]) : null;
   // Near-black points are letterbox bars or unlit noise, not scene surfaces.
   const keep: number[] = [];
   for (let i = 0; i < cloud.count; i++) {
@@ -81,7 +85,8 @@ export function pointsToS1Splat(cloud: PointCloud, opts: { voxelFraction?: numbe
   const p = new Float32Array(n * 3);
   const colors = new Float32Array(n * 3);
   inside.forEach((src, i) => {
-    const [x, y, z] = [cloud.positions[src * 3], cloud.positions[src * 3 + 1], cloud.positions[src * 3 + 2]];
+    const raw: [number, number, number] = [cloud.positions[src * 3], cloud.positions[src * 3 + 1], cloud.positions[src * 3 + 2]];
+    const [x, y, z] = level ? applyRotation(level, raw) : raw;
     p.set(flipOpenCv ? [x, -y, -z] : [x, y, z], i * 3);
     colors.set(cloud.colors.subarray(src * 3, src * 3 + 3), i * 3);
   });
@@ -99,6 +104,8 @@ export function pointsToS1Splat(cloud: PointCloud, opts: { voxelFraction?: numbe
     else cells.set(key, [p[i * 3], p[i * 3 + 1], p[i * 3 + 2], colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2], 1]);
   }
   const centre = [(min[0] + max[0]) / 2, min[1], (min[2] + max[2]) / 2];
+  // Optional rough size: the largest horizontal side becomes `targetExtent` (an estimate, not a measurement).
+  const s = targetExtent ? targetExtent / (Math.max(max[0] - min[0], max[2] - min[2]) || 1) : 1;
   const count = cells.size;
   const header =
     `ply\nformat binary_little_endian 1.0\nelement vertex ${count}\n` + S1_PROPERTIES.map((name) => `property float ${name}\n`).join("") + "end_header\n";
@@ -106,13 +113,13 @@ export function pointsToS1Splat(cloud: PointCloud, opts: { voxelFraction?: numbe
   const out = new Uint8Array(head.length + count * S1_PROPERTIES.length * 4);
   out.set(head);
   const body = new DataView(out.buffer, head.length);
-  const logScale = Math.log(voxel * 0.7);
+  const logScale = Math.log(voxel * 0.7 * s);
   const opacity = Math.log(0.92 / 0.08);
   let o = 0;
   for (const cell of cells.values()) {
     const k = cell[6];
     const values = [
-      cell[0] / k - centre[0], cell[1] / k - centre[1], cell[2] / k - centre[2],
+      (cell[0] / k - centre[0]) * s, (cell[1] / k - centre[1]) * s, (cell[2] / k - centre[2]) * s,
       (cell[3] / k - 0.5) / SH_C0, (cell[4] / k - 0.5) / SH_C0, (cell[5] / k - 0.5) / SH_C0,
       opacity,
       logScale, logScale, logScale,
@@ -121,4 +128,81 @@ export function pointsToS1Splat(cloud: PointCloud, opts: { voxelFraction?: numbe
     for (const v of values) { body.setFloat32(o, v, true); o += 4; }
   }
   return out;
+}
+
+type Mat3 = [number, number, number, number, number, number, number, number, number];
+
+/** Rotation taking unit direction `a` onto unit direction `b` (Rodrigues). */
+function rotationTo(a: [number, number, number], b: [number, number, number]): Mat3 {
+  const la = Math.hypot(...a) || 1;
+  const [ax, ay, az] = a.map((v) => v / la);
+  const [bx, by, bz] = b;
+  const v = [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx];
+  const c = ax * bx + ay * by + az * bz;
+  if (c < -0.9999) return [1, 0, 0, 0, -1, 0, 0, 0, -1];
+  const k = 1 / (1 + c);
+  return [
+    v[0] * v[0] * k + c, v[0] * v[1] * k - v[2], v[0] * v[2] * k + v[1],
+    v[1] * v[0] * k + v[2], v[1] * v[1] * k + c, v[1] * v[2] * k - v[0],
+    v[2] * v[0] * k - v[1], v[2] * v[1] * k + v[0], v[2] * v[2] * k + c,
+  ];
+}
+
+function applyRotation(m: Mat3, [x, y, z]: [number, number, number]): [number, number, number] {
+  return [m[0] * x + m[1] * y + m[2] * z, m[3] * x + m[4] * y + m[5] * z, m[6] * x + m[7] * y + m[8] * z];
+}
+
+/**
+ * World "down" from VGGT's per-frame camera-from-world extrinsics (OpenCV: camera
+ * y points down in the image). Averaging the cameras' down axes levels a hand-held
+ * sweep: phones are held roughly upright while filming a room.
+ */
+export function worldDownFromExtrinsics(extrinsics: number[][][]): [number, number, number] {
+  const sum = [0, 0, 0];
+  for (const e of extrinsics) {
+    // Camera axis y in world coordinates is the second row of R (R is camera-from-world).
+    sum[0] += e[1][0]; sum[1] += e[1][1]; sum[2] += e[1][2];
+  }
+  const l = Math.hypot(...sum) || 1;
+  return [sum[0] / l, sum[1] / l, sum[2] / l];
+}
+
+/**
+ * "Down" for a room scan in the cloud's own (OpenCV, y-down) frame: the floor and
+ * table tops dominate, so the direction of least spread is vertical. Its sign is
+ * chosen so the long tail (furniture, walls) rises above the dense floor, and so
+ * that it agrees with OpenCV's y-down when ambiguous.
+ */
+export function planeDown(cloud: PointCloud): [number, number, number] {
+  const n = cloud.count;
+  const step = Math.max(1, Math.floor(n / 20000));
+  const mean = [0, 0, 0];
+  let m = 0;
+  for (let i = 0; i < n; i += step) { for (let c = 0; c < 3; c++) mean[c] += cloud.positions[i * 3 + c]; m++; }
+  for (let c = 0; c < 3; c++) mean[c] /= m || 1;
+  const cov = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  for (let i = 0; i < n; i += step) {
+    const d = [0, 1, 2].map((c) => cloud.positions[i * 3 + c] - mean[c]);
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) cov[r * 3 + c] += d[r] * d[c];
+  }
+  // Smallest eigenvector by inverse power iteration (shifted to stay well conditioned).
+  const inv = invert3(cov.map((v, i) => v / (m || 1) + (i % 4 === 0 ? 1e-9 : 0)) as Mat3);
+  let v: [number, number, number] = [0, 1, 0];
+  for (let k = 0; k < 50; k++) {
+    const w = applyRotation(inv, v);
+    const l = Math.hypot(...w) || 1;
+    v = [w[0] / l, w[1] / l, w[2] / l];
+  }
+  // VGGT puts the first camera at the origin, above the floor: down points from it towards the scene.
+  return v[0] * mean[0] + v[1] * mean[1] + v[2] * mean[2] >= 0 ? v : [-v[0], -v[1], -v[2]];
+}
+
+function invert3(a: Mat3): Mat3 {
+  const [p, q, r, s2, t, u, x, y, z] = a;
+  const det = p * (t * z - u * y) - q * (s2 * z - u * x) + r * (s2 * y - t * x) || 1e-12;
+  return [
+    (t * z - u * y) / det, (r * y - q * z) / det, (q * u - r * t) / det,
+    (u * x - s2 * z) / det, (p * z - r * x) / det, (r * s2 - p * u) / det,
+    (s2 * y - t * x) / det, (q * x - p * y) / det, (p * t - q * s2) / det,
+  ];
 }
