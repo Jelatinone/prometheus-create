@@ -188,10 +188,20 @@ export class PostgresBackend implements Backend {
   async listProjects(actor: Actor): Promise<Result<Project[]>> {
     if (!actor) return unauthorized();
     const { rows } = await this.pool.query<ProjectRow>(
-      "select * from projects where owner_id = $1 order by updated_at desc, id limit 200",
+      "select * from projects where owner_id = $1 and deleted_at is null order by updated_at desc, id limit 200",
       [actor.userId],
     );
     return ok(rows.map(toProject));
+  }
+
+  /** Platform-only trash: retain all revisions/assets for Undo. */
+  async setProjectDeleted(actor: Actor, projectId: string, deleted: boolean): Promise<Result<Project>> {
+    if (!actor) return unauthorized();
+    const { rows } = await this.pool.query<ProjectRow>(
+      "update projects set deleted_at = case when $3::boolean then now() else null end where id = $1 and owner_id = $2 returning *",
+      [projectId, actor.userId, deleted],
+    );
+    return rows.length ? ok(toProject(rows[0])) : projectNotFound(projectId);
   }
 
   // -------------------------------------------------------------------------
@@ -282,7 +292,7 @@ export class PostgresBackend implements Backend {
 
     getProject: async (actor: Actor, projectId: string): Promise<Result<Project>> => {
       if (!actor) return unauthorized();
-      const { rows } = await this.pool.query<ProjectRow>("select * from projects where id = $1", [projectId]);
+      const { rows } = await this.pool.query<ProjectRow>("select * from projects where id = $1 and deleted_at is null", [projectId]);
       if (!rows.length || !owns(actor, rows[0].owner_id)) return projectNotFound(projectId);
       return ok(toProject(rows[0]));
     },

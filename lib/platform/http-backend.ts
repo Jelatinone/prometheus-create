@@ -84,7 +84,7 @@ export class HttpBackend implements Backend {
   }
 
   /** One API call; the building block for the ports and for PlatformBlobStore. */
-  async request<T>(actor: Actor, method: "GET" | "POST" | "PATCH", path: string, body?: unknown): Promise<Result<T>> {
+  async request<T>(actor: Actor, method: "GET" | "POST" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<Result<T>> {
     const auth = await this.authorize(actor);
     let response: Response;
     try {

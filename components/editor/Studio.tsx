@@ -71,7 +71,7 @@ export function Studio({ actor, initialProjectId }: Props) {
   return (
     <>
       {openId && <Editor key={openId} projectId={openId} actor={actor} onShowSaves={showSaves} onDirtyChange={onDirtyChange} onReady={onReady} />}
-      <SavesPage api={api} actor={actor} active={savesShown} opening={opening} openProjectId={openId} onOpen={open} refreshKey={refresh} />
+      <SavesPage api={api} actor={actor} active={savesShown} opening={opening} openProjectId={openId} onOpen={open} onDeleted={id => { if (id === openId) { setOpenId(null); dirty.current = false; } }} refreshKey={refresh} />
     </>
   );
 }

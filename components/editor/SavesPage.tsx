@@ -20,6 +20,7 @@ import { PlatformBlobStore } from "@/lib/platform/blob-store";
 import { retargetedFixture } from "@/lib/platform/fixture-project";
 import type { HttpBackend } from "@/lib/platform/http-backend";
 import { EditorViewport } from "@/lib/scene/viewport";
+import { ProjectMenu } from "./ProjectMenu";
 import { LoadingOverlay } from "@/components/ui/Loading";
 import { Logo } from "@/components/ui/Logo";
 
@@ -31,6 +32,7 @@ interface Props {
   opening: boolean;
   openProjectId: string | null;
   onOpen(projectId: string): void;
+  onDeleted?(projectId: string): void;
   /** Bumped by the studio when the page slides back in, to reload the list. */
   refreshKey: number;
 }
@@ -57,7 +59,7 @@ function downloadBlob(data: Blob, name: string) {
 const button = "inline-flex items-center gap-1.5 rounded-md border border-line bg-panel px-3 py-1.5 text-sm hover:border-accent hover:text-accent disabled:opacity-40";
 const primary = "inline-flex items-center gap-1.5 rounded-md border border-ink bg-ink px-3 py-1.5 text-sm text-canvas hover:border-accent hover:bg-accent disabled:opacity-40";
 
-export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, refreshKey }: Props) {
+export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, onDeleted, refreshKey }: Props) {
   const blobs = useMemo(() => new PlatformBlobStore({ api, actor }), [api, actor]);
   const deps = useMemo(() => ({ projects: api.projects, assets: api.assets, blobs, actor }), [api, blobs, actor]);
   const [projects, setProjects] = useState<Project[] | null>(null);
@@ -69,6 +71,9 @@ export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, 
   const [message, setMessage] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
   const [reload, setReload] = useState(0);
   const [examplesOpen, setExamplesOpen] = useState(false);
+  const [lastDeleted, setLastDeleted] = useState<Project | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -159,6 +164,27 @@ export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, 
     selectNew(r.value.projectId);
   };
 
+  const rename = async (p: Project) => {
+    const title = titleDraft.trim();
+    setRenaming(null);
+    if (!title || title === p.title) return;
+    setBusy("Renaming");
+    const r = await api.projects.renameProject(actor, p.id, title);
+    setBusy(null);
+    if (!r.ok) return setMessage({ tone: "bad", text: r.error.message });
+    setReload(n => n + 1);
+  };
+  const trash = async (p: Project, restore = false) => {
+    setBusy(restore ? "Restoring" : "Deleting");
+    const r = await api.request<Project>(actor, restore ? "POST" : "DELETE", `/api/projects/${encodeURIComponent(p.id)}`);
+    setBusy(null);
+    if (!r.ok) return setMessage({ tone: "bad", text: r.error.message });
+    setLastDeleted(restore ? null : p);
+    setMessage({ tone: "ok", text: restore ? `Restored ${p.title}.` : `Deleted ${p.title}.` });
+    if (!restore) { setProjects(ps => ps?.filter(x => x.id !== p.id) ?? null); onDeleted?.(p.id); }
+    setReload(n => n + 1);
+  };
+
   const take = shown?.value?.loaded;
   const manifest = take?.revision.manifest ?? null;
 
@@ -227,6 +253,7 @@ export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, 
       {message && (
         <p role={message.tone === "bad" ? "alert" : "status"} className={`border-b border-line px-5 py-1.5 text-sm ${message.tone === "bad" ? "text-bad" : "text-ok"}`}>
           {message.text}
+          {lastDeleted && <button className="ml-3 font-medium underline" disabled={!!busy} onClick={() => void trash(lastDeleted, true)}>Undo</button>}
           <button className="ml-3 inline-grid align-middle text-muted hover:text-accent" onClick={() => setMessage(null)} aria-label="Dismiss">
             <XMarkIcon className="size-4" />
           </button>
@@ -255,23 +282,13 @@ export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, 
                   onDoubleClick={() => onOpen(p.id)}
                 >
                   <td className="w-1/2 max-w-0 truncate px-3 py-2.5 font-medium">
-                    <button className="max-w-full truncate text-left hover:underline" onClick={() => setSelected(p.id)}>
-                      {p.title}
-                    </button>
+                    {renaming === p.id ? <input autoFocus aria-label="Project name" maxLength={120} className="w-full min-w-0 rounded border border-line bg-canvas px-2 py-1" value={titleDraft} onChange={e => setTitleDraft(e.target.value)} onBlur={() => void rename(p)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setRenaming(null); }} onClick={e => e.stopPropagation()} /> : <button className="max-w-full truncate text-left hover:underline" onClick={() => setSelected(p.id)}>{p.title}</button>}
                     {p.id === openProjectId && <em className="ml-2 text-xs font-semibold not-italic text-accent">Open</em>}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-muted max-sm:hidden">{when(p.createdAt)}</td>
                   <td className="px-3 py-2.5 text-right text-xs tabular-nums">{when(p.updatedAt)}</td>
                   <td className="px-2 text-right" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-                    <button
-                      className="grid size-7 place-items-center rounded-md text-muted hover:bg-panel-2 hover:text-ink disabled:opacity-40"
-                      aria-label={`Download ${p.title} (.zip)`}
-                      title="Download (.zip)"
-                      disabled={!!busy}
-                      onClick={() => void download(p)}
-                    >
-                      <ArrowDownTrayIcon className="size-4" />
-                    </button>
+                    <ProjectMenu title={p.title} disabled={!!busy} onRename={() => { setTitleDraft(p.title); setRenaming(p.id); }} onDelete={() => void trash(p)} />
                   </td>
                 </tr>
               ))}
