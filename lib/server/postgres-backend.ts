@@ -194,12 +194,12 @@ export class PostgresBackend implements Backend {
     return ok(rows.map(toProject));
   }
 
-  /** Platform-only trash: retain all revisions/assets for Undo. */
-  async setProjectDeleted(actor: Actor, projectId: string, deleted: boolean): Promise<Result<Project>> {
+  /** Platform-only permanent deletion, restricted to the project owner. */
+  async deleteProject(actor: Actor, projectId: string): Promise<Result<Project>> {
     if (!actor) return unauthorized();
     const { rows } = await this.pool.query<ProjectRow>(
-      "update projects set deleted_at = case when $3::boolean then now() else null end where id = $1 and owner_id = $2 returning *",
-      [projectId, actor.userId, deleted],
+      "delete from projects where id = $1 and owner_id = $2 returning *",
+      [projectId, actor.userId],
     );
     return rows.length ? ok(toProject(rows[0])) : projectNotFound(projectId);
   }

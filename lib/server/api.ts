@@ -32,7 +32,7 @@ import { UploadUrlRequest, JobTransitionRequest, RevisionNumberQuery } from "./h
 import { matchPath, readBody, readParam, readQuery, respond } from "./http";
 import * as realStorage from "./storage";
 
-export type PlatformBackend = Backend & { listProjects(actor: Actor): Promise<Result<Project[]>>; setProjectDeleted?(actor: Actor, projectId: string, deleted: boolean): Promise<Result<Project>> };
+export type PlatformBackend = Backend & { listProjects(actor: Actor): Promise<Result<Project[]>>; deleteProject?(actor: Actor, projectId: string): Promise<Result<Project>> };
 
 /** Storage operations the handlers use (tests may substitute a gateway). */
 export type StorageGateway = Pick<
@@ -77,12 +77,12 @@ export async function getProject(ctx: ApiContext, projectId: string): Promise<Re
   return respond(await ctx.backend.projects.getProject(ctx.actor, id.value));
 }
 
-export async function setProjectDeleted(ctx: ApiContext, projectId: string, deleted: boolean): Promise<Response> {
+export async function deleteProject(ctx: ApiContext, projectId: string): Promise<Response> {
   if (!ctx.actor) return signIn();
   const id = readParam("projectId", projectId, ProjectId);
   if (!id.ok) return respond(id);
-  if (!ctx.backend.setProjectDeleted) return respond(err("PROVIDER_UNAVAILABLE", "project trash is unavailable"));
-  return respond(await ctx.backend.setProjectDeleted(ctx.actor, id.value, deleted));
+  if (!ctx.backend.deleteProject) return respond(err("PROVIDER_UNAVAILABLE", "project deletion is unavailable"));
+  return respond(await ctx.backend.deleteProject(ctx.actor, id.value));
 }
 
 export async function renameProject(ctx: ApiContext, request: Request, projectId: string): Promise<Response> {
