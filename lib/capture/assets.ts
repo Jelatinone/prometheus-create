@@ -23,7 +23,14 @@ export async function projectAssetId(projectId: string, kind: Asset["kind"], con
   return `ast_${digest.slice("sha256:".length, "sha256:".length + 40)}`;
 }
 
-/** Store bytes, then record the asset. Idempotent for identical content. */
+/**
+ * Store bytes, then record the asset. Idempotent for identical content.
+ *
+ * When the catalog already records this exact content the upload is skipped:
+ * the record is written only after its bytes are stored, so it proves the blob
+ * exists. A retried request (e.g. a reconstruction finish that timed out after
+ * storing some outputs) therefore resumes instead of re-uploading everything.
+ */
 export async function storeProjectAsset(
   deps: AssetDeps,
   projectId: string,
@@ -32,6 +39,8 @@ export async function storeProjectAsset(
 ): Promise<Result<Asset>> {
   const contentHash = meta.contentHash ?? (await sha256(bytes));
   const id = await projectAssetId(projectId, meta.kind, contentHash);
+  const existing = await deps.assets.getAsset(deps.actor, projectId, id);
+  if (existing.ok && existing.value.contentHash === contentHash && existing.value.byteSize === bytes.byteLength) return existing;
   const storageKey = assetStorageKey(projectId, id);
   const stored = await deps.blobs.put(storageKey, bytes, meta.mimeType);
   if (!stored.ok) return stored;

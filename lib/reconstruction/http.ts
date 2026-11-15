@@ -3,12 +3,16 @@ import { AssetId, JobId, ObservationId, ProjectId, SourceId, err, type Backend, 
 import type { BlobStore } from "@/lib/capture/blob-store";
 import type { FalQueue } from "./fal-queue";
 import { readBody, respond } from "@/lib/server/http";
-import { resumeReconstruction, resumeSegmentation, runReconstruction, runSegmentation } from "./runner";
+import { backfillSplat, resumeReconstruction, resumeSegmentation, runReconstruction, runSegmentation, splatBackfillJobId } from "./runner";
 
 // HTTP adapter shapes are local; shared contracts and backend ports remain unchanged.
 export const ReconstructionCommand = z.strictObject({
   projectId: ProjectId, sourceId: SourceId, observationId: ObservationId, jobId: JobId,
-  action: z.enum(["segment", "reconstruct", "poll"]),
+  /**
+   * attach_splat: `jobId` is a succeeded reconstruction without a splat. Repeat
+   * the call until the returned (backfill) job settles; it never submits.
+   */
+  action: z.enum(["segment", "reconstruct", "poll", "attach_splat"]),
   prompt: z.string().trim().min(1).max(200).optional(),
   maskAssetIds: z.array(AssetId).min(1).max(1).optional(),
 });
@@ -28,25 +32,35 @@ export async function reconstructionCommand(
   if (!observations.ok) return respond(observations);
   const observation = observations.value.find(o => o.id === cmd.observationId);
   if (!observation) return respond(err("NOT_FOUND", "captured frame not found"));
+  const deps = () => ({ ...ctx.backend, actor: ctx.actor, blobs: ctx.blobs, fal: ctx.fal(), execution: "poll-once" as const });
+  if (cmd.action === "attach_splat") {
+    // Lock the backfill job (the original is terminal and never changes).
+    return lock(`${cmd.projectId}:${await splatBackfillJobId(cmd.jobId)}`, async () => {
+      const original = await ctx.backend.jobs.getJob(ctx.actor, cmd.projectId, cmd.jobId);
+      if (!original.ok) return respond(original);
+      if (original.value.input.observationId !== observation.id) return respond(err("DUPLICATE", "job ID belongs to a different frame"));
+      return respond(await backfillSplat(deps(), { projectId: cmd.projectId, jobId: cmd.jobId }));
+    });
+  }
   return lock(`${cmd.projectId}:${cmd.jobId}`, async () => {
     const existing = await ctx.backend.jobs.getJob(ctx.actor, cmd.projectId, cmd.jobId);
     if (!existing.ok && existing.error.code !== "NOT_FOUND") return respond(existing);
-    const deps = { ...ctx.backend, actor: ctx.actor, blobs: ctx.blobs, fal: ctx.fal(), execution: "poll-once" as const };
+    const run = deps();
     if (existing.ok) {
       const job = existing.value;
       if (job.input.observationId !== observation.id || (cmd.action !== "poll" && job.kind !== (cmd.action === "segment" ? "segment" : "reconstruct_object")))
         return respond(err("DUPLICATE", "job ID already belongs to a different request"));
       if (job.state === "queued") return respond(err("INVALID_TRANSITION", "submission was not confirmed; reconcile this job before retrying"));
-      if (job.kind === "segment") return respond(await resumeSegmentation(deps, { ...cmd, observation }));
-      return respond(await resumeReconstruction(deps, cmd));
+      if (job.kind === "segment") return respond(await resumeSegmentation(run, { ...cmd, observation }));
+      return respond(await resumeReconstruction(run, cmd));
     }
     if (cmd.action === "poll") return respond(existing);
     if (cmd.action === "segment") {
       if (!cmd.prompt) return respond(err("INVALID_SCHEMA", "describe the object to reconstruct"));
-      return respond(await runSegmentation({ ...deps, execution: "submit" }, { ...cmd, observation, prompt: cmd.prompt }), 202);
+      return respond(await runSegmentation({ ...run, execution: "submit" }, { ...cmd, observation, prompt: cmd.prompt }), 202);
     }
     if (!cmd.maskAssetIds?.length) return respond(err("INVALID_SCHEMA", "select an object mask first"));
-    return respond(await runReconstruction({ ...deps, execution: "submit" }, {
+    return respond(await runReconstruction({ ...run, execution: "submit" }, {
       ...cmd, observation, maskAssetIds: cmd.maskAssetIds, targetObjectId: null, baseGeometryRevision: 0,
     }), 202);
   });

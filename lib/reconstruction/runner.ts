@@ -20,6 +20,7 @@ import {
   isTerminalJobState,
   newId,
   ok,
+  sha256,
   type Actor,
   type Asset,
   type AssetCatalog,
@@ -40,11 +41,15 @@ import {
   FalQueueError,
   SAM3D_OBJECTS_MODEL,
   SAM3_IMAGE_MODEL,
+  pickBundle,
   pickGlb,
   pickMasks,
   type FalQueue,
 } from "./fal-queue";
-import { normalizeGlb, type SourceUnits, type SourceUpAxis } from "./glb-normalize";
+import { normalizeGlb, type NormalizedGlb, type SourceUnits, type SourceUpAxis } from "./glb-normalize";
+import { PROVIDER_SPLAT_TO_GLB, SPLAT_MIME, bundleMeshPath, bundleSplatPath, composeTransforms, parseSplatPly, toS1Splat } from "./splat";
+import { objectPlacement, parseProviderMetadata, type ScenePlacement } from "./placement";
+import { readZip } from "@/lib/editor/project-archive";
 
 export interface PollOptions {
   intervalMs: number;
@@ -110,6 +115,21 @@ export interface ReconstructionOutcome {
   inspection: GlbInspection | null;
   originalInspection: GlbInspection | null;
   recenterOffset: Vec3 | null;
+  /**
+   * Inferred Gaussian splat in S1 form (same object-local space as the mesh;
+   * PLAN v4 seam S2), or null when the job has none. Never measured depth.
+   */
+  splatAsset: Asset | null;
+  /** Why there is no splat (or what was pruned), for display; null when nothing to report. */
+  splatNote: string | null;
+  /**
+   * Where the provider placed this object in the frame's camera, as a transform
+   * for the normalized mesh / S1 splat (see placement.ts); null when unknown.
+   * Objects from one frame can be laid out together with levelPlacements().
+   */
+  placement: ScenePlacement | null;
+  /** Why there is no placement; null when nothing to report. */
+  placementNote: string | null;
   /** Provider output JSON as returned (URLs are temporary). */
   providerOutput: unknown;
 }
@@ -129,6 +149,8 @@ export interface SegmentationOutcome {
 }
 
 const MASK_TYPE = "image/png";
+/** Masks requested per segmentation (fal-ai/sam-3/image max_masks; matches the 2-3 object batch). */
+export const SEGMENT_MAX_MASKS = 3;
 
 function assetDeps(deps: ReconstructionDeps): AssetDeps {
   return { assets: deps.assets, blobs: deps.blobs, actor: deps.actor, now: deps.now };
@@ -288,8 +310,101 @@ function emptyOutcome(job: ReconstructionJob, providerOutput: unknown = null): R
     inspection: null,
     originalInspection: null,
     recenterOffset: null,
+    splatAsset: null,
+    splatNote: null,
+    placement: null,
+    placementNote: null,
     providerOutput,
   };
+}
+
+const METADATA_MIME = "application/json";
+
+/** The provider bundle's files (downloaded once per finish), or why they are unavailable. */
+interface ProviderBundle {
+  files: Map<string, Uint8Array> | null;
+  note: string | null;
+}
+
+async function loadBundle(deps: ReconstructionDeps, output: unknown): Promise<ProviderBundle> {
+  const bundle = pickBundle(output);
+  if (!bundle) return { files: null, note: "provider returned no artifacts bundle" };
+  let zip: Uint8Array;
+  try {
+    zip = (await deps.fal.download(bundle.url)).bytes;
+  } catch (e) {
+    return { files: null, note: `artifacts bundle download failed (${e instanceof Error ? e.message : String(e)})` };
+  }
+  try {
+    return { files: await readZip(zip), note: null };
+  } catch (e) {
+    return { files: null, note: `artifacts bundle is unreadable (${e instanceof Error ? e.message : String(e)})` };
+  }
+}
+
+/**
+ * Keep the provider's per-object pose (output.metadata) as a provider_raw JSON
+ * asset and derive this object's scene placement from it. Never fails the job.
+ */
+async function persistPlacement(
+  deps: ReconstructionDeps,
+  projectId: string,
+  output: unknown,
+  normalized: NormalizedGlb,
+  objectIndex = 0,
+): Promise<{ asset: Asset | null; placement: ScenePlacement | null; note: string | null }> {
+  const metadata = (output as { metadata?: unknown } | null)?.metadata;
+  if (metadata === undefined || metadata === null) return { asset: null, placement: null, note: "provider returned no object pose; no placement" };
+  const stored = await storeProjectAsset(assetDeps(deps), projectId, new TextEncoder().encode(JSON.stringify(metadata)), {
+    kind: "provider_raw",
+    mimeType: METADATA_MIME,
+    origin: "provider",
+  });
+  const placed = placementFrom(metadata, normalized, objectIndex);
+  return {
+    asset: stored.ok ? stored.value : null,
+    placement: placed.placement,
+    note: placed.note ?? (stored.ok ? null : `provider pose could not be stored (${stored.error.message})`),
+  };
+}
+
+function placementFrom(metadata: unknown, normalized: NormalizedGlb, objectIndex: number): { placement: ScenePlacement | null; note: string | null } {
+  const poses = parseProviderMetadata(metadata);
+  if (!poses.ok) return { placement: null, note: `${poses.error.message}; no placement` };
+  const pose = poses.value.find((p) => p.objectIndex === objectIndex) ?? (poses.value.length === 1 ? poses.value[0] : undefined);
+  if (!pose) return { placement: null, note: `provider pose has no object ${objectIndex}; no placement` };
+  return { placement: objectPlacement(pose, normalized.rootTransform), note: null };
+}
+
+/**
+ * Store object `objectIndex`'s provider splat as an S1 asset aligned with the
+ * normalized mesh. Never fails the job: any problem yields `asset: null` and a
+ * note, and the mesh-only result stands.
+ */
+async function persistSplat(
+  deps: ReconstructionDeps,
+  projectId: string,
+  bundle: ProviderBundle,
+  normalized: NormalizedGlb,
+  objectIndex = 0,
+): Promise<{ asset: Asset | null; note: string | null }> {
+  const none = (note: string) => ({ asset: null, note });
+  if (!bundle.files) return none(`${bundle.note}; mesh only`);
+  const entry = bundle.files.get(bundleSplatPath(objectIndex));
+  if (!entry) return none(`splat bundle has no ${bundleSplatPath(objectIndex)}; mesh only`);
+  const ply = parseSplatPly(entry);
+  if (!ply.ok) return none(`${ply.error.message}; mesh only`);
+  const root = normalized.rootTransform;
+  const s1 = toS1Splat(ply.value, composeTransforms(root, { translation: [0, 0, 0], rotation: PROVIDER_SPLAT_TO_GLB, scale: 1 }));
+  if (!s1.ok) return none(`${s1.error.message}; mesh only`);
+  const stored = await storeProjectAsset(assetDeps(deps), projectId, s1.value.bytes, { kind: "splat", mimeType: SPLAT_MIME, origin: "provider" });
+  if (!stored.ok) return none(`splat could not be stored (${stored.error.message}); mesh only`);
+  const { droppedForSize, droppedInvalid, count } = s1.value;
+  const notes = [
+    droppedForSize ? `${droppedForSize} faintest of ${count + droppedForSize} Gaussians dropped to fit storage` : "",
+    droppedInvalid ? `${droppedInvalid} invalid Gaussians dropped` : "",
+  ].filter(Boolean);
+  return { asset: stored.value, note: notes.length ? notes.join("; ") : null };
 }
 
 /** Check each mask is PNG on the observation's exact pixel grid (platform upload rule). */
@@ -323,26 +438,39 @@ async function finishReconstruction(
     return failed.ok ? ok(emptyOutcome(failed.value)) : failed;
   }
   const output = fetched.output;
-  const glbFile = pickGlb(output);
-  if (!glbFile) {
-    const failed = await driver.fail(
-      job,
-      contractError("INVALID_GEOMETRY", "provider response has no GLB (model_glb missing); refusing to create an object", {
-        providerRequestId: job.providerRequestId,
-      }),
-    );
-    return failed.ok ? ok(emptyOutcome(failed.value, output)) : failed;
+  // One bundle download serves the mesh, the splat and the pose. The bundle's
+  // object mesh is byte-identical to model_glb for single-object outputs
+  // (observed on two jobs); model_glb stays the fallback.
+  const bundle = await loadBundle(deps, output);
+  let raw: Uint8Array | null = null;
+  let normalized: Result<NormalizedGlb> | null = null;
+  const bundleMesh = bundle.files?.get(bundleMeshPath(0));
+  if (bundleMesh) {
+    const attempt = normalizeGlb(bundleMesh, deps.convention ?? UNVERIFIED_CONVENTION);
+    if (attempt.ok) [raw, normalized] = [bundleMesh, attempt];
   }
-  let raw: Uint8Array;
-  try {
-    raw = (await deps.fal.download(glbFile.url)).bytes;
-  } catch (e) {
-    const failed = await driver.fail(job, providerFailure(e, "download GLB"));
-    return failed.ok ? ok(emptyOutcome(failed.value, output)) : failed;
+  if (!raw) {
+    const glbFile = pickGlb(output);
+    if (!glbFile) {
+      const failed = await driver.fail(
+        job,
+        contractError("INVALID_GEOMETRY", "provider response has no GLB (model_glb missing); refusing to create an object", {
+          providerRequestId: job.providerRequestId,
+        }),
+      );
+      return failed.ok ? ok(emptyOutcome(failed.value, output)) : failed;
+    }
+    try {
+      raw = (await deps.fal.download(glbFile.url)).bytes;
+    } catch (e) {
+      const failed = await driver.fail(job, providerFailure(e, "download GLB"));
+      return failed.ok ? ok(emptyOutcome(failed.value, output)) : failed;
+    }
+    normalized = normalizeGlb(raw, deps.convention ?? UNVERIFIED_CONVENTION);
   }
-  const normalized = normalizeGlb(raw, deps.convention ?? UNVERIFIED_CONVENTION);
-  if (!normalized.ok) {
-    const failed = await driver.fail(job, contractError("INVALID_GEOMETRY", normalized.error.message, { providerRequestId: job.providerRequestId }));
+  if (!normalized || !normalized.ok) {
+    const message = normalized && !normalized.ok ? normalized.error.message : "GLB could not be normalized";
+    const failed = await driver.fail(job, contractError("INVALID_GEOMETRY", message, { providerRequestId: job.providerRequestId }));
     return failed.ok ? ok(emptyOutcome(failed.value, output)) : failed;
   }
 
@@ -356,9 +484,13 @@ async function finishReconstruction(
     origin: "provider",
   });
   if (!meshAsset.ok) return meshAsset;
+  const splat = await persistSplat(deps, job.projectId, bundle, normalized.value);
+  const placed = await persistPlacement(deps, job.projectId, output, normalized.value);
+  // rawAssetIds[0] is always the provider GLB; [1], when present, the provider pose JSON.
+  const rawAssetIds = placed.asset ? [rawAsset.value.id, placed.asset.id] : [rawAsset.value.id];
 
   const succeeded = await driver.move(job, "succeeded", {
-    output: { meshAssetId: meshAsset.value.id, splatAssetId: null, maskAssetIds: [], rawAssetIds: [rawAsset.value.id] },
+    output: { meshAssetId: meshAsset.value.id, splatAssetId: splat.asset?.id ?? null, maskAssetIds: [], rawAssetIds },
   });
   // A job canceled meanwhile keeps its assets but must not yield geometry.
   let settled: ReconstructionJob;
@@ -387,6 +519,10 @@ async function finishReconstruction(
     inspection: normalized.value.inspection,
     originalInspection: normalized.value.original,
     recenterOffset: normalized.value.recenterOffset,
+    splatAsset: splat.asset,
+    splatNote: splat.note,
+    placement: placed.placement,
+    placementNote: placed.note,
     providerOutput: output,
   });
 }
@@ -488,6 +624,23 @@ export async function resumeReconstruction(
     if (!normalized.ok) return normalized;
     const mesh = await deps.assets.getAsset(deps.actor, job.projectId, job.output.meshAssetId);
     if (!mesh.ok) return mesh;
+    let splatAsset: Asset | null = null;
+    if (job.output.splatAssetId) {
+      const splat = await deps.assets.getAsset(deps.actor, job.projectId, job.output.splatAssetId);
+      if (!splat.ok) return splat;
+      splatAsset = splat.value;
+    }
+    let placed: { placement: ScenePlacement | null; note: string | null } = { placement: null, note: "this job has no stored provider pose" };
+    const poseId = job.output.rawAssetIds[1];
+    if (poseId) {
+      const pose = await loadProjectAsset(assetDeps(deps), job.projectId, poseId);
+      if (!pose.ok) return pose;
+      try {
+        placed = placementFrom(JSON.parse(new TextDecoder().decode(pose.value.bytes)), normalized.value, 0);
+      } catch {
+        placed = { placement: null, note: "stored provider pose is not JSON; no placement" };
+      }
+    }
     const apply = canApplyJobResult(job, current);
     return ok({
       job,
@@ -506,6 +659,10 @@ export async function resumeReconstruction(
       inspection: normalized.value.inspection,
       originalInspection: normalized.value.original,
       recenterOffset: normalized.value.recenterOffset,
+      splatAsset,
+      splatNote: splatAsset ? null : "this job has no stored splat",
+      placement: placed.placement,
+      placementNote: placed.note,
       providerOutput: null,
     });
   }
@@ -514,12 +671,67 @@ export async function resumeReconstruction(
 }
 
 /**
+ * Deterministic ID of the job that backfills a splat for `jobId`, so repeated
+ * attach requests (and Track B) always find the same backfill job.
+ */
+export async function splatBackfillJobId(jobId: string): Promise<string> {
+  const digest = await sha256(`splat-backfill:${jobId}`);
+  return `job_${digest.slice("sha256:".length, "sha256:".length + 32)}`;
+}
+
+/**
+ * Give an already-succeeded reconstruction a stored S1 splat WITHOUT a new
+ * provider job (PLAN v4 seam S5). A succeeded job is terminal, so its output
+ * cannot gain a splatAssetId; instead a backfill job with a derived ID adopts
+ * the original's provider request ID (never calling submit) and runs the normal
+ * poll/finish path: result fetch and file downloads only. The backfill outcome
+ * carries the splat; its mesh asset ID equals the original's (content-addressed),
+ * which proves the splat is aligned with that exact mesh.
+ */
+export async function backfillSplat(
+  deps: ReconstructionDeps,
+  req: { projectId: string; jobId: string },
+): Promise<Result<ReconstructionOutcome>> {
+  const found = await deps.jobs.getJob(deps.actor, req.projectId, req.jobId);
+  if (!found.ok) return found;
+  const original = found.value;
+  if (original.kind !== "reconstruct_object") return err("INVALID_SCHEMA", `job ${original.id} is not a reconstruction`);
+  if (original.state !== "succeeded" || !original.output?.meshAssetId)
+    return err("INVALID_TRANSITION", `job ${original.id} is ${original.state}; only a succeeded reconstruction can gain a splat`);
+  if (original.output.splatAssetId) return resumeReconstruction(deps, { projectId: req.projectId, jobId: original.id });
+  if (!original.providerRequestId) return err("INVALID_TRANSITION", `job ${original.id} has no provider request to reuse`);
+
+  const id = await splatBackfillJobId(original.id);
+  const existing = await deps.jobs.getJob(deps.actor, req.projectId, id);
+  if (existing.ok) return resumeReconstruction(deps, { projectId: req.projectId, jobId: id });
+  if (existing.error.code !== "NOT_FOUND") return existing;
+
+  const driver = new JobDriver(deps);
+  const created = await driver.create({
+    schemaVersion: 1,
+    id,
+    projectId: req.projectId,
+    kind: "reconstruct_object",
+    provider: original.provider,
+    providerModel: original.providerModel,
+    inputHash: original.inputHash,
+    input: original.input,
+  });
+  if (!created.ok) return created;
+  // Adopt the paid request: recorded as submitted, but submit() is never called.
+  const adopted = await driver.move(created.value, "submitted", { providerRequestId: original.providerRequestId });
+  if (!adopted.ok) return adopted;
+  if (deps.execution === "submit") return ok(emptyOutcome(adopted.value));
+  return continueReconstruction(deps, driver, adopted.value, original.input.baseGeometryRevision);
+}
+
+/**
  * Obtain object masks for a frame with fal-ai/sam-3/image (text prompt). Each
  * mask must match the frame's pixel grid; masks are stored as owned assets.
  */
 export async function runSegmentation(deps: ReconstructionDeps, req: SegmentationRequest): Promise<Result<SegmentationOutcome>> {
   const driver = new JobDriver(deps);
-  const inputHash = await hashJson({ model: SAM3_IMAGE_MODEL, image: req.observation.frame.contentHash, prompt: req.prompt });
+  const inputHash = await hashJson({ model: SAM3_IMAGE_MODEL, image: req.observation.frame.contentHash, prompt: req.prompt, maxMasks: SEGMENT_MAX_MASKS });
   const created = await driver.create({
     schemaVersion: 1,
     id: req.jobId ?? newId("job"),
@@ -546,7 +758,10 @@ export async function runSegmentation(deps: ReconstructionDeps, req: Segmentatio
     prompt: req.prompt,
     apply_mask: false,
     output_format: "png",
-    return_multiple_masks: false,
+    // Every instance matching the prompt (up to 3), so one frame can yield 2-3 objects.
+    return_multiple_masks: true,
+    max_masks: SEGMENT_MAX_MASKS,
+    include_scores: true,
   });
   if (!submitted.ok) return submitted;
   job = submitted.value;

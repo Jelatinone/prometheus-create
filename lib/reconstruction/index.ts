@@ -6,3 +6,5 @@
 export * from "./fal-queue";
 export * from "./glb-normalize";
 export * from "./runner";
+export * from "./splat";
+export * from "./placement";

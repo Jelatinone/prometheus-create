@@ -38,6 +38,11 @@ export interface NormalizedGlb {
   localBounds: Geometry["localBounds"];
   /** Canonical-space translation removed by recentering. Placing the object at this position restores the provider layout. */
   recenterOffset: Vec3;
+  /**
+   * TRS of the added root node (glTF order: p' = translation + rotation * (scale * p)).
+   * Anything that must share the mesh's object-local space (e.g. a splat) applies exactly this.
+   */
+  rootTransform: { translation: Vec3; rotation: [number, number, number, number]; scale: number };
 }
 
 const UNIT_SCALE: Record<SourceUnits, number> = { m: 1, cm: 0.01, mm: 0.001, unknown: 1 };
@@ -159,5 +164,6 @@ export function normalizeGlb(bytes: Uint8Array, options: NormalizeOptions): Resu
     },
     localBounds: { min: bounds.min, max: bounds.max },
     recenterOffset: anchor,
+    rootTransform: { translation, rotation, scale },
   });
 }

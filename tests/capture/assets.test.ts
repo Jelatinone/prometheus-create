@@ -22,3 +22,26 @@ it("records the key returned by storage and reloads bytes from that canonical ke
   expect(asset.storageKey).toBe(`project-assets/projects/${h.projectId}/${asset.id}`);
   expect(expectOk(await loadProjectAsset(deps, h.projectId, asset.id)).bytes).toEqual(bytes);
 });
+
+it("skips the upload when the catalog already records identical content (retries resume)", async () => {
+  const h = await captureHarness();
+  const backing = new MemoryBlobStore();
+  let puts = 0;
+  const blobs: BlobStore = {
+    async put(key, bytes, mimeType) {
+      puts++;
+      return backing.put(key, bytes, mimeType);
+    },
+    get: (key) => backing.get(key),
+  };
+  const deps = { assets: h.backend.assets, blobs, actor: h.actor };
+  const bytes = captureFixture("upright-64x48.png");
+  const meta = { kind: "image", mimeType: "image/png", origin: "upload" } as const;
+  const first = expectOk(await storeProjectAsset(deps, h.projectId, bytes, meta));
+  const again = expectOk(await storeProjectAsset(deps, h.projectId, bytes, meta));
+  expect(again).toEqual(first);
+  expect(puts).toBe(1);
+  // Different bytes are still uploaded.
+  expectOk(await storeProjectAsset(deps, h.projectId, captureFixture("upright-64x48.jpg"), { ...meta, mimeType: "image/jpeg" }));
+  expect(puts).toBe(2);
+});
