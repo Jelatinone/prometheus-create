@@ -25,9 +25,15 @@ from .config import LiveConfig
 
 class ChertError(RuntimeError):
     def __init__(self, status: int | None, message: str, body: Any = None):
-        super().__init__(f"Chert API {status}: {message}")
+        detail = body.get("error") if isinstance(body, dict) else None
+        code = detail.get("code") if isinstance(detail, dict) else None
+        text = detail.get("message") if isinstance(detail, dict) else None
+        suffix = f" [{code}] {text}" if code else ""
+        super().__init__(f"Chert API {status}: {message}{suffix}")
         self.status = status
         self.body = body
+        #: Chert's machine-readable reason, e.g. "recipient_not_verified", "line_in_use".
+        self.code: str | None = code
 
 
 class ChertCalls:

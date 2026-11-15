@@ -131,3 +131,12 @@ def test_masked_placeholders_and_bad_destinations_are_refused(monkeypatch):
     assert config.destination_problem("+15551234567") is None
     assert config.destination_problem("tester@example.com") is None
     assert config.destination_problem("")
+
+
+def test_chert_error_surfaces_the_reason_code(monkeypatch):
+    body = b'{"error":{"code":"recipient_not_verified","message":"Verify this recipient on the assigned line before placing an outbound call."},"request_id":"r1"}'
+    capture_requests(monkeypatch, urllib.error.HTTPError("u", 403, "Forbidden", {}, io.BytesIO(body)))
+    with pytest.raises(ChertError) as info:
+        ChertCalls(CONF).create_outbound_call(participant_token="t", remote_participant_identity="a", idempotency_key="cap_abc12345")
+    assert info.value.code == "recipient_not_verified"
+    assert "[recipient_not_verified] Verify this recipient" in str(info.value)
