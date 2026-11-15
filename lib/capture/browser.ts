@@ -111,15 +111,35 @@ export function loadVideoMetadata(
   });
 }
 
-/** Seek a clip and resolve once the frame at `timeUs` is decoded. */
-export function seekVideo(video: HTMLVideoElement, timeUs: number): Promise<Result<number>> {
+/** The parts of a `<video>` that seeking uses (so the logic is testable without a browser). */
+export type SeekableVideo = Pick<HTMLVideoElement, "duration" | "currentTime" | "readyState" | "seeking" | "addEventListener" | "removeEventListener">;
+
+const HAVE_METADATA = 1;
+const HAVE_CURRENT_DATA = 2;
+
+/**
+ * Seek a clip and resolve once the frame at `timeUs` is decoded. It always
+ * settles: at once when that frame is already shown, with an error if the
+ * clip is not loaded, fails to decode, or the seek does not finish in time.
+ */
+export function seekVideo(video: SeekableVideo, timeUs: number, timeoutMs = 5000): Promise<Result<number>> {
   return new Promise((resolve) => {
+    if (video.readyState < HAVE_METADATA || !Number.isFinite(video.duration)) return resolve(err("NO_FRESH_FRAME", "the clip is not loaded yet"));
     const target = Math.min(Math.max(0, timeUs / 1e6), video.duration);
-    const onSeeked = () => {
+    const shown = () => ok(Math.round(video.currentTime * 1e6));
+    // Already on this frame: no seek is needed, and waiting for an event could wait forever.
+    if (!video.seeking && video.readyState >= HAVE_CURRENT_DATA && Math.abs(video.currentTime - target) < 5e-4) return resolve(shown());
+    const finish = (result: Result<number>) => {
+      clearTimeout(timer);
       video.removeEventListener("seeked", onSeeked);
-      resolve(ok(Math.round(video.currentTime * 1e6)));
+      video.removeEventListener("error", onError);
+      resolve(result);
     };
+    const onSeeked = () => finish(shown());
+    const onError = () => finish(err("UNSUPPORTED_MEDIA", "the browser could not decode the clip at that time"));
+    const timer = setTimeout(() => finish(err("NO_FRESH_FRAME", "the clip did not reach that time; try again")), timeoutMs);
     video.addEventListener("seeked", onSeeked);
+    video.addEventListener("error", onError);
     video.currentTime = target;
   });
 }

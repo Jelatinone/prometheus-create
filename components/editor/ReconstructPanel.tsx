@@ -49,6 +49,9 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply }: {
   onApply: (takeId: string, name: string, observation: Observation, outcome: ReconstructionOutcome, placement: LevelledPlacement | null) => boolean;
 }) {
   const key = `prometheus:generate2:${projectId}`;
+  // Results for frames other than the current one, by frame ID: changing frame never drops a job reference.
+  const keptKey = `${key}:kept`;
+  const [keptFrames, setKeptFrames] = useState<string[]>([]);
   const [frames, setFrames] = useState<Observation[]>([]);
   const [selected, setSelected] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -78,6 +81,19 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply }: {
     if (s) persist({ ...s, batch: edit(s.batch) });
   }, [persist]);
 
+  const readKept = useCallback((): Record<string, Saved> => {
+    try {
+      return JSON.parse(localStorage.getItem(keptKey) ?? "{}") as Record<string, Saved>;
+    } catch { return {}; }
+  }, [keptKey]);
+  const writeKept = useCallback((kept: Record<string, Saved>) => {
+    setKeptFrames(Object.keys(kept));
+    try {
+      if (Object.keys(kept).length) localStorage.setItem(keptKey, JSON.stringify(kept));
+      else localStorage.removeItem(keptKey);
+    } catch { /* storage may be disabled */ }
+  }, [keptKey]);
+
   const send: Send = useCallback((command) => api.request(actor, "POST", "/api/reconstruction", command), [api, actor]);
 
   /** Drives one find until done, then lists one found object per mask. */
@@ -103,6 +119,15 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply }: {
     activeJobs.delete(object.mesh.jobId);
     if (r.job.stage === "done" && r.outcome && alive.current) setOutcomes((o) => ({ ...o, [objectKey]: r.outcome as ReconstructionOutcome }));
   }, [send, update]);
+
+  /** Makes a stored batch current: unfinished jobs resume; finished meshes re-read their job (never resubmitted). */
+  const activate = useCallback((restored: Saved) => {
+    const objects = restored.batch.objects.map((o) => (o.mesh?.stage === "done" && !restored.applied.includes(o.key) ? { ...o, mesh: { ...o.mesh, stage: "running" as const } } : o));
+    persist({ ...restored, batch: { ...restored.batch, objects } });
+    setSelected(restored.frame.id);
+    for (const f of restored.batch.finds) if (f.job.stage === "pending" || f.job.stage === "running") void driveFind(f.key);
+    for (const o of objects) if (o.mesh && (o.mesh.stage === "pending" || o.mesh.stage === "running")) void driveMesh(o.key);
+  }, [persist, driveFind, driveMesh]);
 
   const refresh = useCallback(async () => {
     const r = await api.request<Observation[]>(actor, "GET", `/api/reconstruction/frames?projectId=${projectId}`);
@@ -138,15 +163,12 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply }: {
           }
           localStorage.removeItem(legacyKey);
         }
+        setKeptFrames(Object.keys(readKept()));
         if (restored?.batch?.frame?.projectId !== projectId || !Array.isArray(restored.batch.finds)) return;
-        const objects = restored.batch.objects.map((o) => (o.mesh?.stage === "done" && !restored.applied.includes(o.key) ? { ...o, mesh: { ...o.mesh, stage: "running" as const } } : o));
-        persist({ ...restored, batch: { ...restored.batch, objects } });
-        setSelected(restored.frame.id);
-        for (const f of restored.batch.finds) if (f.job.stage === "pending" || f.job.stage === "running") void driveFind(f.key);
-        for (const o of objects) if (o.mesh && (o.mesh.stage === "pending" || o.mesh.stage === "running")) void driveMesh(o.key);
+        activate(restored);
       } catch { /* unreadable saved state: start fresh */ }
     });
-  }, [key, projectId, refresh, persist, driveFind, driveMesh]);
+  }, [key, projectId, refresh, activate, readKept]);
 
   const frame = saved?.frame ?? frames.find((o) => o.id === selected);
   useEffect(() => {
@@ -172,6 +194,26 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply }: {
     // Only new mask IDs need URLs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objectMasks, api, actor, projectId]);
+
+  /** Switch to another captured frame. This frame's searches and results are kept and come back when it is chosen again. */
+  function chooseFrame(id: string) {
+    const s = savedRef.current;
+    if (busy || id === (s?.frame.id ?? selected)) return;
+    const kept = readKept();
+    if (s && (s.batch.finds.length || s.batch.objects.length)) kept[s.frame.id] = s;
+    const next = kept[id] ?? null;
+    delete kept[id];
+    writeKept(kept);
+    setOutcomes({});
+    setConfirm({});
+    setError("");
+    setPreview(null);
+    if (next) activate(next);
+    else {
+      persist(null);
+      setSelected(id);
+    }
+  }
 
   function find() {
     if (!frame) return;
@@ -243,14 +285,14 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply }: {
       <p className="text-xs text-muted">Describe what to look for in a captured frame. Every match is listed; remove any you do not want, add more descriptions, then Generate. Matching is best effort, and hidden surfaces and scale are inferred.</p>
       <div className="flex items-center justify-between">
         <label htmlFor="reconstruct-frame" className="text-sm">Captured frame</label>
-        <button className={small} disabled={!!saved} onClick={() => void refresh()} title="Refresh frames" aria-label="Refresh frames">
+        <button className={small} onClick={() => void refresh()} title="Refresh frames" aria-label="Refresh frames">
           <ArrowPathIcon className="size-4" />
         </button>
       </div>
-      <select id="reconstruct-frame" className="w-full rounded-lg border border-line bg-panel p-2 text-sm" value={frame?.id ?? ""} disabled={!!saved} onChange={(e) => { setSelected(e.target.value); setPreview(null); }}>
+      <select id="reconstruct-frame" className="w-full rounded-lg border border-line bg-panel p-2 text-sm" value={frame?.id ?? ""} disabled={busy} title={busy ? "Wait for the running jobs before changing frame" : "Results are kept per frame"} onChange={(e) => chooseFrame(e.target.value)}>
         {!frames.length && !saved && <option value="">Capture or upload a photo first</option>}
         {saved && !frames.some((o) => o.id === saved.frame.id) && <option value={saved.frame.id}>Frame {saved.frame.sequence}</option>}
-        {frames.map((o) => <option key={o.id} value={o.id}>Frame {o.sequence} · {o.frame.width}×{o.frame.height} · {new Date(o.receivedAt).toLocaleTimeString()}</option>)}
+        {frames.map((o) => <option key={o.id} value={o.id}>Frame {o.sequence} · {o.frame.width}×{o.frame.height} · {new Date(o.receivedAt).toLocaleTimeString()}{keptFrames.includes(o.id) ? " · has results" : ""}</option>)}
       </select>
       {/* Signed private asset URL, refreshed whenever the frame selection changes. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -326,7 +368,7 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply }: {
       {saved && saved.batch.takeId !== takeId && <p className="text-xs text-muted">Switch back to the requesting take to add these objects.</p>}
       {saved && !busy && (
         <button className={`${small} w-full justify-center`} onClick={() => { persist(null); setOutcomes({}); setConfirm({}); setMasks({}); }}>
-          Clear and start over
+          Clear results for this frame
         </button>
       )}
       {error && <p role="alert" className="text-sm text-bad">{error}</p>}
