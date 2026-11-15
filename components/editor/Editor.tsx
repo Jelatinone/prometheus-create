@@ -545,10 +545,10 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
 
       {reconstructOpen && <aside className={`absolute top-17 bottom-20 left-3 z-10 w-[26rem] max-w-[calc(100%-1.5rem)] overflow-auto p-3 ${chrome}`}>
         <div className="mb-3 flex items-center justify-between"><h2 className="font-serif font-semibold">Generate</h2><button className={icon} onClick={() => setReconstructOpen(false)} aria-label="Close generate"><XMarkIcon className="size-5" /></button></div>
-        <ReconstructPanel api={api} actor={actor} projectId={projectId} takeId={take.id} onApply={(requestedTake, name, observation, outcome) => {
+        <ReconstructPanel api={api} actor={actor} projectId={projectId} takeId={take.id} onApply={(requestedTake, name, observation, outcome, placement) => {
           const current = historyRef.current;
           if (!current) return false;
-          const r = reconstructedObject(current.present, requestedTake, name, observation, outcome);
+          const r = reconstructedObject(current.present, requestedTake, name, observation, outcome, placement);
           if (!r.ok) { setNotice({ tone: "bad", text: r.error.message }); return false; }
           apply(h => commit(h, addObject(h.present, r.value))); setSelected(r.value.id);
           setNotice({ tone: "ok", text: "Estimated mesh added. Save to keep it; dimensions are not calibrated." });

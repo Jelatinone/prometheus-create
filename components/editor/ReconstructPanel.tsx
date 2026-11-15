@@ -31,6 +31,8 @@ import {
 } from "@/lib/editor/batch";
 import type { HttpBackend } from "@/lib/platform/http-backend";
 import type { ReconstructionOutcome } from "@/lib/reconstruction/runner";
+import { levelPlacements } from "@/lib/reconstruction/placement";
+import type { LevelledPlacement } from "@/lib/editor/reconstruction";
 import { Spinner } from "@/components/ui/Loading";
 
 interface Saved {
@@ -44,7 +46,7 @@ const activeJobs = new Set<string>();
 
 export function ReconstructPanel({ api, actor, projectId, takeId, onApply }: {
   api: HttpBackend; actor: NonNullable<Actor>; projectId: string; takeId: string;
-  onApply: (takeId: string, name: string, observation: Observation, outcome: ReconstructionOutcome) => boolean;
+  onApply: (takeId: string, name: string, observation: Observation, outcome: ReconstructionOutcome, placement: LevelledPlacement | null) => boolean;
 }) {
   const key = `prometheus:generate2:${projectId}`;
   const [frames, setFrames] = useState<Observation[]>([]);
@@ -207,7 +209,13 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply }: {
     const s = savedRef.current;
     const outcome = outcomes[o.key];
     if (!s || !outcome) return;
-    if (!onApply(s.batch.takeId, o.label, s.frame, outcome)) return;
+    // Objects from one frame share the provider camera: level the batch's finished placements together
+    // (Track A CP-009). Objects applied before the rest finish are not re-levelled later.
+    const placed = s.batch.objects.filter((x) => outcomes[x.key]?.placement);
+    const levelled = levelPlacements(placed.map((x) => outcomes[x.key]!.placement!));
+    const mine = levelled[placed.findIndex((x) => x.key === o.key)];
+    const placement = mine ? { position: mine.position, rotation: mine.rotation, scale: mine.scale } : null;
+    if (!onApply(s.batch.takeId, o.label, s.frame, outcome, placement)) return;
     persist({ ...s, applied: [...s.applied, o.key] });
   }
 
