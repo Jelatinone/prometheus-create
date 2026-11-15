@@ -14,6 +14,8 @@ export interface PointCloud {
   /** RGB in 0..1, three per point. */
   colors: Float32Array;
   count: number;
+  /** One position per estimated camera (centre of its cone mesh), in frame order, same frame as the points. */
+  cameras?: [number, number, number][];
 }
 
 const SH_C0 = 0.28209479177387814;
@@ -45,9 +47,18 @@ export function pointsFromGlb(bytes: Uint8Array): PointCloud {
   };
   const positions: number[] = [];
   const colors: number[] = [];
+  const cameras: [number, number, number][] = [];
   for (const mesh of json.meshes ?? [])
     for (const p of mesh.primitives ?? []) {
-      if ((p.mode ?? 4) !== 0 || p.attributes?.POSITION === undefined) continue;
+      if (p.attributes?.POSITION === undefined) continue;
+      if ((p.mode ?? 4) !== 0) {
+        const cone = read(p.attributes.POSITION).data;
+        const k = cone.length / 3 || 1;
+        const c: [number, number, number] = [0, 0, 0];
+        for (let i = 0; i < cone.length; i += 3) { c[0] += cone[i] / k; c[1] += cone[i + 1] / k; c[2] += cone[i + 2] / k; }
+        cameras.push(c);
+        continue;
+      }
       const pos = read(p.attributes.POSITION);
       const col = p.attributes.COLOR_0 !== undefined ? read(p.attributes.COLOR_0) : null;
       const n = pos.data.length / 3;
@@ -57,7 +68,7 @@ export function pointsFromGlb(bytes: Uint8Array): PointCloud {
         else colors.push(0.7, 0.7, 0.7);
       }
     }
-  return { positions: Float32Array.from(positions), colors: Float32Array.from(colors), count: positions.length / 3 };
+  return { positions: Float32Array.from(positions), colors: Float32Array.from(colors), count: positions.length / 3, cameras };
 }
 
 /**
@@ -66,7 +77,11 @@ export function pointsFromGlb(bytes: Uint8Array): PointCloud {
  */
 export function pointsToS1Splat(
   cloud: PointCloud,
-  opts: { voxelFraction?: number; flipOpenCv?: boolean; down?: [number, number, number]; levelByPlane?: boolean; targetExtent?: number } = {},
+  opts: {
+    voxelFraction?: number; flipOpenCv?: boolean; down?: [number, number, number]; levelByPlane?: boolean; targetExtent?: number;
+    /** Filled with `cloud.cameras` placed exactly like the splat (levelled, centred, scaled). */
+    camerasOut?: [number, number, number][];
+  } = {},
 ): Uint8Array {
   const { voxelFraction = 1 / 400, flipOpenCv = true, down, targetExtent } = opts;
   const level = down ? rotationTo(down, [0, 1, 0]) : opts.levelByPlane ? rotationTo(planeDown(cloud), [0, 1, 0]) : null;
@@ -106,6 +121,12 @@ export function pointsToS1Splat(
   const centre = [(min[0] + max[0]) / 2, min[1], (min[2] + max[2]) / 2];
   // Optional rough size: the largest horizontal side becomes `targetExtent` (an estimate, not a measurement).
   const s = targetExtent ? targetExtent / (Math.max(max[0] - min[0], max[2] - min[2]) || 1) : 1;
+  if (opts.camerasOut)
+    for (const raw of cloud.cameras ?? []) {
+      const [x, y, z] = level ? applyRotation(level, raw) : raw;
+      const q = flipOpenCv ? [x, -y, -z] : [x, y, z];
+      opts.camerasOut.push([(q[0] - centre[0]) * s, (q[1] - centre[1]) * s, (q[2] - centre[2]) * s]);
+    }
   const count = cells.size;
   const header =
     `ply\nformat binary_little_endian 1.0\nelement vertex ${count}\n` + S1_PROPERTIES.map((name) => `property float ${name}\n`).join("") + "end_header\n";

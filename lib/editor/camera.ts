@@ -1,4 +1,5 @@
 /** Take cameras and capture timing. No provider, DOM or independent path format. */
+import { Matrix4, Quaternion, Vector3 } from "three";
 import { cloneJson } from "@/lib/contracts/canonical";
 import { err, newId, ok, type Camera, type Keyframe, type Observation, type Result, type Source, type TakeManifest, type Track, type Transform } from "@/lib/contracts";
 import { defaultDurationFrames, framesPerSecond } from "./timeline";
@@ -160,5 +161,40 @@ export function seedCamera(manifest: TakeManifest, source: Source, observations:
   copy.scene.cameras.push(cam);
   copy.take.activeCameraId = cam.id;
   copy.take.tracks.push({ id: newId("track"), target: { kind: "camera", cameraId: cam.id }, startFrame: 0, endFrame: copy.take.durationFrames, driver: "keyframes", keyframes: [...keys.values()] });
+  return ok(copy);
+}
+
+/**
+ * Render camera that follows the capture: one smooth key per estimated camera
+ * position (e.g. from the scene splat), timed by each frame's source time and
+ * looking at `target`. Replaces nothing: adds a "Capture path" camera and makes it active.
+ */
+export function seedCameraPath(
+  manifest: TakeManifest,
+  points: { sourceTimeUs: number; position: [number, number, number] }[],
+  target: [number, number, number],
+  verticalFovDeg = 60,
+): Result<TakeManifest> {
+  if (points.length < 2) return err("NOT_FOUND", "not enough camera positions for a path");
+  const fps = framesPerSecond(manifest.take.frameRate);
+  const t0 = Math.min(...points.map((p) => p.sourceTimeUs));
+  const keys = new Map<number, Keyframe>();
+  const m = new Matrix4();
+  const q = new Quaternion();
+  for (const p of points) {
+    const frame = Math.max(0, Math.round(((p.sourceTimeUs - t0) * fps) / 1_000_000));
+    m.lookAt(new Vector3(...p.position), new Vector3(...target), new Vector3(0, 1, 0));
+    q.setFromRotationMatrix(m);
+    keys.set(frame, { frame, transform: { position: p.position, rotation: [q.x, q.y, q.z, q.w], scale: [1, 1, 1] }, interpolation: "smooth" });
+  }
+  const duration = Math.max(manifest.take.durationFrames, ...[...keys.keys()].map((f) => f + 1));
+  const resized = resizeTake(manifest, duration);
+  if (!resized.ok) return resized;
+  const copy = resized.value;
+  const first = [...keys.values()].sort((a, b) => a.frame - b.frame)[0];
+  const cam: Camera = { id: newId("camera"), name: "Capture path", verticalFovDeg, near: 0.01, far: 200, transform: cloneJson(first.transform), origin: "source_estimate", observationId: null };
+  copy.scene.cameras.push(cam);
+  copy.take.activeCameraId = cam.id;
+  copy.take.tracks.push({ id: newId("track"), target: { kind: "camera", cameraId: cam.id }, startFrame: 0, endFrame: copy.take.durationFrames, driver: "keyframes", keyframes: [...keys.values()].sort((a, b) => a.frame - b.frame) });
   return ok(copy);
 }

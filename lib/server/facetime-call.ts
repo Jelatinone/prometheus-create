@@ -22,6 +22,8 @@ import { createLiveFalQueue } from "@/lib/reconstruction/fal-live";
 import { pointsFromGlb, pointsToS1Splat } from "@/lib/reconstruction/scene-splat";
 import { serverBlobs } from "@/lib/reconstruction/server-blobs";
 import { addObject } from "@/lib/editor/model";
+import { seedCameraPath } from "@/lib/editor/camera";
+import type { TakeManifest } from "@/lib/contracts/revision";
 import type { PostgresBackend } from "./postgres-backend";
 
 export const CALL_SECONDS = 35;
@@ -131,17 +133,19 @@ export async function buildSceneFromCall(backend: PostgresBackend, actor: NonNul
 
 async function buildSceneFromFrames(backend: PostgresBackend, actor: NonNullable<Actor>, projectId: string, frames: Observation[], detail: SceneDetail): Promise<Result<string>> {
   if (frames.length < 2) return err("NOT_FOUND", "the capture has fewer than two frames");
-  const ply = await sceneSplatPly(backend, actor, projectId, frames, detail);
+  const cameras: [number, number, number][] = [];
+  const ply = await sceneSplatPly(backend, actor, projectId, frames, detail, cameras);
   if (!ply.ok) return ply;
   const deps = { assets: backend.assets, blobs: serverBlobs(backend, actor), actor };
   const splat = await storeProjectAsset(deps, projectId, ply.value, { kind: "splat", mimeType: "application/octet-stream", origin: "provider" });
   if (!splat.ok) return splat;
-  const added = await addSceneObject(backend, actor, projectId, splat.value.id, frames);
-  return added.ok ? ok(`Scene splat added to the take (${frames.length} frames). Reload the editor to see it.`) : added;
+  const path = cameras.length === frames.length ? frames.map((f, i) => ({ sourceTimeUs: f.sourceTimeUs, position: cameras[i] })) : [];
+  const added = await addSceneObject(backend, actor, projectId, splat.value.id, frames, path);
+  return added.ok ? ok(`Scene splat${path.length ? " and capture camera path" : ""} added to the take (${frames.length} frames). Reload to see it.`) : added;
 }
 
 /** The levelled, roughly room-sized S1 splat for one capture's frames (paid VGGT call; nothing stored). */
-export async function sceneSplatPly(backend: PostgresBackend, actor: NonNullable<Actor>, projectId: string, frames: Observation[], detail: SceneDetail = "standard"): Promise<Result<Uint8Array>> {
+export async function sceneSplatPly(backend: PostgresBackend, actor: NonNullable<Actor>, projectId: string, frames: Observation[], detail: SceneDetail = "standard", camerasOut?: [number, number, number][]): Promise<Result<Uint8Array>> {
   const density = SCENE_DETAIL[detail];
   const deps = { assets: backend.assets, blobs: serverBlobs(backend, actor), actor };
   const fal = createLiveFalQueue();
@@ -163,11 +167,15 @@ export async function sceneSplatPly(backend: PostgresBackend, actor: NonNullable
     voxelFraction: density.voxelFraction,
     targetExtent: ROOM_EXTENT_M,
     levelByPlane: true,
+    camerasOut,
   });
   return ok(ply);
 }
 
-async function addSceneObject(backend: PostgresBackend, actor: NonNullable<Actor>, projectId: string, splatAssetId: string, frames: Observation[]): Promise<Result<true>> {
+async function addSceneObject(
+  backend: PostgresBackend, actor: NonNullable<Actor>, projectId: string, splatAssetId: string, frames: Observation[],
+  path: { sourceTimeUs: number; position: [number, number, number] }[] = [],
+): Promise<Result<true>> {
   const project = await backend.projects.getProject(actor, projectId);
   if (!project.ok) return project;
   const head = await backend.projects.getRevision(actor, projectId, project.value.activeTakeId);
@@ -208,9 +216,16 @@ async function addSceneObject(backend: PostgresBackend, actor: NonNullable<Actor
     projectId,
     takeId: project.value.activeTakeId,
     expectedRevision: head.value.number,
-    manifest: addObject(head.value.manifest, object),
+    manifest: withCameraPath(addObject(head.value.manifest, object), path),
     idempotencyKey: newId("job").replace("job_", "scene_"),
     message: "Scene splat from FaceTime call",
   });
   return saved.ok ? ok(true) : saved;
+}
+
+/** Adds the capture's camera path (render camera keys) when one was recovered; otherwise the take is unchanged. */
+function withCameraPath(manifest: TakeManifest, path: { sourceTimeUs: number; position: [number, number, number] }[]): TakeManifest {
+  if (path.length < 2) return manifest;
+  const seeded = seedCameraPath(manifest, path, [0, 1, 0]);
+  return seeded.ok ? seeded.value : manifest;
 }
