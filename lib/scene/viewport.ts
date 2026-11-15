@@ -50,9 +50,16 @@ export interface ViewportCallbacks {
   onAssetError?(assetId: string, message: string): void;
   /** The object's splat could not be shown; the viewport keeps drawing its mesh. */
   onSplatFallback?(objectId: string, reason: string): void;
+  /** A splat started (true) or finished/failed (false) loading; the editor dims the viewport meanwhile. */
+  onSplatLoading?(objectId: string, loading: boolean): void;
 }
 
-type SplatStatus = "none" | "loading" | "ready" | "failed";
+/** loading: fetching/parsing; settling: added to Spark, waiting for its first sorted frame; ready: drawn. */
+type SplatStatus = "none" | "loading" | "settling" | "ready" | "failed";
+
+/** The Spark renderer fields used to tell when a new splat has actually been drawn. */
+type SparkProgress = { sorting: boolean; lastSortTime: number; display?: { mappingVersion: number }; current?: { mappingVersion: number } };
+const SETTLE_TIMEOUT_MS = 4000;
 
 interface ObjectEntry {
   group: Group;
@@ -63,6 +70,8 @@ interface ObjectEntry {
   splatAssetId: string | null;
   splatStatus: SplatStatus;
   wantsSplat: boolean;
+  /** performance.now() when the splat was handed to Spark (settling). */
+  settlingSince: number;
 }
 
 /** Spark is browser-only and large; load it the first time a splat is needed. */
@@ -80,7 +89,7 @@ export class EditorViewport {
   private readonly gizmo: TransformControls;
   private readonly helpers = new Group();
   private readonly objects = new Map<string, ObjectEntry>();
-  private sparkAdded = false;
+  private spark: (Object3D & SparkProgress) | null = null;
   private readonly assets = new Map<string, Promise<Object3D | null>>();
   private readonly loader = new GLTFLoader();
   private readonly resize: ResizeObserver;
@@ -137,6 +146,7 @@ export class EditorViewport {
     this.resize.observe(container);
     this.fit();
     this.renderer.setAnimationLoop(() => {
+      this.settleSplats();
       this.orbit.update();
       this.outline?.update();
       this.renderer.render(this.scene, this.camera);
@@ -161,7 +171,7 @@ export class EditorViewport {
         splatLayer.visible = false;
         group.add(meshLayer, splatLayer);
         this.scene.add(group);
-        entry = { group, meshLayer, splatLayer, assetId: null, splatAssetId: null, splatStatus: "none", wantsSplat: false };
+        entry = { group, meshLayer, splatLayer, assetId: null, splatAssetId: null, splatStatus: "none", wantsSplat: false, settlingSince: 0 };
         this.objects.set(object.id, entry);
       }
       const { group, meshLayer } = entry;
@@ -185,6 +195,8 @@ export class EditorViewport {
       if (!seen.has(id)) {
         this.scene.remove(entry.group);
         disposeSplats(entry.splatLayer);
+        if (entry.splatStatus === "loading" || entry.splatStatus === "settling") this.cb.onSplatLoading?.(id, false);
+        entry.splatAssetId = null; // a load still in flight for this entry is discarded
         this.objects.delete(id);
       }
     this.select(this.selected && seen.has(this.selected) ? this.selected : null);
@@ -298,24 +310,28 @@ export class EditorViewport {
       entry.splatStatus = "loading";
       disposeSplats(entry.splatLayer);
       this.applyLayers(entry);
+      this.cb.onSplatLoading?.(object.id, true);
       try {
         const bytes = await this.cb.loadAsset(assetId);
         const check = checkSplatPly(bytes);
         if (!check.ok) throw new Error(check.reason);
         const { SparkRenderer, SplatMesh } = await loadSpark();
         if (this.disposed || entry.splatAssetId !== assetId) return;
-        if (!this.sparkAdded) {
-          this.scene.add(new SparkRenderer({ renderer: this.renderer }));
-          this.sparkAdded = true;
+        if (!this.spark) {
+          this.spark = new SparkRenderer({ renderer: this.renderer }) as unknown as Object3D & SparkProgress;
+          this.scene.add(this.spark);
         }
         const splats = new SplatMesh({ fileBytes: bytes.slice().buffer, fileName: `${assetId}.ply` });
         await splats.initialized;
         if (this.disposed || entry.splatAssetId !== assetId) return splats.dispose();
         entry.splatLayer.add(splats);
-        entry.splatStatus = "ready";
+        // Drawn only after Spark's first sort; until then the mesh stays and the editor shows the overlay.
+        entry.splatStatus = "settling";
+        entry.settlingSince = performance.now();
       } catch (e) {
         if (entry.splatAssetId !== assetId) return;
         entry.splatStatus = "failed";
+        this.cb.onSplatLoading?.(object.id, false);
         this.cb.onSplatFallback?.(object.id, e instanceof Error ? e.message : String(e));
       }
     } else if (!assetId && entry.splatAssetId) {
@@ -326,11 +342,25 @@ export class EditorViewport {
     this.applyLayers(entry);
   }
 
-  /** Splat only when wanted and loaded; otherwise the mesh (the fallback). */
+  /** Splat only when wanted and drawn; otherwise the mesh (the fallback). While settling both are present so Spark can sort. */
   private applyLayers(entry: ObjectEntry) {
+    const settling = entry.wantsSplat && entry.splatStatus === "settling";
     const splat = entry.wantsSplat && entry.splatStatus === "ready";
-    entry.splatLayer.visible = splat;
+    entry.splatLayer.visible = splat || settling;
     entry.meshLayer.visible = !splat;
+  }
+
+  /** Each frame: a settling splat becomes ready once Spark has sorted and displayed it (or after a safety timeout). */
+  private settleSplats() {
+    for (const [id, entry] of this.objects) {
+      if (entry.splatStatus !== "settling") continue;
+      const s = this.spark;
+      const sorted = !!s && !s.sorting && s.lastSortTime > entry.settlingSince && s.display?.mappingVersion === s.current?.mappingVersion;
+      if (!sorted && performance.now() - entry.settlingSince < SETTLE_TIMEOUT_MS) continue;
+      entry.splatStatus = "ready";
+      this.applyLayers(entry);
+      this.cb.onSplatLoading?.(id, false);
+    }
   }
 
   /** What each object is currently drawing (for the inspector and tests). */

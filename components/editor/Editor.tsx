@@ -127,6 +127,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const [reconstructOpen, setReconstructOpen] = useState(false);
   const [grid, setGrid] = useState(true);
   const [splatFallbacks, setSplatFallbacks] = useState<Record<string, string | null>>({});
+  const [splatsLoading, setSplatsLoading] = useState<Record<string, boolean>>({});
 
   const viewportEl = useRef<HTMLDivElement>(null);
   const viewport = useRef<EditorViewport | null>(null);
@@ -195,6 +196,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         return r.value.bytes;
       },
       onAssetError: (assetId, message) => setNotice({ tone: "bad", text: `Asset ${assetId} could not be shown: ${message}` }),
+      onSplatLoading: (objectId, loading) => setSplatsLoading((m) => ({ ...m, [objectId]: loading })),
       onSplatFallback: (objectId, reason) => {
         setSplatFallbacks((m) => ({ ...m, [objectId]: reason }));
         setNotice({ tone: "bad", text: `Splat unavailable, showing the mesh instead: ${reason}` });
@@ -415,7 +417,9 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     <div className="fixed inset-0 z-30 overflow-hidden bg-stage text-ink">
       {/* Viewport fills the screen; chrome floats over it. */}
       <div ref={viewportEl} className="absolute inset-0" />
-      <LoadingOverlay show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat"} />
+      <LoadingOverlay
+        show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat" || Object.values(splatsLoading).some(Boolean)}
+      />
       {present.scene.objects.length === 0 && (
         <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-muted">
           This take has no objects yet. Import a GLB, or capture a photo for reference.
