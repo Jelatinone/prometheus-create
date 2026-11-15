@@ -6,11 +6,13 @@
  * finds every instance in the frame, one segmentation), 3 generate the listed
  * objects and add them to the take. Job IDs are stored before each request,
  * so a reload resumes the same jobs; retries follow lib/editor/batch. Results
- * are kept per frame.
+ * are kept per frame. Reconstructions that already exist for the frame (from a
+ * FaceTime call, another browser or an earlier session) are listed and can be
+ * loaded: an existing job ID only resumes on the server, so nothing is paid twice.
  */
 import { ArrowPathIcon, CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon, ExclamationTriangleIcon, MagnifyingGlassIcon, PlusIcon, SparklesIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Actor, Observation } from "@/lib/contracts";
+import type { Actor, Observation, ReconstructionJob } from "@/lib/contracts";
 import {
   addFind,
   findCommand,
@@ -44,8 +46,10 @@ interface Saved {
 /** Jobs with a driver loop in this page; a dev double mount never drives a job twice. */
 const activeJobs = new Set<string>();
 
-export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captureCount = 0 }: {
+export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captureCount = 0, takeJobIds = [] }: {
   api: HttpBackend; actor: NonNullable<Actor>; projectId: string; takeId: string;
+  /** Jobs whose objects are already in the take, so they are not offered again. */
+  takeJobIds?: string[];
   /** Rises when a frame is captured elsewhere on the page, so the frame list follows it. */
   captureCount?: number;
   onApply: (takeId: string, name: string, observation: Observation, outcome: ReconstructionOutcome, placement: LevelledPlacement | null) => boolean;
@@ -54,6 +58,8 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   // Results for frames other than the current one, by frame ID: changing frame never drops a job reference.
   const keptKey = `${key}:kept`;
   const [keptFrames, setKeptFrames] = useState<string[]>([]);
+  // Jobs the server already holds for the chosen frame.
+  const [earlier, setEarlier] = useState<ReconstructionJob[]>([]);
   const [frames, setFrames] = useState<Observation[]>([]);
   const [selected, setSelected] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -187,7 +193,10 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   }, [api, actor, projectId, frame]);
 
   // Signed URLs for found-object masks (private assets), for the cut-out previews.
-  const objectMasks = saved?.batch.objects.map((o) => o.maskAssetId).join(",") ?? "";
+  const objectMasks = [
+    ...(saved?.batch.objects.map((o) => o.maskAssetId) ?? []),
+    ...earlier.flatMap((j) => (j.kind === "reconstruct_object" && j.state === "succeeded" ? j.input.maskAssetIds.slice(0, 1) : [])),
+  ].join(",");
   useEffect(() => {
     let live = true;
     const ids = objectMasks ? objectMasks.split(",") : [];
@@ -219,6 +228,18 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
       persist(null);
       setSelected(id);
     }
+  }
+
+  /** Bring a reconstruction the server already has into this frame's list. Its job is re-read, never resubmitted. */
+  function loadEarlier(job: ReconstructionJob, label: string) {
+    if (!frame || job.input.observationId !== frame.id || !job.input.maskAssetIds.length) return;
+    const base = savedRef.current ?? { batch: startBatch({ id: frame.id, sourceId: frame.sourceId, projectId }, takeId), frame, applied: [] };
+    const objectKey = `o_${job.id.slice(4, 16)}`;
+    if (base.batch.objects.some((o) => o.key === objectKey || o.mesh?.jobId === job.id)) return;
+    const object: FoundObject = { key: objectKey, findKey: "earlier", label, maskAssetId: job.input.maskAssetIds[0], removed: false, mesh: { jobId: job.id, stage: "running" } };
+    setError("");
+    persist({ ...base, batch: { ...base.batch, objects: [...base.batch.objects, object] } });
+    void driveMesh(objectKey);
   }
 
   function find() {
@@ -271,6 +292,25 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   const objects = saved?.batch.objects ?? [];
   const pending = saved ? toGenerate(saved.batch) : [];
   const busy = finds.some((f) => f.job.stage === "pending" || f.job.stage === "running") || objects.some((o) => o.mesh && (o.mesh.stage === "pending" || o.mesh.stage === "running"));
+  const frameId = frame?.id ?? "";
+  useEffect(() => {
+    let live = true;
+    if (!frameId) return;
+    void api.request<ReconstructionJob[]>(actor, "GET", `/api/jobs?projectId=${encodeURIComponent(projectId)}&observationId=${encodeURIComponent(frameId)}`).then((r) => {
+      if (live) setEarlier(r.ok ? r.value : []);
+    });
+    return () => { live = false; };
+    // Re-read when work on this frame finishes, so a job made just now is known next time.
+  }, [api, actor, projectId, frameId, busy]);
+  // Succeeded reconstructions for this frame, one per mesh (a splat backfill is a second job with the same mesh), oldest kept.
+  const listedJobs = new Set(objects.flatMap((o) => (o.mesh ? [o.mesh.jobId, ...(o.mesh.abandonedJobIds ?? [])] : [])));
+  const meshesSeen = new Set<string>();
+  const earlierResults = [...earlier]
+    .reverse()
+    .filter((j) => j.input.observationId === frameId && j.kind === "reconstruct_object" && j.state === "succeeded" && !!j.output?.meshAssetId && j.input.maskAssetIds.length > 0)
+    .filter((j) => !meshesSeen.has(j.output!.meshAssetId!) && !!meshesSeen.add(j.output!.meshAssetId!))
+    .map((job, i) => ({ job, label: `Object ${i + 1}` }))
+    .filter(({ job }) => !listedJobs.has(job.id));
   const button = "flex items-center justify-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm hover:text-accent disabled:opacity-40";
   const small = "flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs hover:text-accent disabled:opacity-40";
   const stateIcon = (job: JobTrack | undefined) =>
@@ -352,6 +392,33 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
           </ul>
         )}
       </div>
+
+      {earlierResults.length > 0 && (
+        <div className="space-y-1.5">
+          <h3 className={heading} title="Reconstructions the project already has for this frame. Loading one starts no new job.">Already generated</h3>
+          <ul className="grid grid-cols-1 gap-1.5" aria-label="Earlier results">
+            {earlierResults.map(({ job, label }) => {
+              const inTake = takeJobIds.includes(job.id);
+              const mask = job.input.maskAssetIds[0];
+              return (
+                <li key={job.id} className="flex items-center gap-2 rounded-lg border border-line bg-canvas p-1.5 text-sm">
+                  <span className="relative size-10 shrink-0 overflow-hidden rounded bg-black">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {preview && <img src={preview} alt="" className="absolute inset-0 size-full object-cover" />}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {masks[mask] && <img src={masks[mask]} alt="" className="absolute inset-0 size-full object-cover mix-blend-multiply" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{label}</span>
+                    <span className="block text-xs text-muted">{inTake ? "In the take" : `Generated ${new Date(job.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`}</span>
+                  </span>
+                  {!inTake && <button className={small} disabled={busy} onClick={() => loadEarlier(job, label)} aria-label={`Load ${label}`} title="Load this result (no new job)"><ArrowPathIcon className="size-3.5" />Load</button>}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {saved && (objects.length > 0 || finds.length > 0) && (
         <div className="space-y-1.5">
