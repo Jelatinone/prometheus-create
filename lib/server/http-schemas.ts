@@ -8,11 +8,15 @@ import { AssetKind } from "@/lib/contracts/asset";
 import { AssetId, ProjectId } from "@/lib/contracts/common";
 import { JobState, ReconstructionJob } from "@/lib/contracts/ingestion";
 
-/** POST /api/assets/upload-url */
+/**
+ * POST /api/assets/upload-url. `kind` is optional so generic byte stores
+ * (capture's BlobStore.put) can upload before the asset record exists; the
+ * kind's media rules are then enforced by POST /api/assets.
+ */
 export const UploadUrlRequest = z.strictObject({
   projectId: ProjectId,
   assetId: AssetId,
-  kind: AssetKind,
+  kind: AssetKind.optional(),
   mimeType: z.string().min(3).max(100),
   byteSize: z.int().positive(),
 });

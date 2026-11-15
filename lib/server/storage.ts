@@ -12,7 +12,7 @@
  */
 import { err, ok, type Result } from "@/lib/contracts/common";
 import { INGEST_LIMITS } from "@/lib/contracts/ingestion";
-import type { AssetKind } from "@/lib/contracts/asset";
+import type { Asset, AssetKind } from "@/lib/contracts/asset";
 import { supabaseAdmin } from "./auth";
 import { supabaseServerConfig } from "./env";
 
@@ -43,6 +43,13 @@ export function checkUpload(kind: AssetKind, mimeType: string, byteSize: number)
     return err("UNSUPPORTED_MEDIA", `${kind} assets cannot be ${mimeType}`, { allowed: rule.types });
   if (byteSize > rule.maxBytes)
     return err("TOO_LARGE", `${kind} asset is ${byteSize} bytes`, { maxBytes: rule.maxBytes });
+  return ok(true);
+}
+
+/** The bucket-wide cap, for uploads signed before the asset kind is known. */
+export function checkObjectSize(byteSize: number): Result<true> {
+  if (byteSize > MAX_OBJECT_BYTES)
+    return err("TOO_LARGE", `object is ${byteSize} bytes`, { maxBytes: MAX_OBJECT_BYTES });
   return ok(true);
 }
 
@@ -92,6 +99,29 @@ export async function statObject(path: string): Promise<StoredObject | null> {
   const { data, error } = await supabaseAdmin().storage.from(bucket).info(path);
   if (error || !data) return null;
   return { size: data.size ?? null, contentType: data.contentType ?? null };
+}
+
+/**
+ * Metadata may be recorded only for bytes already uploaded through
+ * createSignedUpload: the key must be the canonical one for (project, asset)
+ * and the object must exist with the declared size. The content hash is not
+ * re-computed here (that would mean downloading the object).
+ */
+export async function verifyUpload(
+  asset: Pick<Asset, "id" | "projectId" | "storageKey" | "byteSize">,
+): Promise<Result<true>> {
+  const expectedKey = storageKeyFor(asset.projectId, asset.id);
+  if (asset.storageKey !== expectedKey)
+    return err("INVALID_SCHEMA", "storageKey must be the key returned by POST /api/assets/upload-url", {
+      issues: [{ path: "storageKey", message: `expected ${expectedKey}` }],
+    });
+  const stored = await statObject(objectPath(asset.projectId, asset.id));
+  if (!stored) return err("MISSING_ASSET", `asset ${asset.id} has not been uploaded to storage`);
+  if (stored.size !== null && stored.size !== asset.byteSize)
+    return err("INVALID_SCHEMA", `byteSize ${asset.byteSize} differs from the uploaded object (${stored.size} bytes)`, {
+      issues: [{ path: "byteSize", message: `uploaded object is ${stored.size} bytes` }],
+    });
+  return ok(true);
 }
 
 export async function createSignedDownload(path: string, seconds = SIGNED_DOWNLOAD_SECONDS): Promise<Result<string>> {

@@ -32,9 +32,10 @@ import * as realStorage from "./storage";
 
 export type PlatformBackend = Backend & { listProjects(actor: Actor): Promise<Result<Project[]>> };
 
+/** Storage operations the handlers use (tests may substitute a gateway). */
 export type StorageGateway = Pick<
   typeof realStorage,
-  "checkUpload" | "createSignedUpload" | "createSignedDownload" | "statObject" | "storageKeyFor" | "pathInBucket"
+  "checkUpload" | "checkObjectSize" | "createSignedUpload" | "createSignedDownload" | "verifyUpload" | "pathInBucket"
 >;
 
 export interface ApiContext {
@@ -176,7 +177,12 @@ export async function requestUpload(ctx: ApiContext, request: Request): Promise<
   const body = await readBody(request, UploadUrlRequest);
   if (!body.ok) return respond(body);
   const req = body.value;
-  const limits = storage.checkUpload(req.kind, req.mimeType, req.byteSize);
+  // With a kind, its media rules apply now. Without one (a generic byte store
+  // such as capture's BlobStore.put), only the bucket cap applies here and the
+  // kind rules apply when the metadata is recorded (POST /api/assets).
+  const limits = req.kind
+    ? storage.checkUpload(req.kind, req.mimeType, req.byteSize)
+    : storage.checkObjectSize(req.byteSize);
   if (!limits.ok) return respond(limits);
   const project = await ctx.backend.projects.getProject(ctx.actor, req.projectId);
   if (!project.ok) return respond(project);
@@ -197,21 +203,8 @@ export async function putAsset(ctx: ApiContext, request: Request): Promise<Respo
   if (!project.ok) return respond(project);
   const limits = storage.checkUpload(asset.kind, asset.mimeType, asset.byteSize);
   if (!limits.ok) return respond(limits);
-  const expectedKey = storage.storageKeyFor(asset.projectId, asset.id);
-  if (asset.storageKey !== expectedKey)
-    return respond(
-      err("INVALID_SCHEMA", "storageKey must be the key returned by POST /api/assets/upload-url", {
-        issues: [{ path: "storageKey", message: `expected ${expectedKey}` }],
-      }),
-    );
-  const stored = await storage.statObject(storage.pathInBucket(expectedKey)!);
-  if (!stored) return respond(err("MISSING_ASSET", `asset ${asset.id} has not been uploaded to storage`));
-  if (stored.size !== null && stored.size !== asset.byteSize)
-    return respond(
-      err("INVALID_SCHEMA", `byteSize ${asset.byteSize} differs from the uploaded object (${stored.size} bytes)`, {
-        issues: [{ path: "byteSize", message: `uploaded object is ${stored.size} bytes` }],
-      }),
-    );
+  const uploaded = await storage.verifyUpload(asset);
+  if (!uploaded.ok) return respond(uploaded);
   return respond(await ctx.backend.assets.putAsset(ctx.actor, asset), 201);
 }
 
