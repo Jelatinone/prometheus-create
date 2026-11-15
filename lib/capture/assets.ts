@@ -35,10 +35,17 @@ export async function storeProjectAsset(
   deps: AssetDeps,
   projectId: string,
   bytes: Uint8Array,
-  meta: { kind: Asset["kind"]; mimeType: string; origin: Asset["origin"]; contentHash?: string },
+  meta: {
+    kind: Asset["kind"];
+    mimeType: string;
+    origin: Asset["origin"];
+    contentHash?: string;
+    /** Explicit ID for a derivative keyed by its source and recipe (e.g. a mesh preview); defaults to the content-derived ID. */
+    id?: string;
+  },
 ): Promise<Result<Asset>> {
   const contentHash = meta.contentHash ?? (await sha256(bytes));
-  const id = await projectAssetId(projectId, meta.kind, contentHash);
+  const id = meta.id ?? (await projectAssetId(projectId, meta.kind, contentHash));
   const existing = await deps.assets.getAsset(deps.actor, projectId, id);
   if (existing.ok && existing.value.contentHash === contentHash && existing.value.byteSize === bytes.byteLength) return existing;
   const storageKey = assetStorageKey(projectId, id);
