@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { ERROR_CODES, HTTP_STATUS, err, newId, ok } from "@/lib/contracts";
 import { MemoryBackend } from "@/lib/reference/memory-backend";
 import * as api from "@/lib/server/api";
+import { requestCookieJar } from "@/lib/server/auth";
 import { MAX_BODY_BYTES, readJson, readQuery, respond } from "@/lib/server/http";
 import { RevisionNumberQuery } from "@/lib/server/http-schemas";
 import { safeNext } from "@/lib/platform/redirect";
@@ -129,6 +130,21 @@ describe("api handlers (reference backend)", () => {
     const hidden = await api.getProject(other, projectId);
     expect(hidden.status).toBe(404);
     expect((await hidden.json()).error.code).toBe("NOT_FOUND");
+  });
+});
+
+describe("cookie session read", () => {
+  it("reads cookies without consuming the request body (regression: locked stream on cookie POSTs)", async () => {
+    const request = new Request("http://localhost/api/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: "sb-test-auth-token=abc; other=1" },
+      body: JSON.stringify({ hello: "world" }),
+    });
+    expect(requestCookieJar(request).getAll()).toEqual([
+      { name: "sb-test-auth-token", value: "abc" },
+      { name: "other", value: "1" },
+    ]);
+    expect(await readJson(request)).toEqual({ ok: true, value: { hello: "world" } });
   });
 });
 

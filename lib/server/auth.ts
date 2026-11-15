@@ -9,6 +9,7 @@
  */
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { NextRequest } from "next/server";
 import type { Actor } from "@/lib/contracts/ports";
 import { supabasePublicConfig, supabaseServerConfig } from "./env";
 
@@ -83,14 +84,25 @@ export async function sessionUser(jar: CookieJar): Promise<{ actor: NonNullable<
   return { actor, email: typeof claims.email === "string" ? claims.email : null };
 }
 
-/** Resolve the caller of a Route Handler: bearer token first, then cookies. */
+/**
+ * Read-only cookie jar over a request's Cookie header. proxy.ts runs before
+ * every /api request and forwards refreshed session cookies in the request,
+ * so handlers only need to read them.
+ */
+export function requestCookieJar(request: Request): CookieJar {
+  // Headers only: wrapping the Request itself would lock its body stream.
+  const cookies = new NextRequest(request.url, { headers: request.headers }).cookies;
+  return { getAll: () => cookies.getAll().map(({ name, value }) => ({ name, value })), setAll: () => undefined };
+}
+
+/** Resolve the caller of a Route Handler: bearer token first, then the session cookie. */
 export async function getActor(request: Request): Promise<Actor> {
   const header = request.headers.get("authorization");
   if (header) {
     const match = /^Bearer\s+(\S+)$/i.exec(header);
     return match ? actorFromAccessToken(match[1]) : null;
   }
-  return actorFromCookies(await nextCookieJar());
+  return actorFromCookies(requestCookieJar(request));
 }
 
 let adminClient: SupabaseClient | undefined;
