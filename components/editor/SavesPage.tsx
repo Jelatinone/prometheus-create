@@ -164,13 +164,13 @@ export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, 
 
   return (
     <section
-      className={`fixed inset-0 z-40 flex flex-col bg-panel-2 text-ink ${active ? "visible translate-x-0" : "invisible -translate-x-full"}`}
+      className={`saves-page fixed inset-0 z-40 flex flex-col bg-panel-2 text-ink ${active ? "visible translate-x-0" : "invisible -translate-x-full"}`}
       style={{ transition: `translate .45s cubic-bezier(.4,0,.2,1), visibility 0s linear ${active ? "0s" : ".45s"}` }}
       aria-label="Saves"
       aria-hidden={!active}
       inert={!active}
     >
-      <header className="grid grid-cols-[minmax(0,1fr)_clamp(170px,22vw,320px)_minmax(0,1fr)] items-center gap-4 border-b border-line bg-panel pr-17 pl-5 max-md:grid-cols-[auto_1fr] md:h-17">
+      <header className="saves-header grid grid-cols-[minmax(0,1fr)_clamp(170px,22vw,320px)_minmax(0,1fr)] items-center gap-4 border-b border-line bg-panel pr-17 pl-5 max-lg:grid-cols-[minmax(0,1fr)] lg:h-17">
         <Logo />
         <input
           className="h-8 w-full min-w-0 rounded-md border border-line bg-canvas px-2.5 text-sm outline-none focus:border-accent"
@@ -180,7 +180,7 @@ export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, 
           placeholder="Search projects"
           aria-label="Search projects"
         />
-        <div className="flex flex-wrap items-center justify-end gap-2 max-md:col-span-2 max-md:justify-center">
+        <div className="saves-actions flex flex-wrap items-center justify-end gap-2 max-lg:justify-start">
           <button className={primary} onClick={() => void create()} disabled={!!busy}>
             <PlusIcon className="size-4" />
             New
@@ -192,7 +192,7 @@ export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, 
               <ChevronDownIcon className="size-4" />
             </button>
             {examplesOpen && (
-              <div role="menu" className="absolute right-0 top-full z-30 mt-1.5 w-72 rounded-xl border border-line bg-panel p-1.5 shadow-lg">
+              <div role="menu" className="absolute left-0 top-full z-30 mt-1.5 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-panel p-1.5 shadow-lg max-lg:-left-18 lg:left-auto lg:right-0">
                 {EXAMPLES.map((x) => (
                   <button
                     key={x.id}
@@ -235,14 +235,14 @@ export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, 
       <LoadingOverlay show={!!busy || opening} className="z-50" />
 
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_380px] gap-4 px-5 py-4 max-md:grid-cols-1 max-md:overflow-auto">
-        <div className="relative overflow-auto rounded-xl border border-line bg-panel">
+        <div className="saves-list relative overflow-auto rounded-xl border border-line bg-panel">
           <LoadingOverlay show={projects === null && !listError} />
-          <table className="w-full border-collapse text-sm">
+          <table className="w-full table-fixed border-collapse text-sm">
             <thead>
               <tr className="sticky top-0 bg-panel text-left text-xs font-semibold text-muted">
                 <th className="border-b border-line px-3 py-2.5">Name</th>
                 <th className="border-b border-line px-3 py-2.5 text-right max-sm:hidden">Created</th>
-                <th className="border-b border-line px-3 py-2.5 text-right">Edited</th>
+                <th className="w-32 border-b border-line px-3 py-2.5 text-right max-sm:w-24">Edited</th>
                 <th className="w-12 border-b border-line" />
               </tr>
             </thead>
@@ -261,7 +261,7 @@ export function SavesPage({ api, actor, active, opening, openProjectId, onOpen, 
                     {p.id === openProjectId && <em className="ml-2 text-xs font-semibold not-italic text-accent">Open</em>}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-muted max-sm:hidden">{when(p.createdAt)}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{when(p.updatedAt)}</td>
+                  <td className="px-3 py-2.5 text-right text-xs tabular-nums">{when(p.updatedAt)}</td>
                   <td className="px-2 text-right" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
                     <button
                       className="grid size-7 place-items-center rounded-md text-muted hover:bg-panel-2 hover:text-ink disabled:opacity-40"

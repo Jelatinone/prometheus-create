@@ -38,7 +38,7 @@ export function UsageWarning() {
 
   return (
     <Presence show={open} enter="animate-fade" className="fixed inset-0 z-[100] grid place-items-center bg-ink/30 p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="usage-warning-title" className="w-full max-w-md animate-pop rounded-xl border border-line bg-panel p-6 text-ink shadow-xl">
+      <div role="dialog" aria-modal="true" aria-labelledby="usage-warning-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-md animate-pop overflow-y-auto rounded-xl border border-line bg-panel p-6 text-ink shadow-xl">
         <h2 id="usage-warning-title" className="font-serif text-2xl font-semibold">
           Please be nice..
         </h2>

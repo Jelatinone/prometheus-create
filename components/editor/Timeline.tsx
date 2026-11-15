@@ -33,7 +33,7 @@ export function Timeline({ rate, durationFrames, playhead, playing, sourceUs, ke
   const last = Math.max(0, durationFrames - 1);
   const onKey = keys.includes(playhead);
   return (
-    <div className="flex h-12 w-full items-center gap-2 rounded-xl border border-line bg-panel px-2 shadow-sm" role="group" aria-label="Timeline">
+    <div className="take-playback flex h-12 w-full items-center gap-2 rounded-xl border border-line bg-panel px-2 shadow-sm" role="group" aria-label="Timeline">
       <button className={icon} onClick={() => onSeek(0)} disabled={still} title="Go to start (Home)" aria-label="Go to start">
         <BackwardIcon className="size-5" />
       </button>
@@ -54,7 +54,7 @@ export function Timeline({ rate, durationFrames, playhead, playing, sourceUs, ke
             {formatTakeTime(playhead, rate)} <span className="text-muted">/ {formatTakeTime(durationFrames, rate)}</span>
             <span className="block text-[10px] text-muted">frame {playhead}</span>
           </span>
-          <div className="relative min-w-0 flex-1">
+          <div className="take-scrubber relative min-w-0 flex-1">
             <input
               type="range"
               min={0}

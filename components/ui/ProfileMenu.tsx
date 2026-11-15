@@ -2,16 +2,25 @@
 
 /**
  * The account button, fixed in the top-right corner of every screen once
- * signed in. Hover (or focus) opens a small menu: who is signed in and Sign
+ * signed in. Click or tap opens a small menu: who is signed in and Sign
  * out. Personal settings can join this menu later.
  */
 import { ArrowRightStartOnRectangleIcon, UserCircleIcon } from "@heroicons/react/24/outline";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/platform/supabase-browser";
 
 export function ProfileMenu() {
   const [email, setEmail] = useState<string | null>(null);
   const [signedIn, setSignedIn] = useState(false);
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, [open]);
 
   useEffect(() => {
     const supabase = supabaseBrowser();
@@ -35,17 +44,20 @@ export function ProfileMenu() {
   return (
     // 34 px like the other header controls (text-sm buttons), centred in the
     // 68 px saves header and on the editor's 44 px toolbars (top-3 + 5 px).
-    <div className="group fixed top-4.25 right-4.25 z-50">
+    <div ref={root} className="profile-menu group fixed top-4.25 right-4.25 z-50" onPointerEnter={e => { if (e.pointerType === "mouse") setOpen(true); }} onPointerLeave={e => { if (e.pointerType === "mouse" && !root.current?.contains(document.activeElement)) setOpen(false); }} onKeyDown={e => { if (e.key === "Escape") { setOpen(false); root.current?.querySelector("button")?.focus(); } }}>
       <button
         className="grid size-8.5 place-items-center rounded-md border border-line bg-panel text-ink hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent"
         aria-label="Account"
         aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(v => !v)}
       >
         <UserCircleIcon className="size-5" />
       </button>
       <div
         role="menu"
-        className="invisible absolute right-0 top-full w-60 pt-2 opacity-0 transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
+        hidden={!open}
+        className="absolute right-0 top-full w-60 max-w-[calc(100vw-2rem)] pt-2"
       >
         <div className="rounded-xl border border-line bg-panel p-1.5 text-sm shadow-lg">
           <p className="truncate px-2.5 py-2 text-muted" title={email ?? undefined}>
