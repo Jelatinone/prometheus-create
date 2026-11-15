@@ -3,9 +3,9 @@
 Project root is this repository. `toolkit/` is the pinned hackathon-toolkit submodule: it supplies workflows and formats; project files and Git operations stay in this root.
 
 - **Before any task**, read `toolkit/docs/PROJECT_CONTRACT.md`, `toolkit/docs/FORMATS.md`, the relevant `PLAN.md` sections, and your task note `docs/changes/<TASK-ID>.md`. Write your implementation plan into the task note before editing code.
-- **Lane work**: your lane in `lanes.json` defines your branch and owned paths. Edit those paths and your task note; propose anything else in the task note. Protocol: `docs/LANES.md`.
+- **Current execution (PLAN v7)**: one agent at a time, directly on `production` in this root checkout until Cody changes it. No parallel tracks or new worktrees. Read the active v7 order and assigned note; old lane branches in `lanes.json` are historical compatibility records, not current assignments. Edit assigned paths; propose anything beyond them in the task note.
 - **Contracts**: `lib/contracts` is the shared source of truth. Import schemas and types from `@/lib/contracts`, depend on the ports in `lib/contracts/ports.ts`, and use `MemoryBackend` from `lib/reference` until the platform backend exists. Contract changes are proposals approved by the integration owner (Cody) first.
-- **Done** means `npm run verify` passes on your branch and its evidence table is in your task note, with status `ready_for_review`.
+- **Feature checks (Cody's final-window instruction)**: targeted relevant checks plus one brief browser smoke, with evidence and limitations in the task note. Do not repeat full verification for every UI/copy increment. The next full `npm run verify` belongs to the protected 08:00–10:00 stability window; rerun it only for substantive changes or a required failure. Implementation can reach `ready_for_review`; Cody owns final acceptance. No new features after 08:00; finish by 10:00 America/Chicago.
 - Canonical 3D: right-handed, meters, +Y up, quaternions `[x, y, z, w]`. Source time is integer microseconds; take time is integer frames at a rational rate; revisions are separate from both.
 
 Gotchas:
@@ -14,6 +14,7 @@ Gotchas:
 - After editing a contract, run `npm run contracts:schema` (a test fails while the JSON Schema is stale). After regenerating the GLB fixture, update its hash in `fixtures/contracts`.
 - A fresh checkout or worktree needs `npm run lane:setup` once (pinned submodule, both skill sets checked, `npm ci`). Skills are ordinary tracked adapters in `.agents/skills` (Codex) and `.claude/skills` (Claude Code), with relative links into this checkout's toolkit. Do not recreate symlinks, junctions, or `skip-worktree` flags.
 - On Windows, run Node tools from a cwd whose drive letter is uppercase (`C:\...`). If `process.cwd()` starts with lowercase `c:`, vitest loads two instances of itself and every suite fails with "failed to find the current suite" or "reading 'config'". In Git Bash, `cd /c/Workflows && cd <repo>` fixes it; PowerShell is unaffected.
+- Keep the app on :3005. Cody authorized stopping stray local servers when needed. Never print/commit `.env.local`; no push, tag, deployment or paid fal call without the existing explicit authorization. Do not retarget stable tags.
 - Shared tools run from the project root: `npm run skills:check` checks discovery files, `npm run skills:sync` refreshes intact adapters after a deliberate toolkit update, `npm run verify` runs all gates, and `npm run validate -- <contract> <file>` validates artifacts. See `docs/AGENT_SETUP.md` for manual migration of older worktrees.
 
 <!-- BEGIN:nextjs-agent-rules -->
