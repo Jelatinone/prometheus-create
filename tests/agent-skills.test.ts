@@ -151,5 +151,5 @@ describe("portable agent skills", () => {
     git(root, "cherry-pick", repair);
     expect(planSkills(root).changes.every((entry: { action: string }) => entry.action === "unchanged")).toBe(true);
     expect(git(root, "status", "--porcelain")).toBe("");
-  });
+  }, 15_000); // Multiple Git/Node processes can exceed 5 s on Windows.
 });
