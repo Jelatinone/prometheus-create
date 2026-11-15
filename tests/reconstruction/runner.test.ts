@@ -19,6 +19,9 @@ import {
   type ReconstructionDeps,
 } from "@/lib/reconstruction";
 import { captureFixture, captureHarness, codeOf, expectOk } from "../capture/helpers";
+import { reconstructionCommand } from "@/lib/reconstruction/http";
+import { reconstructedObject } from "@/lib/editor/reconstruction";
+import { emptyCaptureManifest } from "@/lib/capture/project";
 
 type Call = { op: string; requestId?: string; storedRequestId?: string | null };
 
@@ -93,6 +96,45 @@ async function setup(fal = new FakeFal(), poll: ReconstructionDeps["poll"] = { i
 }
 
 const states = (job: ReconstructionJob) => job.history.map((e) => e.state);
+
+describe("bounded HTTP reconstruction", () => {
+  it("submits once, resumes the stored ID, and accepts only into the requesting take", async () => {
+    const { h, fal, deps, request, observation } = await setup();
+    const cmd = { projectId: h.projectId, sourceId: observation.sourceId, observationId: observation.id, jobId: "job_http_bound", action: "reconstruct", maskAssetIds: request.maskAssetIds };
+    const ctx = { backend: h.backend, actor: h.actor, blobs: h.blobs, fal: () => fal };
+    const send = (body = cmd) => reconstructionCommand(new Request("http://test/api/reconstruction", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }), ctx);
+    const first = await send(); expect(first.status).toBe(202);
+    expect((await first.json()).job.state).toBe("submitted"); expect(fal.count("status")).toBe(0);
+    await send(); await send(); const last = await send();
+    const outcome = await last.json(); expect(outcome.job.state).toBe("succeeded");
+    expect(fal.count("submit")).toBe(1);
+    const manifest = emptyCaptureManifest(h.projectId);
+    const object = expectOk(reconstructedObject(manifest, manifest.take.id, "Table", observation, outcome));
+    expect(object.provenance.jobId).toBe(cmd.jobId);
+    expect(codeOf(reconstructedObject(manifest, "tk_other", "Table", observation, outcome))).toBe("STALE_REVISION");
+    expect(codeOf(reconstructedObject({ ...manifest, scene: { ...manifest.scene, objects: [object] } }, manifest.take.id, "Table", observation, outcome))).toBe("DUPLICATE");
+    expect(deps.jobs).toBe(h.backend.jobs);
+  });
+  it("rejects unauthenticated/foreign requests before touching the provider", async () => {
+    const { h, fal, observation } = await setup();
+    const body = { projectId: h.projectId, sourceId: observation.sourceId, observationId: observation.id, jobId: "job_forbidden", action: "segment", prompt: "chair" };
+    for (const actor of [null, { userId: "other" }]) {
+      const res = await reconstructionCommand(new Request("http://test", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }), { backend: h.backend, actor, blobs: h.blobs, fal: () => { throw new Error("provider must not be constructed"); } });
+      expect(res.status).toBe(actor ? 404 : 401);
+    }
+    expect(fal.calls).toHaveLength(0);
+  });
+  it("keeps the request resumable after a transient poll failure", async () => {
+    const { fal, deps, request } = await setup();
+    const started = expectOk(await runReconstruction({ ...deps, execution: "submit" }, request));
+    fal.statuses = [new Error("network unavailable")];
+    const failedPoll = await resumeReconstruction({ ...deps, execution: "poll-once" }, { projectId: request.projectId, jobId: started.job.id });
+    expect(codeOf(failedPoll)).toBe("PROVIDER_UNAVAILABLE");
+    fal.statuses = [{ status: "COMPLETED" }];
+    const recovered = expectOk(await resumeReconstruction({ ...deps, execution: "poll-once" }, { projectId: request.projectId, jobId: started.job.id }));
+    expect(recovered.job.state).toBe("succeeded"); expect(fal.count("submit")).toBe(1);
+  });
+});
 
 describe("runReconstruction (fake provider: plumbing only)", () => {
   it("moves queued -> submitted -> running -> succeeded, stores owned mesh copies and a geometry candidate", async () => {

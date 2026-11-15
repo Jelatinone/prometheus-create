@@ -72,6 +72,8 @@ export type JobProgress =
   | { type: "poll"; status: string; elapsedMs: number; queuePosition?: number };
 
 export interface ReconstructionDeps {
+  /** HTTP handlers submit once, then advance by one provider status check per request. */
+  execution?: "submit" | "poll-once";
   jobs: JobStore;
   assets: AssetCatalog;
   blobs: BlobStore;
@@ -225,6 +227,10 @@ class JobDriver {
         status = await this.deps.fal.status(current.providerModel, requestId);
         statusErrors = 0;
       } catch (e) {
+        if (this.deps.execution === "poll-once") {
+          const failure = providerFailure(e, "status (retry polling this job)");
+          return err(failure.code, failure.message, failure.details);
+        }
         statusErrors++;
         if (statusErrors >= this.poll.maxStatusErrors) {
           const failed = await this.fail(current, providerFailure(e, `status (${statusErrors} consecutive failures)`));
@@ -246,6 +252,7 @@ class JobDriver {
         }
         return ok({ job: current, completed: true });
       }
+      if (this.deps.execution === "poll-once") return ok({ job: current, completed: false });
       await this.sleep(this.poll.intervalMs);
     }
   }
@@ -441,6 +448,7 @@ export async function runReconstruction(deps: ReconstructionDeps, req: Reconstru
   if (!submitted.ok) return submitted;
   job = submitted.value;
   if (job.state === "failed") return ok(emptyOutcome(job));
+  if (deps.execution === "submit") return ok(emptyOutcome(job));
   return continueReconstruction(deps, driver, job, req.currentGeometryRevision ?? req.baseGeometryRevision);
 }
 
@@ -543,6 +551,36 @@ export async function runSegmentation(deps: ReconstructionDeps, req: Segmentatio
   if (!submitted.ok) return submitted;
   job = submitted.value;
   if (job.state === "failed") return ok({ job, maskAssets: [], providerOutput: null });
+  if (deps.execution === "submit") return ok({ job, maskAssets: [], providerOutput: null });
+  return resumeSegmentation(deps, { projectId: req.projectId, jobId: job.id, observation: req.observation });
+}
+
+/** Resume the existing segmentation request; never submits or pays again. */
+export async function resumeSegmentation(
+  deps: ReconstructionDeps,
+  req: { projectId: string; jobId: string; observation: Observation },
+): Promise<Result<SegmentationOutcome>> {
+  const found = await deps.jobs.getJob(deps.actor, req.projectId, req.jobId);
+  if (!found.ok) return found;
+  let job = found.value;
+  if (job.kind !== "segment" || job.input.observationId !== req.observation.id)
+    return err("INVALID_SCHEMA", "segmentation job does not match this observation");
+  if (job.state === "succeeded") {
+    const maskAssets: Asset[] = [];
+    for (const id of job.output?.maskAssetIds ?? []) {
+      const asset = await deps.assets.getAsset(deps.actor, req.projectId, id);
+      if (!asset.ok) return asset;
+      maskAssets.push(asset.value);
+    }
+    return ok({ job, maskAssets, providerOutput: null });
+  }
+  if (isTerminalJobState(job.state)) return ok({ job, maskAssets: [], providerOutput: null });
+  if (!job.providerRequestId) return err("INVALID_TRANSITION", "submission was not confirmed; reconcile before starting another job");
+  const driver = new JobDriver(deps);
+  const fail = async (error: ContractError, providerOutput: unknown = null): Promise<Result<SegmentationOutcome>> => {
+    const failed = await driver.fail(job, error);
+    return failed.ok ? ok({ job: failed.value, maskAssets: [], providerOutput }) : failed;
+  };
   const waited = await driver.waitForCompletion(job);
   if (!waited.ok) return waited;
   job = waited.value.job;
@@ -551,7 +589,7 @@ export async function runSegmentation(deps: ReconstructionDeps, req: Segmentatio
   const fetched = await driver.result(job);
   if (!fetched.ok) return fail(fetched.error);
   const files = pickMasks(fetched.output);
-  if (files.length === 0) return fail(contractError("INVALID_SCHEMA", `no mask found for prompt "${req.prompt}"`), fetched.output);
+  if (files.length === 0) return fail(contractError("INVALID_SCHEMA", "no object mask found; try a clearer frame or object description"), fetched.output);
   const maskAssets: Asset[] = [];
   for (const file of files) {
     let bytes: Uint8Array;

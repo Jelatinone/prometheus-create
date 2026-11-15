@@ -22,6 +22,8 @@ import * as projectById from "@/app/api/projects/[projectId]/route";
 import * as revisions from "@/app/api/projects/[projectId]/takes/[takeId]/revisions/route";
 import * as takes from "@/app/api/projects/[projectId]/takes/route";
 import * as projects from "@/app/api/projects/route";
+import * as reconstruction from "@/app/api/reconstruction/route";
+import * as reconstructionFrames from "@/app/api/reconstruction/frames/route";
 
 export const PLATFORM_ORIGIN = "http://platform.test";
 
@@ -30,6 +32,8 @@ type RouteModule = Partial<Record<"GET" | "POST", Handler>>;
 
 /** URL pattern -> route module, mirroring the app/api directory. */
 export const ROUTE_FILES = {
+  "/api/reconstruction": reconstruction,
+  "/api/reconstruction/frames": reconstructionFrames,
   "/api/projects": projects,
   "/api/projects/[projectId]": projectById,
   "/api/projects/[projectId]/takes": takes,

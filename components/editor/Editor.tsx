@@ -63,6 +63,8 @@ import { EditorViewport, type Navigation, type Tool } from "@/lib/scene/viewport
 import { LoadingOverlay, LoadingScreen, Spinner } from "@/components/ui/Loading";
 import { CapturePanel } from "@/components/capture/CapturePanel";
 import { Inspector } from "./Inspector";
+import { ReconstructPanel } from "./ReconstructPanel";
+import { reconstructedObject } from "@/lib/editor/reconstruction";
 
 interface Props {
   projectId: string;
@@ -119,6 +121,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [reconstructOpen, setReconstructOpen] = useState(false);
   const [grid, setGrid] = useState(true);
 
   const viewportEl = useRef<HTMLDivElement>(null);
@@ -396,7 +399,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       )}
 
       {/* Project chip: saves, project, take, saved state */}
-      <div className={`absolute top-3 left-3 flex h-11 max-w-[min(560px,calc(100vw-34rem))] items-center gap-1 px-1.5 ${chrome}`}>
+      <div className={`absolute top-3 left-3 flex h-11 max-w-[min(560px,calc(100vw-42rem))] items-center gap-1 px-1.5 ${chrome}`}>
         {onShowSaves ? (
           <button className={icon} onClick={onShowSaves} title="Saves" aria-label="Back to saves">
             <FolderOpenIcon className="size-5" />
@@ -475,12 +478,15 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         </label>
         <button
           className={toolButton(captureOpen)}
-          onClick={() => setCaptureOpen((v) => !v)}
+          onClick={() => { setCaptureOpen((v) => !v); setReconstructOpen(false); }}
           aria-pressed={captureOpen}
           title="Capture (upload, camera, video)"
           aria-label="Capture"
         >
           <CameraIcon className="size-5" />
+        </button>
+        <button className={labelled} onClick={() => { setReconstructOpen(v => !v); setCaptureOpen(false); }} aria-pressed={reconstructOpen}>
+          <CubeIcon className="size-5" />Reconstruct
         </button>
         {sep}
         <button className={labelled} onClick={() => void exportPng()} title="Download the current view as PNG">
@@ -502,12 +508,24 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             </button>
           </div>
           <p className="mb-2 text-xs text-muted">
-            Photos, camera frames and video frames are saved to this project as sources (private storage). Reconstruction from a capture is not wired
-            into this build.
+            Photos, camera frames and video frames are saved privately to this project. Open Reconstruct to turn one captured object into a mesh.
           </p>
           <CapturePanel ingestor={ingestor} />
         </aside>
       )}
+
+      {reconstructOpen && <aside className={`absolute top-17 bottom-20 left-3 z-10 w-[26rem] max-w-[calc(100%-1.5rem)] overflow-auto p-3 ${chrome}`}>
+        <div className="mb-3 flex items-center justify-between"><h2 className="font-serif font-semibold">Reconstruct</h2><button className={icon} onClick={() => setReconstructOpen(false)} aria-label="Close reconstruct"><XMarkIcon className="size-5" /></button></div>
+        <ReconstructPanel api={api} actor={actor} projectId={projectId} takeId={take.id} onApply={(requestedTake, name, observation, outcome) => {
+          const current = historyRef.current;
+          if (!current) return false;
+          const r = reconstructedObject(current.present, requestedTake, name, observation, outcome);
+          if (!r.ok) { setNotice({ tone: "bad", text: r.error.message }); return false; }
+          apply(h => commit(h, addObject(h.present, r.value))); setSelected(r.value.id);
+          setNotice({ tone: "ok", text: "Estimated mesh added. Save to keep it; dimensions are not calibrated." });
+          return true;
+        }} />
+      </aside>}
 
       {/* Inspector */}
       <div className="absolute top-17 right-3 bottom-20 w-72">
