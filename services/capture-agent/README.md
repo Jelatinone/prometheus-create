@@ -80,6 +80,18 @@ accepted/duplicate frames and persistent read-back. The editor's Reconstruct
 panel lists those frames. No audio model or additional provider keys are needed.
 This is a local worker, not a hosted deployment.
 
+### Live-call generation (HK-011 CP-022, ADR-004)
+
+Add `--prompt "<object>"` to `call-http.mts` and the live loop (`lib/capture/live-loop-cli.mts`) runs beside the relay. It follows this call's evidence frames through `GET /api/reconstruction/frames`, segments the newest fresh one with the prompt, and keeps the frame whose best mask covers most of the picture. A mask touching the frame edge counts half. A newer frame replaces the choice only if it is 15 % better. About 12 s before the planned end of capture, it starts **one** reconstruction from the chosen frame and mask, then keeps polling it after hang-up until it settles. Every step is a durable job through `POST /api/reconstruction` (submitted once, then polled).
+
+- **Paid:** segmentation costs $0.005 per returned mask, and the reconstruction $0.02. `--max-spend` (default $0.10, max $0.50) is enforced before each step and always leaves room for the reconstruction. Paid calls need Cody's approval.
+- **Defaults** (`DEFAULT_LIVE_LOOP` in `lib/capture/live-loop.ts`):
+  - at most 4 segmentations, 5 s apart;
+  - a frame is fresh for 8 s;
+  - masks under 0.5 % of the frame are ignored.
+- **Record:** `<outbox>/live-loop-result.json` holds every segmentation and its coverages, every supersede and keep decision with its reason, the reconstruction (job, whether it started before hang-up, mesh, splat and preview assets), the estimated spend and the agent's selection counts.
+- **Getting a token:** `tests/platform/sign-in.ts` (`signIn(TEST_USER_EMAILS.owner)`) returns a short-lived access token for scripts. Pass it in the environment as `INGEST_ACCESS_TOKEN`, never as an argument.
+
 Chert ends silent calls unless the agent greets within ten seconds of
 `bridge_ready`. The bundled `assets/capture-ready.wav` is locally synthesized
 48 kHz mono speech, played once after that readiness signal (not on room join).
@@ -88,7 +100,7 @@ camera track; return video is outside this ingest test. Capture success and
 provider terminal status are reported separately; a failed provider call never
 becomes a successful session merely because some frames arrived.
 
-- Frame selection: the first frame, a changed view (signature difference ≥ 18), and a periodic anchor every 5 s are `evidence`. Previews are capped at 2 fps and frames identical to the previous one are skipped. Sequence numbers are assigned only to frames that are sent.
+- Frame selection: the first frame, a changed view (signature difference ≥ 18), and a periodic anchor every 5 s are `evidence`. Previews are capped at 2 fps, and frames identical to the previous one are skipped. A preview within 3.0 of the last frame sent is skipped as a **near-duplicate**; the measured range is 4–12 for handheld calls and 0.3–3 for a still camera. The counts by reason are written to `selection-stats.json` and `summary.json`. Sequence numbers are assigned only to frames that are sent.
 - Frames are rotated upright using LiveKit's frame rotation and stored as JPEG (long edge ≤ 2048 px).
 - Lifecycle (CT-005): `requested` (HTTP 201 means allocated, not answered) → `bridge_ready` (Chert event) → `active` (first caller frame) → `ended` or `failed`.
 - Chert does not document its event payload schema or a call-ended event name. The agent logs raw events and treats tokens such as `ended`/`failed` as terminal. Verify this against a real call.
