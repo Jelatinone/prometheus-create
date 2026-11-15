@@ -35,7 +35,7 @@ export function ProfileMenu() {
   return (
     <div className="group fixed top-3 right-3 z-50">
       <button
-        className="grid size-9 place-items-center rounded-full border border-line bg-panel text-ink shadow-sm hover:text-accent focus-visible:text-accent"
+        className="grid size-11 place-items-center rounded-xl border border-line bg-panel text-ink shadow-sm hover:text-accent focus-visible:text-accent"
         aria-label="Account"
         aria-haspopup="menu"
       >

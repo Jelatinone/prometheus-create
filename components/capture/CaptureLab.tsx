@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { MemoryBackend } from "@/lib/reference/memory-backend";
 import { CaptureIngestor, MemoryBlobStore, createCaptureProject } from "@/lib/capture";
 import { canvasEncoder } from "@/lib/capture/browser";
+import { LoadingOverlay } from "@/components/ui/Loading";
 import { CapturePanel, type CaptureEntry } from "./CapturePanel";
 
 type LabState = { status: "starting" } | { status: "ready"; projectId: string; ingestor: CaptureIngestor } | { status: "error"; message: string };
@@ -41,7 +42,7 @@ export function CaptureLab() {
     };
   }, []);
 
-  if (lab.status === "starting") return <p className="text-sm text-muted">Creating an in-memory project…</p>;
+  if (lab.status === "starting") return <div className="relative h-40"><LoadingOverlay show /></div>;
   if (lab.status === "error") return <p className="text-sm text-bad">Could not start the lab: {lab.message}</p>;
 
   const records = last?.outcome
