@@ -105,6 +105,11 @@ export class EditorViewport {
   private readonly resize: ResizeObserver;
   private outline: BoxHelper | null = null;
   private selected: string | null = null;
+  /** Hover highlight (ADR-005): the object under the pointer, picked against its mesh even when only the splat shows. */
+  private hoverOutline: BoxHelper | null = null;
+  private hovered: string | null = null;
+  private hoverAt: { x: number; y: number } | null = null;
+  private lastHoverPick = 0;
   private tool: Tool = "select";
   private dragStartScale: Vec3 | null = null;
   private pointerDown: { x: number; y: number } | null = null;
@@ -160,6 +165,8 @@ export class EditorViewport {
     const el = this.renderer.domElement;
     el.addEventListener("pointerdown", this.onPointerDown);
     el.addEventListener("pointerup", this.onPointerUp);
+    el.addEventListener("pointermove", this.onPointerMove);
+    el.addEventListener("pointerleave", this.onPointerLeave);
     this.resize = new ResizeObserver(() => this.fit());
     this.resize.observe(container);
     this.fit();
@@ -167,7 +174,9 @@ export class EditorViewport {
       if (this.exporting) return;
       this.settleSplats();
       if (!this.followingCamera) this.orbit.update();
+      this.updateHover();
       this.outline?.update();
+      this.hoverOutline?.update();
       this.renderer.render(this.scene, this.camera);
     });
   }
@@ -220,6 +229,7 @@ export class EditorViewport {
         this.objects.delete(id);
       }
     this.select(this.selected && seen.has(this.selected) ? this.selected : null);
+    if (this.hovered && !seen.has(this.hovered)) this.setHovered(null);
     return Promise.all(loading).then(() => undefined);
   }
 
@@ -237,6 +247,52 @@ export class EditorViewport {
     }
     if (group && this.tool !== "select") this.gizmo.attach(group);
     else this.gizmo.detach();
+    if (this.hovered === objectId) this.setHovered(null); // the selection outline replaces the hover one
+  }
+
+  /** The hover outline: a fainter accent box than the selection's. Never drawn on the selected object. */
+  private setHovered(objectId: string | null) {
+    const id = objectId && objectId !== this.selected ? objectId : null;
+    if (id === this.hovered) return;
+    this.hovered = id;
+    if (this.hoverOutline) {
+      this.helpers.remove(this.hoverOutline);
+      this.hoverOutline.dispose();
+      this.hoverOutline = null;
+    }
+    const group = id ? this.objects.get(id)?.group : undefined;
+    if (group) {
+      this.hoverOutline = new BoxHelper(group, SELECT);
+      const material = this.hoverOutline.material as LineBasicMaterial;
+      material.transparent = true;
+      material.opacity = 0.45;
+      this.helpers.add(this.hoverOutline);
+    }
+    this.renderer.domElement.style.cursor = id ? "pointer" : "";
+  }
+
+  /** Once per frame at most, and no more than every 80 ms: pick what the pointer is over. */
+  private updateHover() {
+    const at = this.hoverAt;
+    if (!at || this.pointerDown || this.gizmo.dragging) return;
+    const now = performance.now();
+    if (now - this.lastHoverPick < 80) return;
+    this.lastHoverPick = now;
+    this.hoverAt = null;
+    this.setHovered(this.gizmo.axis ? null : this.pick(at.x, at.y));
+  }
+
+  /** The visible object under a screen point. Raycasting ignores layer visibility, so a hidden mesh still picks. */
+  private pick(clientX: number, clientY: number): string | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const ray = new Raycaster();
+    ray.setFromCamera(ndc, this.camera);
+    const groups = [...this.objects.values()].map((o) => o.group).filter((g) => g.visible);
+    const hit = ray.intersectObjects(groups, true)[0];
+    let node: Object3D | null = hit?.object ?? null;
+    while (node && !node.userData.objectId) node = node.parent;
+    return (node?.userData.objectId as string | undefined) ?? null;
   }
 
   setTool(tool: Tool) {
@@ -428,6 +484,8 @@ export class EditorViewport {
     this.orbit.dispose();
     this.renderer.domElement.removeEventListener("pointerdown", this.onPointerDown);
     this.renderer.domElement.removeEventListener("pointerup", this.onPointerUp);
+    this.renderer.domElement.removeEventListener("pointermove", this.onPointerMove);
+    this.renderer.domElement.removeEventListener("pointerleave", this.onPointerLeave);
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
@@ -557,17 +615,18 @@ export class EditorViewport {
     this.pointerDown = null;
     if (!start || Math.hypot(e.clientX - start.x, e.clientY - start.y) > 4) return; // an orbit drag, not a click
     if (this.gizmo.dragging || this.gizmo.axis) return;
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    const ndc = new Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
-    const ray = new Raycaster();
-    ray.setFromCamera(ndc, this.camera);
-    const groups = [...this.objects.values()].map((o) => o.group).filter((g) => g.visible);
-    const hit = ray.intersectObjects(groups, true)[0];
-    let node: Object3D | null = hit?.object ?? null;
-    while (node && !node.userData.objectId) node = node.parent;
-    const id = (node?.userData.objectId as string | undefined) ?? null;
+    const id = this.pick(e.clientX, e.clientY);
     this.select(id);
     this.cb.onSelect(id);
+  };
+
+  private onPointerMove = (e: PointerEvent) => {
+    this.hoverAt = { x: e.clientX, y: e.clientY };
+  };
+
+  private onPointerLeave = () => {
+    this.hoverAt = null;
+    this.setHovered(null);
   };
 }
 
