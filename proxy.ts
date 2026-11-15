@@ -35,6 +35,8 @@ export async function proxy(request: NextRequest) {
     for (const cookie of response.cookies.getAll()) redirect.cookies.set(cookie);
     return redirect;
   };
+  // The app starts at sign-in; a signed-in visitor goes straight to their saves.
+  if (pathname === "/") return redirectTo(signedIn ? "/projects" : "/login");
   if (!signedIn && (pathname === "/projects" || pathname.startsWith("/projects/")))
     return redirectTo("/login", pathname + search);
   if (signedIn && pathname === "/login") return redirectTo("/projects");
