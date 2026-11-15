@@ -51,6 +51,7 @@ import { PROVIDER_SPLAT_TO_GLB, SPLAT_MIME, bundleMeshPath, bundleSplatPath, com
 import { objectPlacement, parseProviderMetadata, type ScenePlacement } from "./placement";
 import { readZip } from "@/lib/editor/project-archive";
 import { ensureMeshPreview, findMeshPreview } from "./mesh-preview";
+import { maskStats, type MaskStats } from "./mask-stats";
 
 export interface PollOptions {
   intervalMs: number;
@@ -154,6 +155,11 @@ export interface SegmentationRequest {
 export interface SegmentationOutcome {
   job: ReconstructionJob;
   maskAssets: Asset[];
+  /**
+   * Coverage of each mask (same order as maskAssets; null if undecodable), for
+   * choosing the best keyframe and mask (HK-011 CP-022). Scores only on finish.
+   */
+  maskStats: (MaskStats | null)[];
   providerOutput: unknown;
 }
 
@@ -790,7 +796,7 @@ export async function runSegmentation(deps: ReconstructionDeps, req: Segmentatio
   let job = created.value;
   const fail = async (error: ContractError, providerOutput: unknown = null): Promise<Result<SegmentationOutcome>> => {
     const failed = await driver.fail(job, error);
-    return failed.ok ? ok({ job: failed.value, maskAssets: [], providerOutput }) : failed;
+    return failed.ok ? ok({ job: failed.value, maskAssets: [], maskStats: [], providerOutput }) : failed;
   };
   if (isTerminalJobState(job.state) || job.providerRequestId)
     return err("INVALID_TRANSITION", `segmentation job ${job.id} already exists in state ${job.state}`);
@@ -809,8 +815,8 @@ export async function runSegmentation(deps: ReconstructionDeps, req: Segmentatio
   });
   if (!submitted.ok) return submitted;
   job = submitted.value;
-  if (job.state === "failed") return ok({ job, maskAssets: [], providerOutput: null });
-  if (deps.execution === "submit") return ok({ job, maskAssets: [], providerOutput: null });
+  if (job.state === "failed") return ok({ job, maskAssets: [], maskStats: [], providerOutput: null });
+  if (deps.execution === "submit") return ok({ job, maskAssets: [], maskStats: [], providerOutput: null });
   return resumeSegmentation(deps, { projectId: req.projectId, jobId: job.id, observation: req.observation });
 }
 
@@ -826,31 +832,36 @@ export async function resumeSegmentation(
     return err("INVALID_SCHEMA", "segmentation job does not match this observation");
   if (job.state === "succeeded") {
     const maskAssets: Asset[] = [];
+    const stats: (MaskStats | null)[] = [];
     for (const id of job.output?.maskAssetIds ?? []) {
-      const asset = await deps.assets.getAsset(deps.actor, req.projectId, id);
-      if (!asset.ok) return asset;
-      maskAssets.push(asset.value);
+      const loaded = await loadProjectAsset(assetDeps(deps), req.projectId, id);
+      if (!loaded.ok) return loaded;
+      maskAssets.push(loaded.value.asset);
+      stats.push(await maskStats(id, loaded.value.bytes));
     }
-    return ok({ job, maskAssets, providerOutput: null });
+    return ok({ job, maskAssets, maskStats: stats, providerOutput: null });
   }
-  if (isTerminalJobState(job.state)) return ok({ job, maskAssets: [], providerOutput: null });
+  if (isTerminalJobState(job.state)) return ok({ job, maskAssets: [], maskStats: [], providerOutput: null });
   if (!job.providerRequestId) return err("INVALID_TRANSITION", "submission was not confirmed; reconcile before starting another job");
   const driver = new JobDriver(deps);
   const fail = async (error: ContractError, providerOutput: unknown = null): Promise<Result<SegmentationOutcome>> => {
     const failed = await driver.fail(job, error);
-    return failed.ok ? ok({ job: failed.value, maskAssets: [], providerOutput }) : failed;
+    return failed.ok ? ok({ job: failed.value, maskAssets: [], maskStats: [], providerOutput }) : failed;
   };
   const waited = await driver.waitForCompletion(job);
   if (!waited.ok) return waited;
   job = waited.value.job;
-  if (!waited.value.completed) return ok({ job, maskAssets: [], providerOutput: null });
+  if (!waited.value.completed) return ok({ job, maskAssets: [], maskStats: [], providerOutput: null });
 
   const fetched = await driver.result(job);
   if (!fetched.ok) return fail(fetched.error);
   const files = pickMasks(fetched.output);
   if (files.length === 0) return fail(contractError("INVALID_SCHEMA", "no object mask found; try a clearer frame or object description"), fetched.output);
   const maskAssets: Asset[] = [];
-  for (const file of files) {
+  const stats: (MaskStats | null)[] = [];
+  const rawScores = (fetched.output as { scores?: unknown } | null)?.scores;
+  const scores = Array.isArray(rawScores) && rawScores.length === files.length ? rawScores : [];
+  for (const [index, file] of files.entries()) {
     let bytes: Uint8Array;
     try {
       bytes = (await deps.fal.download(file.url)).bytes;
@@ -874,10 +885,12 @@ export async function resumeSegmentation(
     });
     if (!stored.ok) return stored;
     maskAssets.push(stored.value);
+    const score = typeof scores[index] === "number" ? (scores[index] as number) : null;
+    stats.push(await maskStats(stored.value.id, bytes, score));
   }
   const succeeded = await driver.move(job, "succeeded", {
     output: { meshAssetId: null, splatAssetId: null, maskAssetIds: maskAssets.map((a) => a.id), rawAssetIds: [] },
   });
   if (!succeeded.ok) return succeeded;
-  return ok({ job: succeeded.value, maskAssets, providerOutput: fetched.output });
+  return ok({ job: succeeded.value, maskAssets, maskStats: stats, providerOutput: fetched.output });
 }

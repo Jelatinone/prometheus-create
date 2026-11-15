@@ -10,3 +10,4 @@ export * from "./splat";
 export * from "./placement";
 export * from "./mesh-simplify";
 export * from "./mesh-preview";
+export * from "./mask-stats";

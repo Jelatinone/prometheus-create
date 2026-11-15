@@ -16,6 +16,7 @@ import {
   previewMesh,
   splatBackfillJobId,
   resumeReconstruction,
+  resumeSegmentation,
   runReconstruction,
   runSegmentation,
   type FalQueue,
@@ -369,6 +370,12 @@ describe("runSegmentation (fake provider: plumbing only)", () => {
     expect(out.maskAssets).toHaveLength(1);
     expect(out.maskAssets[0].kind).toBe("mask");
     expect(out.job.output?.maskAssetIds).toEqual([out.maskAssets[0].id]);
+    // Coverage is measured for keyframe choice (CP-022); the RGB fixture is a photo, so it is "inside" where red > 127.
+    expect(out.maskStats).toHaveLength(1);
+    expect(out.maskStats[0]?.assetId).toBe(out.maskAssets[0].id);
+    expect(out.maskStats[0]?.areaFraction).toBeGreaterThanOrEqual(0);
+    const resumed = expectOk(await resumeSegmentation(deps, { projectId: request.projectId, jobId: out.job.id, observation }));
+    expect(resumed.maskStats).toEqual(out.maskStats);
   });
 
   it("asks for every matching instance (up to 3) and stores each mask, so one frame can yield 2-3 objects", async () => {
