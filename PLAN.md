@@ -49,6 +49,7 @@ current_stable_release: null
 | 5 | CP-019 unified export | B | One Export button opens one modal: PNG (current playhead), GLB, video (CP-020), project .zip. It replaces the separate PNG/GLB buttons |
 | 6 | CP-020 camera track, spline and video | B | A camera track per take: an editable spline the view camera follows; seeded from capture camera estimates where they exist, otherwise authored; a 5 s video export along it. It absorbs CP-015 |
 | 7 | CP-021 agentic inference for playback (design first) | A+B | A design spike, then a bounded build. A model proposes motion (keys or camera path) from a short instruction and the captured evidence; the person accepts or edits; nothing is applied without review (D-009). Candidate for Gemini (SP-003) |
+| 8 | CP-025 timeline editor and export screen | B | Added 2026-11-15 at Cody's request. Each object has its own track with a clip range: outside its range the object is absent, so trimming half its duration makes it disappear for that half. Keys sit on their track. A full export screen chooses the range, duration, frame rate, resolution and camera, and replaces the fixed 5 s clip |
 | then | CP-016 UI/UX pass, CP-017 security pass | — | unchanged; still last |
 
 **Submission work per target:**
@@ -834,13 +835,29 @@ evidence_ref: "docs/changes/HK-012.md"
 
 **v6:** absorbed by CP-020 (video export along the camera spline).
 
+### CP-025
+
+```yaml
+id: "CP-025"
+objective: "Timeline editor and export screen: per-object tracks with clip ranges (absent outside the range) and keys on their track; an export screen with range, duration, frame rate, resolution and camera instead of a fixed 5 s clip"
+task_ids: ["HK-012"]
+depends_on: ["CP-019", "CP-020"]
+owner: "Claude (linear mode) or the Track B agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-15: 'More complex animation options than just animate 5s, needs a whole export screen and real timeline editor, each object on it's own track ... leave towards end and modify the plan if you have to'"
+status: "planned"
+acceptance_gate: "Each object shows as its own track; trimming or moving a clip changes when the object exists, and playback, PNG and video agree with it; keys edit on their track with undo, fork and save/reload; the export screen produces the chosen range, rate and resolution, and the output matches the playhead scene at sampled frames; a contract change (e.g. clip ranges on tracks) is proposed to Cody first if the take model lacks it; npm run verify passes."
+cut_fallback: "Per-object visibility ranges only; export keeps the CP-019/CP-020 options"
+evidence_ref: "docs/changes/HK-012.md"
+```
+
 ### CP-016
 
 ```yaml
 id: "CP-016"
 objective: "UI/UX pass: make the integrated capture → Generate → edit → splat → timeline → export journey coherent, legible and consistent (last major item)"
 task_ids: ["HK-013"]
-depends_on: ["CP-013", "CP-014"]
+depends_on: ["CP-013", "CP-014", "CP-025"]
 owner: "One agent (assigned by Cody)"
 approval: "approved"
 approval_ref: "Cody chat 2026-11-15 — UI/UX pass as the last major item, then the security pass; PLAN v5"
