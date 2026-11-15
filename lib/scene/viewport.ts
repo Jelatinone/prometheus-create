@@ -118,9 +118,10 @@ export class EditorViewport {
     });
   }
 
-  /** Reconciles the three.js scene with the manifest (add, update, remove). */
-  sync(manifest: TakeManifest) {
+  /** Reconciles the three.js scene with the manifest (add, update, remove); resolves once new meshes are shown. */
+  sync(manifest: TakeManifest): Promise<void> {
     const seen = new Set<string>();
+    const loading: Promise<unknown>[] = [];
     for (const object of manifest.scene.objects) {
       seen.add(object.id);
       let entry = this.objects.get(object.id);
@@ -140,10 +141,12 @@ export class EditorViewport {
         entry.assetId = object.geometry.assetId;
         const assetId = object.geometry.assetId;
         group.clear();
-        void this.asset(assetId).then((model) => {
-          if (this.disposed || this.objects.get(object.id)?.assetId !== assetId) return;
-          if (model) group.add(model.clone(true));
-        });
+        loading.push(
+          this.asset(assetId).then((model) => {
+            if (this.disposed || this.objects.get(object.id)?.assetId !== assetId) return;
+            if (model) group.add(model.clone(true));
+          }),
+        );
       }
     }
     for (const [id, entry] of this.objects)
@@ -152,6 +155,7 @@ export class EditorViewport {
         this.objects.delete(id);
       }
     this.select(this.selected && seen.has(this.selected) ? this.selected : null);
+    return Promise.all(loading).then(() => undefined);
   }
 
   select(objectId: string | null) {
