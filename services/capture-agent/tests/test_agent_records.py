@@ -115,7 +115,7 @@ class TestSequencing:
     def test_selector_keeps_first_and_changed_views_rate_limits_previews(self):
         with Image.open(FIXTURES / "upright-64x48.png") as a, Image.open(FIXTURES / "rotated-orientation6.upright.png") as b:
             sig_a, sig_b = signature(a), signature(b)
-        sel = FrameSelector(SelectorConfig(change_threshold=5, evidence_interval_us=5_000_000, preview_interval_us=500_000))
+        sel = FrameSelector(SelectorConfig(change_threshold=5, evidence_interval_us=5_000_000, preview_interval_us=500_000, near_duplicate_threshold=0.0))
         assert sel.decide(0, sig_a, "h0")[0] == "evidence"
         assert sel.decide(100_000, sig_a, "h0")[0] == "skip"  # identical bytes
         assert sel.decide(200_000, sig_a, "h1")[0] == "skip"  # within the preview interval
@@ -123,6 +123,22 @@ class TestSequencing:
         decision, why = sel.decide(700_000, sig_b, "h3")
         assert decision == "evidence" and "view changed" in why
         assert sel.decide(5_800_000, sig_b, "h4") == ("evidence", "periodic anchor")
+
+    def test_selector_drops_near_duplicate_previews_and_counts_every_reason(self):
+        base = bytes([100] * 256)
+        near = bytes([102] * 256)  # difference 2.0: a still camera
+        moved = bytes([110] * 256)  # difference 10.0: a handheld step, below the change threshold
+        sel = FrameSelector(SelectorConfig(change_threshold=18, evidence_interval_us=5_000_000, preview_interval_us=500_000))
+        assert sel.decide(0, base, "h0")[0] == "evidence"
+        assert sel.decide(100_000, base, "h0")[0] == "skip"  # identical bytes
+        assert sel.decide(200_000, near, "h1")[0] == "skip"  # preview rate limit
+        decision, why = sel.decide(600_000, near, "h2")
+        assert decision == "skip" and why.startswith("near-duplicate")
+        assert sel.decide(1_200_000, moved, "h3")[0] == "preview"
+        decision, why = sel.decide(1_800_000, bytes([111] * 256), "h4")
+        assert decision == "skip" and why.startswith("near-duplicate")  # compared with the last frame SENT
+        assert sel.decide(5_100_000, near, "h5") == ("evidence", "periodic anchor")  # anchors are never dropped
+        assert sel.stats == {"evidence": 2, "preview": 1, "skipped_identical": 1, "skipped_near_duplicate": 2, "skipped_rate_limit": 1}
 
     def test_latest_only_drops_unsent_older_previews(self):
         slot = LatestOnly()

@@ -324,6 +324,9 @@ async def call(seconds: float, project_id: str, max_wait_bridge_s: float, max_wa
             exit_code = 1
         snapshot("failed" if failed else "ended", "provider reported failed after delivering frames" if state["first_frame_at"] and failed else "capture finished" if state["first_frame_at"] else "no caller frames")
     summary = {k: state[k] for k in ("call_id", "frames", "evidence", "previews", "caller_video", "provider_terminal_status")} | {"room": room_name, "sessionId": session_id, "sourceId": registration["id"], "projectId": project_id, "outbox": str(run)}
+    # Frame-selection counts by reason (HK-011 CP-022), including near-duplicates dropped.
+    summary["selection"] = dict(selector.stats)
+    (run / "selection-stats.json").write_text(json.dumps(summary["selection"], indent=2) + "\n", encoding="utf-8")
     (run / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))
     return exit_code if state["first_frame_at"] else 1
