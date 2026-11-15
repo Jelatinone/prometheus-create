@@ -92,11 +92,22 @@ Add `--prompt "<object>"` to `call-http.mts` and the live loop (`lib/capture/liv
 - **Record:** `<outbox>/live-loop-result.json` holds every segmentation and its coverages, every supersede and keep decision with its reason, the reconstruction (job, whether it started before hang-up, mesh, splat and preview assets), the estimated spend and the agent's selection counts.
 - **Getting a token:** `tests/platform/sign-in.ts` (`signIn(TEST_USER_EMAILS.owner)`) returns a short-lived access token for scripts. Pass it in the environment as `INGEST_ACCESS_TOKEN`, never as an argument.
 
+### Return video (HK-011 CP-023)
+
+With `--prompt`, `call-http.mts` also passes `--return-video` to the agent, which then publishes a 540×960 video track ("agent-video") that the caller sees.
+
+- **What it shows:** until something is recognised, the newest captured frame and "Looking for …". After that, the keyframe the live loop last segmented, with each object boxed and coloured red → amber → green by coverage, followed by "Generating 3D …" and "… ready in Prometheus".
+- **Coverage:** half mask area (8 % of the frame counts as full) and half views (found in 3 segmentations counts as full). Objects are matched across segmentations by box overlap.
+- **Data flow:** the overlay comes from `<outbox>/overlay.json`, which the live loop writes atomically. Boxes are drawn on the frame they were measured on, so they stay accurate while the camera moves.
+- **No echo:** FaceTime shows our video as a tile inside the caller capture. `ECHO_TILE` in `capture_agent/return_video.py` blanks that tile, measured on a real call, before rendering. Re-measure it if Chert changes the layout.
+- **No queue:** the agent renders only when its inputs change and re-sends the newest picture at 4 fps.
+- **Evidence:** the first 40 distinct renders are saved to `<outbox>/return-video/`, and `summary.json` holds the counts.
+
 Chert ends silent calls unless the agent greets within ten seconds of
 `bridge_ready`. The bundled `assets/capture-ready.wav` is locally synthesized
 48 kHz mono speech, played once after that readiness signal (not on room join).
-Regenerate it on Windows with `make-greeting.ps1`. The agent publishes no outgoing
-camera track; return video is outside this ingest test. Capture success and
+Regenerate it on Windows with `make-greeting.ps1`. Without `--return-video` the agent
+publishes no outgoing camera track. Capture success and
 provider terminal status are reported separately; a failed provider call never
 becomes a successful session merely because some frames arrived.
 
