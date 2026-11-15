@@ -78,3 +78,20 @@ describe("S3 attach from a reconstruction outcome", () => {
     expect(attachedSplat({ job, splatAsset: { ...splatAsset, projectId: "prj_other" } } as never, 1)).toBeNull();
   });
 });
+
+describe("placement seam (Track A CP-009, applied after the merge)", () => {
+  it("a levelled placement sets the object transform; without one the object stands at the origin", async () => {
+    const { reconstructedObject } = await import("@/lib/editor/reconstruction");
+    const manifest = original();
+    const geometry = { ...findObject(manifest, BOX)!.geometry, assetId: "ast_generated_mesh_0001" };
+    const outcome = {
+      job: { id: "job_generated00001", projectId: manifest.projectId, state: "succeeded", providerModel: "fal-ai/sam-3/3d-objects", input: { observationId: "obs_frame000001" } },
+      apply: { apply: true }, geometry,
+    } as unknown as ReconstructionOutcome;
+    const observation = { id: "obs_frame000001", projectId: manifest.projectId, sourceId: "src_frame000001" } as never;
+    const placed = reconstructedObject(manifest, manifest.take.id, "Table", observation, outcome, { position: [0.3, 0.2, -1.4], rotation: [0, 0.2, 0, 0.98], scale: 0.8 });
+    expect(placed.ok && placed.value.transform).toEqual({ position: [0.3, 0.2, -1.4], rotation: [0, 0.2, 0, 0.98], scale: [0.8, 0.8, 0.8] });
+    const standing = reconstructedObject(manifest, manifest.take.id, "Table", observation, outcome);
+    expect(standing.ok && standing.value.transform.position).toEqual([0, 0.45, 0]);
+  });
+});
