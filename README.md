@@ -39,7 +39,11 @@ Or run `npm run lane:setup` for all three. On Windows, confirm `node_modules/@ro
 
 ## 2. Configure `.env.local`
 
-Create `.env.local` in the project root. It is git-ignored; never commit it. Values come from the project's Supabase and TigerData dashboards.
+Copy the template, then fill in the blanks. `.env.local` is git-ignored; never commit it. Values come from the project's Supabase and TigerData dashboards and the provider consoles below.
+
+```bash
+cp .env.example .env.local
+```
 
 | Variable | Needed for |
 | --- | --- |
@@ -48,8 +52,11 @@ Create `.env.local` in the project root. It is git-ignored; never commit it. Val
 | `SUPABASE_STORAGE_BUCKET` | private asset bucket (default `project-assets`) |
 | `DATABASE_URL`, `DATABASE_CA_CERT` | TigerData Postgres (projects, takes, revisions, assets) |
 | `TEST_DATABASE_URL` | live platform tests only; must be a different database service |
-| `FAL_API_KEY` (or `FAL_KEY`) | the reconstruction CLI only (paid) |
+| `FAL_API_KEY` (or `FAL_KEY`) | image-to-3D generation (paid per call) |
 | `CHERT_API_KEY`, `CHERT_PROJECT_ID`, `CHERT_LINE_ID`, `CHERT_TEST_DESTINATION`, `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | the Python capture agent only |
+| `ELEVEN_API_KEY` | spoken capture coaching during calls |
+| `INGEST_API_URL`, `CAPTURE_PYTHON` | live-call ingestion (`lib/capture/call-http.mts`); defaults in the template |
+| `PLATFORM_TEST_USER_A_EMAIL`, `PLATFORM_TEST_USER_B_EMAIL` | live platform tests (defaults in the template) |
 
 Once per database and bucket, create the schema and the private bucket:
 
