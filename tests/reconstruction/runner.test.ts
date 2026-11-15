@@ -11,6 +11,8 @@ import { assetStorageKey, storeProjectAsset } from "@/lib/capture";
 import {
   FalQueueError,
   SAM3D_OBJECTS_MODEL,
+  backfillSplat,
+  splatBackfillJobId,
   resumeReconstruction,
   runReconstruction,
   runSegmentation,
@@ -453,5 +455,94 @@ describe("splat persistence (fake provider: plumbing only)", () => {
     const out = expectOk(await runReconstruction(deps, request));
     expect(out.splatAsset).toBeNull();
     expect(fal.count("download:fake://scene.ply")).toBe(0);
+  });
+});
+
+describe("backfillSplat: splat for an already-paid job (fake provider: plumbing only)", () => {
+  const corners = [-1, 1].flatMap((sx) => [-1, 1].flatMap((sy) => [-1, 1].map((sz) => [0.2 * sx, 0.45 * sy, 0.1 * sz] as const)));
+  const providerSplat = buildSplatPly(corners.map(([x, y, z]) => ({ p: [x, -z, y] as [number, number, number] })), { withNormals: true });
+
+  /** A job that succeeded mesh-only (as before CP-007); the provider result still has the bundle. */
+  async function meshOnlyJob() {
+    const fal = new FakeFal();
+    const ctx = await setup(fal);
+    const original = expectOk(await runReconstruction(ctx.deps, ctx.request));
+    expect(original.job.output?.splatAssetId).toBeNull();
+    fal.output = { ...(fal.output as object), artifacts_zip: { url: "fake://bundle.zip" } };
+    fal.files["fake://bundle.zip"] = buildZip([{ name: "object_00/splat.ply", bytes: providerSplat }]);
+    return { ...ctx, original };
+  }
+
+  it("adopts the original provider request (no submit) and stores a splat aligned with the same mesh asset", async () => {
+    const { fal, deps, request, original } = await meshOnlyJob();
+    const out = expectOk(await backfillSplat(deps, { projectId: request.projectId, jobId: original.job.id }));
+    expect(fal.count("submit")).toBe(1); // only the original's
+    expect(out.job.id).toBe(await splatBackfillJobId(original.job.id));
+    expect(out.job.providerRequestId).toBe(original.job.providerRequestId);
+    expect(states(out.job)).toEqual(["queued", "submitted", "succeeded"]);
+    expect(out.job.inputHash).toBe(original.job.inputHash);
+    expect(parseContract(CONTRACTS["reconstruction-job"].schema, out.job).ok).toBe(true);
+    expect(out.meshAsset!.id).toBe(original.job.output!.meshAssetId);
+    expect(out.splatAsset?.kind).toBe("splat");
+    expect(out.job.output?.splatAssetId).toBe(out.splatAsset!.id);
+    // The original is terminal and unchanged.
+    expect(expectOk(await deps.jobs.getJob(deps.actor, request.projectId, original.job.id))).toEqual(original.job);
+  });
+
+  it("is idempotent: a repeat returns the stored splat with no provider calls", async () => {
+    const { fal, deps, request, original } = await meshOnlyJob();
+    const first = expectOk(await backfillSplat(deps, { projectId: request.projectId, jobId: original.job.id }));
+    const calls = fal.calls.length;
+    const again = expectOk(await backfillSplat(deps, { projectId: request.projectId, jobId: original.job.id }));
+    expect(again.splatAsset?.id).toBe(first.splatAsset!.id);
+    expect(fal.calls.length).toBe(calls);
+  });
+
+  it("returns the job's own splat when it already has one, creating no backfill job", async () => {
+    const fal = new FakeFal();
+    fal.output = { ...(fal.output as object), artifacts_zip: { url: "fake://bundle.zip" } };
+    fal.files["fake://bundle.zip"] = buildZip([{ name: "object_00/splat.ply", bytes: providerSplat }]);
+    const { deps, request } = await setup(fal);
+    const withSplat = expectOk(await runReconstruction(deps, request));
+    const out = expectOk(await backfillSplat(deps, { projectId: request.projectId, jobId: withSplat.job.id }));
+    expect(out.job.id).toBe(withSplat.job.id);
+    expect(out.splatAsset?.id).toBe(withSplat.splatAsset!.id);
+    expect(codeOf(await deps.jobs.getJob(deps.actor, request.projectId, await splatBackfillJobId(withSplat.job.id)))).toBe("NOT_FOUND");
+  });
+
+  it("refuses unsuitable originals before touching the provider", async () => {
+    const { fal, deps, request, h, observation } = await setup();
+    const pending = expectOk(await runReconstruction({ ...deps, execution: "submit" }, request));
+    const segment = expectOk(await runSegmentation({ ...deps, execution: "submit" }, { projectId: h.projectId, observation, prompt: "box" }));
+    const before = fal.calls.length;
+    expect(codeOf(await backfillSplat(deps, { projectId: request.projectId, jobId: pending.job.id }))).toBe("INVALID_TRANSITION");
+    expect(codeOf(await backfillSplat(deps, { projectId: request.projectId, jobId: segment.job.id }))).toBe("INVALID_SCHEMA");
+    expect(codeOf(await backfillSplat(deps, { projectId: request.projectId, jobId: "job_missing" }))).toBe("NOT_FOUND");
+    expect(fal.calls.length).toBe(before);
+  });
+
+  it("fails only the backfill job when the provider result has expired", async () => {
+    const { fal, deps, request, original } = await meshOnlyJob();
+    fal.result = async () => {
+      throw new FalQueueError("request not found", 404);
+    };
+    const out = expectOk(await backfillSplat(deps, { projectId: request.projectId, jobId: original.job.id }));
+    expect(out.job.state).toBe("failed");
+    expect(out.splatAsset).toBeNull();
+    expect(fal.count("submit")).toBe(1);
+    expect(expectOk(await deps.jobs.getJob(deps.actor, request.projectId, original.job.id)).state).toBe("succeeded");
+  });
+
+  it("attach_splat over HTTP backfills under the derived job and never submits", async () => {
+    const { h, fal, original, observation } = await meshOnlyJob();
+    const body = { projectId: h.projectId, sourceId: observation.sourceId, observationId: observation.id, jobId: original.job.id, action: "attach_splat" };
+    const ctx = { backend: h.backend, actor: h.actor, blobs: h.blobs, fal: () => fal };
+    const res = await reconstructionCommand(new Request("http://test", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }), ctx);
+    expect(res.status).toBe(200);
+    const outcome = await res.json();
+    expect(outcome.job.id).toBe(await splatBackfillJobId(original.job.id));
+    expect(outcome.job.state).toBe("succeeded");
+    expect(outcome.splatAsset.kind).toBe("splat");
+    expect(fal.count("submit")).toBe(1);
   });
 });

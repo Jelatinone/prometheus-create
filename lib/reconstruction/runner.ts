@@ -20,6 +20,7 @@ import {
   isTerminalJobState,
   newId,
   ok,
+  sha256,
   type Actor,
   type Asset,
   type AssetCatalog,
@@ -577,6 +578,61 @@ export async function resumeReconstruction(
   }
   if (isTerminalJobState(job.state)) return ok({ ...emptyOutcome(job), apply: canApplyJobResult(job, current) });
   return continueReconstruction(deps, driver, job, current);
+}
+
+/**
+ * Deterministic ID of the job that backfills a splat for `jobId`, so repeated
+ * attach requests (and Track B) always find the same backfill job.
+ */
+export async function splatBackfillJobId(jobId: string): Promise<string> {
+  const digest = await sha256(`splat-backfill:${jobId}`);
+  return `job_${digest.slice("sha256:".length, "sha256:".length + 32)}`;
+}
+
+/**
+ * Give an already-succeeded reconstruction a stored S1 splat WITHOUT a new
+ * provider job (PLAN v4 seam S5). A succeeded job is terminal, so its output
+ * cannot gain a splatAssetId; instead a backfill job with a derived ID adopts
+ * the original's provider request ID (never calling submit) and runs the normal
+ * poll/finish path: result fetch and file downloads only. The backfill outcome
+ * carries the splat; its mesh asset ID equals the original's (content-addressed),
+ * which proves the splat is aligned with that exact mesh.
+ */
+export async function backfillSplat(
+  deps: ReconstructionDeps,
+  req: { projectId: string; jobId: string },
+): Promise<Result<ReconstructionOutcome>> {
+  const found = await deps.jobs.getJob(deps.actor, req.projectId, req.jobId);
+  if (!found.ok) return found;
+  const original = found.value;
+  if (original.kind !== "reconstruct_object") return err("INVALID_SCHEMA", `job ${original.id} is not a reconstruction`);
+  if (original.state !== "succeeded" || !original.output?.meshAssetId)
+    return err("INVALID_TRANSITION", `job ${original.id} is ${original.state}; only a succeeded reconstruction can gain a splat`);
+  if (original.output.splatAssetId) return resumeReconstruction(deps, { projectId: req.projectId, jobId: original.id });
+  if (!original.providerRequestId) return err("INVALID_TRANSITION", `job ${original.id} has no provider request to reuse`);
+
+  const id = await splatBackfillJobId(original.id);
+  const existing = await deps.jobs.getJob(deps.actor, req.projectId, id);
+  if (existing.ok) return resumeReconstruction(deps, { projectId: req.projectId, jobId: id });
+  if (existing.error.code !== "NOT_FOUND") return existing;
+
+  const driver = new JobDriver(deps);
+  const created = await driver.create({
+    schemaVersion: 1,
+    id,
+    projectId: req.projectId,
+    kind: "reconstruct_object",
+    provider: original.provider,
+    providerModel: original.providerModel,
+    inputHash: original.inputHash,
+    input: original.input,
+  });
+  if (!created.ok) return created;
+  // Adopt the paid request: recorded as submitted, but submit() is never called.
+  const adopted = await driver.move(created.value, "submitted", { providerRequestId: original.providerRequestId });
+  if (!adopted.ok) return adopted;
+  if (deps.execution === "submit") return ok(emptyOutcome(adopted.value));
+  return continueReconstruction(deps, driver, adopted.value, original.input.baseGeometryRevision);
 }
 
 /**
