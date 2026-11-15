@@ -35,7 +35,7 @@ from PIL import Image
 from . import config as cfg
 from . import envelope as env
 from .chert import ChertCalls, ChertError, event_list, event_name, looks_terminal
-from .frames import encode_upright, signature, sha256_hash
+from .frames import encode_upright, signature, sha256_hash, upright
 from .outbox import Outbox
 from .return_video import ReturnVideoState, publish_return_video
 from .sequencer import FrameSelector, Sequencer
@@ -188,6 +188,8 @@ async def call(seconds: float, project_id: str, max_wait_bridge_s: float, max_wa
                 img = Image.frombytes("RGBA", (frame.width, frame.height), bytes(frame.data))
                 rotation = ROTATION_CW.get(int(event.rotation), 0)
                 sig = signature(img)
+                if return_video:  # CP-023: the caller's picture follows every frame (upright), not only the ones sent
+                    video_state.show_live(upright(img, rotation))
                 # Hash the raw pixels so frozen frames are skipped before encoding.
                 decision, why = selector.decide(event.timestamp_us, sig, sha256_hash(bytes(frame.data)))
                 state["frames"] += 1

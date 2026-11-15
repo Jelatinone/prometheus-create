@@ -48,6 +48,12 @@ def project_asset_id(project_id: str, kind: str, content_hash: str) -> str:
     return "ast_" + digest[len("sha256:") : len("sha256:") + 40]
 
 
+def upright(image: Image.Image, rotation_cw: int = 0) -> Image.Image:
+    """Rotate a decoded frame upright without encoding it (rotation_cw in 0/90/180/270)."""
+    transpose = _ROTATE_CW.get(rotation_cw)
+    return image.transpose(transpose) if transpose is not None else image
+
+
 def encode_upright(image: Image.Image, rotation_cw: int = 0, *, quality: int = 90, max_edge: int | None = None) -> EncodedFrame:
     """Rotate a decoded frame upright (rotation_cw in 0/90/180/270) and encode it as JPEG."""
     if rotation_cw not in _ROTATE_CW:
