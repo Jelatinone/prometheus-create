@@ -74,7 +74,17 @@ export class PlatformBlobStore {
       if (signed.error.code !== "DUPLICATE") return signed;
       // Already registered: a retry is fine only with identical bytes.
       const existing = await this.api.assets.getAsset(this.actor, ids.projectId, ids.assetId);
-      if (!existing.ok) return existing;
+      if (!existing.ok) {
+        const details = signed.error.details;
+        if (existing.error.code !== "NOT_FOUND" || typeof details?.recoveryDownloadUrl !== "string" || typeof details.storageKey !== "string") return existing;
+        try {
+          const response = await this.fetchImpl(details.recoveryDownloadUrl);
+          if (!response.ok) return err("PROVIDER_UNAVAILABLE", "could not verify interrupted upload");
+          const prior = new Uint8Array(await response.arrayBuffer());
+          if (await sha256(prior) !== await sha256(bytes)) return err("DUPLICATE", "interrupted upload contains different bytes");
+          return ok({ storageKey: details.storageKey });
+        } catch { return err("PROVIDER_UNAVAILABLE", "could not verify interrupted upload"); }
+      }
       if (existing.value.contentHash !== (await sha256(bytes)))
         return err("DUPLICATE", `asset ${ids.assetId} is already registered with different content`);
       return ok({ storageKey: existing.value.storageKey });

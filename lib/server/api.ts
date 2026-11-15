@@ -189,7 +189,17 @@ export async function requestUpload(ctx: ApiContext, request: Request): Promise<
   const existing = await ctx.backend.assets.getAsset(ctx.actor, req.projectId, req.assetId);
   if (existing.ok) return respond(err("DUPLICATE", `asset ${req.assetId} is already registered`));
   const upload = await storage.createSignedUpload(req.projectId, req.assetId);
-  if (!upload.ok) return respond(upload);
+  if (!upload.ok) {
+    if (upload.error.code !== "DUPLICATE") return respond(upload);
+    // Bytes survived an interrupted upload, but metadata did not. Let only
+    // this verified project owner compare the existing bytes before recovery.
+    const path = realStorage.objectPath(req.projectId, req.assetId);
+    const download = await storage.createSignedDownload(path);
+    if (!download.ok) return respond(download);
+    return respond(err("DUPLICATE", "asset bytes already exist; verify them before recording metadata", {
+      storageKey: realStorage.storageKeyFor(req.projectId, req.assetId), recoveryDownloadUrl: download.value,
+    }));
+  }
   return respond(ok({ upload: upload.value, mimeType: req.mimeType, byteSize: req.byteSize }), 201);
 }
 
