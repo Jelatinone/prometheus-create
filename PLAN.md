@@ -2,17 +2,17 @@
 
 **Capture a scene. Edit its objects. Create another take.**
 
-Active continuation **v7** replaces earlier ordering and UI assumptions. [The full v6 plan is archived](docs/archive/PLAN-v6-before-final-window.md); task notes retain detailed implementation evidence. Read this plan and the assigned note, not obsolete track instructions, when taking over.
+Active continuation **v8** (below) extends **v7** replaces earlier ordering and UI assumptions. [The full v6 plan is archived](docs/archive/PLAN-v6-before-final-window.md); task notes retain detailed implementation evidence. Read this plan and the assigned note, not obsolete track instructions, when taking over.
 
 ```yaml
 schema_version: 2
 project_name: "Prometheus::create"
 event_name: "HackUTA 2026"
 project_status: "building"
-plan_version: 7
+plan_version: 8
 approval: "approved"
 approval_ref: "Cody chat 2026-11-15: compact remaining work until 10:00 A.M.; final two hours stability/polish; sequential agents; light feature checks; Layers and simplified UI/Generate/frame picking required; confirmed left mode rail/right details."
-updated_at: "2026-11-15T05:25:49-06:00"
+updated_at: "2026-11-15T08:00:00-06:00"
 timezone: "America/Chicago"
 code_start: "2026-11-14T12:00:00-06:00"
 code_end: "2026-11-15T10:00:00-06:00"
@@ -27,6 +27,21 @@ current_stable_release: "STABLE-V3 (local annotated tag at c88214d; never retarg
 The 08:00 feature freeze and 10:00 finish are **Cody's working cutoffs**, not a newly verified organizer submission deadline. Earlier event-clock discrepancies remain in the archive; Cody owns official deadline/submission confirmation. Do not treat unknown rules as publication or eligibility approval.
 
 ## 1. Product contract
+
+### Current continuation v8 — final nits and one bounded experiment (08:00–10:00)
+
+Cody (2026-11-15 ~07:55) made Claude the primary agent on production after STABLE-V3.1 (local tag at 964d0cc). Conservative usage; each item lands as its own scoped commit and keeps the journey runnable.
+
+| ID | Kind | Outcome | Acceptance | State |
+| --- | --- | --- | --- | --- |
+| CP-026 | UI nit | Timeline key diamonds sit on the scrubber track at their frame | Keys at frame 0 and the last frame line up with the thumb at those frames | planned |
+| CP-027 | UI nit | Viewport hints ("no objects", "no visible splat/layers") become a top toast that fades and has a close (x) | No message text sits in the grid; toasts dismiss on x or after a few seconds | planned |
+| CP-028 | UI + API | Click the project name in the editor header to rename it | `PATCH /api/projects/[projectId]` {title}; `ProjectRepository.renameProject` in both backends with a conformance test; owner-only | planned (Cody's request is the approval for this port addition) |
+| CP-029 | Experiment | Splats on ingest: a splat per frame/scene as extra datapoints, viewable apart from meshes; meshes only on request | Design first: provider, cost per call, how splats relate to existing transforms. No paid call without Cody's approval | proposed |
+| CP-030 | Experiment | Whole-scene splat (walls, floor) from the camera's view | Same gate as CP-029; reuse capture frames; disclose estimates | proposed |
+| CP-031 | Experiment | Multi-frame mesh generation (several views of one object; heavier model allowed) | Same gate; compare one result against the single-frame result | proposed |
+
+CP-029 to CP-031 are paid-provider experiments: before any call, Claude reports candidate models, price and expected latency, and Cody approves the spend (fal budget ~$10 total). If no candidate fits the remaining time, they stay proposals for after the event. CP-025 (clip ranges) stays parked on `wip/CP-025-clips`.
 
 ### Current continuation v7 — sequential agents, finish by 10:00 A.M.
 
@@ -588,5 +603,6 @@ At 08:45–09:30 rehearse the working build, retain representative exports and a
 | 1–6 | Historical | STABLE-V2 local | Existing tasks and ADR-001..005 | Prior agents for Cody | Archived v6 and docs/DECISIONS.md | Full historical intent/evidence retained |
 | 7 | 2026-11-15 | No new release | HK-012 / HK-013 / HK-014; CP-018 / CP-016 / CP-017 | Codex for Cody | Cody's explicit five-hour replan, light checks, sequential agents and confirmed left-rail/right-details layout; CP-020 passes at f317b7f0d2f8 | Finish realistic must-haves before 08:00; protect 08:00–10:00 for stability/polish |
 | 7 | 2026-11-15 | STABLE-V3 local (c88214d) | CP-018 / CP-016 A–E / CP-019 / CP-020 / CP-017 | Claude for Cody | Cody asked for cleanup and /create-stable; `npm run verify` passes on clean c88214d in a detached worktree (338 tests, live platform included). Unfinished CP-025 parked on `wip/CP-025-clips` (db6a2b5) | Stable point after the stability window; rollback STABLE-V2 |
+| 8 | 2026-11-15 | STABLE-V3.1 local (964d0cc) | CP-026..CP-028 planned; CP-029..CP-031 proposed (paid, need approval) | Claude for Cody | Cody's UI nits and behavioural ideas, 2026-11-15 ~07:55 | Final polish plus one bounded experiment before 10:00 |
 
 **Next agent:** CP-018 (HK-012) and CP-016 A to D (HK-013) are `ready_for_review`. CP-017 (HK-014) is `ready_for_review`: the full verifier passes at `0cfd49e` (338 tests), the security review is done with two fixes, the journey rehearsal and one approved live Generate pass, and Generate can reuse a frame's earlier results (HK-013 subpass E, approved by Cody). Read AGENTS.md, this v7 continuation and docs/changes/HK-014.md "Remaining for the window". Open with Cody: his look at the layout. No new features after 08:00.
