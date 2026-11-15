@@ -229,6 +229,8 @@ class JobDriver {
 
   /** Submit a queued job once and persist its request ID before any polling. */
   async submit(job: ReconstructionJob, input: Record<string, unknown>): Promise<Result<ReconstructionJob>> {
+    const unexpected = unexpectedProvider(job);
+    if (unexpected) return { ok: false, error: unexpected };
     if (job.providerRequestId)
       return err("INVALID_TRANSITION", `job ${job.id} already has provider request ${job.providerRequestId}; resume it instead`);
     let requestId: string;
@@ -244,6 +246,8 @@ class JobDriver {
   async waitForCompletion(job: ReconstructionJob): Promise<Result<{ job: ReconstructionJob; completed: boolean }>> {
     const requestId = job.providerRequestId;
     if (!requestId) return err("INVALID_TRANSITION", `job ${job.id} has no provider request id to poll`);
+    const unexpected = unexpectedProvider(job);
+    if (unexpected) return { ok: false, error: unexpected };
     const started = this.now().getTime();
     let current = job;
     let statusErrors = 0;
@@ -295,6 +299,8 @@ class JobDriver {
   }
 
   async result(job: ReconstructionJob): Promise<{ ok: true; output: unknown } | { ok: false; error: ContractError }> {
+    const unexpected = unexpectedProvider(job);
+    if (unexpected) return { ok: false, error: unexpected };
     try {
       return { ok: true, output: await this.deps.fal.result(job.providerModel, job.providerRequestId!) };
     } catch (e) {
@@ -557,6 +563,18 @@ async function finishReconstruction(
  * Errors before the job exists (bad input, missing assets) return an error;
  * once the job exists, every provider failure is recorded on the job.
  */
+/**
+ * The provider endpoints this server pays for and reads from. A stored job can
+ * be created through the jobs API with any `providerModel`, so a job naming
+ * anything else is refused before a provider call (security review, CP-017).
+ */
+const PROVIDER_MODELS: readonly string[] = [SAM3D_OBJECTS_MODEL, SAM3_IMAGE_MODEL];
+
+function unexpectedProvider(job: ReconstructionJob): ContractError | null {
+  if (job.provider === "fal" && PROVIDER_MODELS.includes(job.providerModel)) return null;
+  return { code: "INVALID_TRANSITION", message: `job ${job.id} names an unexpected provider or model; it was not sent`, details: {} };
+}
+
 export async function runReconstruction(deps: ReconstructionDeps, req: ReconstructionRequest): Promise<Result<ReconstructionOutcome>> {
   if (req.maskAssetIds.length === 0) return err("INVALID_SCHEMA", "choose a mask: reconstruction needs at least one mask asset");
   const maskHashes = await checkMasks(deps, req);
@@ -585,6 +603,9 @@ export async function runReconstruction(deps: ReconstructionDeps, req: Reconstru
   });
   if (!created.ok) return created;
   let job = created.value;
+  // createJob returns an existing job with the same ID and input hash: make sure it is the job this call describes.
+  if (job.kind !== "reconstruct_object" || job.providerModel !== SAM3D_OBJECTS_MODEL)
+    return err("INVALID_TRANSITION", `job ${job.id} already exists as a different kind of job`);
   if (isTerminalJobState(job.state) || job.providerRequestId)
     return resumeReconstruction(deps, { projectId: req.projectId, jobId: job.id, currentGeometryRevision: req.currentGeometryRevision });
 
@@ -794,6 +815,8 @@ export async function runSegmentation(deps: ReconstructionDeps, req: Segmentatio
   });
   if (!created.ok) return created;
   let job = created.value;
+  if (job.kind !== "segment" || job.providerModel !== SAM3_IMAGE_MODEL)
+    return err("INVALID_TRANSITION", `job ${job.id} already exists as a different kind of job`);
   const fail = async (error: ContractError, providerOutput: unknown = null): Promise<Result<SegmentationOutcome>> => {
     const failed = await driver.fail(job, error);
     return failed.ok ? ok({ job: failed.value, maskAssets: [], maskStats: [], providerOutput }) : failed;

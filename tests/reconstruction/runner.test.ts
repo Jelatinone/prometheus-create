@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { buildBoxGlb } from "@/lib/assets/glb";
-import { CONTRACTS, parseContract, type Observation, type ReconstructionJob } from "@/lib/contracts";
+import { CONTRACTS, hashJson, parseContract, type Observation, type ReconstructionJob } from "@/lib/contracts";
 import { assetStorageKey, storeProjectAsset } from "@/lib/capture";
 import {
   FalQueueError,
@@ -716,5 +716,36 @@ describe("cached mesh preview (CP-010; fake provider: plumbing only)", () => {
     expect((await send(segment.job.id)).status).not.toBe(200);
     expect((await send("job_missing")).status).toBe(404);
     expect(fal.calls.length).toBe(calls);
+  });
+});
+
+describe("provider model guard (security review, CP-017)", () => {
+  it("never sends a stored job that names another provider model, even with a matching input hash", async () => {
+    const { fal, deps, request, observation, mask } = await setup();
+    const at = "2026-11-14T20:00:00.000Z";
+    const inputHash = await hashJson({ model: SAM3D_OBJECTS_MODEL, image: observation.frame.contentHash, masks: [mask.contentHash], seed: null });
+    // What a signed-in owner could create through the jobs API before the reconstruct command runs.
+    const planted: ReconstructionJob = {
+      schemaVersion: 1,
+      id: "job_other_model",
+      projectId: request.projectId,
+      kind: "reconstruct_object",
+      provider: "fal",
+      providerModel: "fal-ai/some-other-endpoint",
+      inputHash,
+      input: { observationId: observation.id, maskAssetIds: [mask.id], targetObjectId: null, baseGeometryRevision: 0 },
+      state: "queued",
+      providerRequestId: null,
+      history: [{ number: 1, state: "queued", at, providerRequestId: null, error: null }],
+      output: null,
+      error: null,
+      createdAt: at,
+      updatedAt: at,
+    };
+    expectOk(await deps.jobs.createJob(deps.actor, planted));
+    const r = await runReconstruction(deps, { ...request, jobId: "job_other_model" });
+    expect(codeOf(r)).toBe("INVALID_TRANSITION");
+    expect(fal.count("submit")).toBe(0);
+    expect(fal.count("upload")).toBe(0);
   });
 });
