@@ -233,7 +233,7 @@ function LayerSection({
   return (
     <div>
       <div className="mb-0.5 flex items-center justify-between text-xs text-muted">
-        <span>Layer</span>
+        <span>Splat</span>
         <label className="flex cursor-pointer items-center gap-1 hover:text-accent" title="Attach a 3DGS splat (.ply) in this object's local space">
           <ArrowUpTrayIcon className="size-3.5" />
           {state === "none" ? "Attach splat" : "Replace splat"}
@@ -265,18 +265,18 @@ function LayerSection({
         </>
       ) : (
         <>
-          <div className="flex gap-1 rounded-lg border border-line bg-canvas p-0.5" role="group" aria-label="Layer">
+          <div className="flex gap-1 rounded-lg border border-line bg-canvas p-0.5" role="group" aria-label="Splat for this object" title="Whether this object's splat is part of the Splat layer (Layers, top toolbar)">
             <button className={seg(!on)} aria-pressed={!on} onClick={() => onSplatLayer(object.id, false)}>
               <CubeIcon className="size-4" />
-              Mesh
+              Mesh only
             </button>
             <button className={seg(on)} aria-pressed={on} disabled={state === "stale"} onClick={() => onSplatLayer(object.id, true)}>
               <SparklesIcon className="size-4" />
-              Splat
+              With splat
             </button>
           </div>
-          {state === "stale" && <p className="mt-1 text-[11px] text-muted">The splat was made for an older geometry revision; showing the mesh.</p>}
-          {on && fallback && <p className="mt-1 text-[11px] text-bad">Showing the mesh: {fallback}</p>}
+          {state === "stale" && <p className="mt-1 text-[11px] text-muted">The splat was made for an older geometry revision, so it is not shown.</p>}
+          {on && fallback && <p className="mt-1 text-[11px] text-bad">Splat unavailable: {fallback}</p>}
         </>
       )}
     </div>

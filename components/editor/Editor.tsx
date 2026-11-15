@@ -67,7 +67,8 @@ import { EditorViewport, type Navigation, type Tool } from "@/lib/scene/viewport
 import { LoadingOverlay, LoadingScreen, Spinner } from "@/components/ui/Loading";
 import { CapturePanel } from "@/components/capture/CapturePanel";
 import { Inspector } from "./Inspector";
-import { checkSplatPly } from "@/lib/scene/splat";
+import { ALL_LAYERS, checkSplatPly, drawsSplat, type LayerView } from "@/lib/scene/splat";
+import { LayersMenu } from "./LayersMenu";
 import { ReconstructPanel } from "./ReconstructPanel";
 import { providerSplatFor, reconstructedObject } from "@/lib/editor/reconstruction";
 import { runJob } from "@/lib/editor/batch";
@@ -150,6 +151,8 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const playheadRef = useRef(0);
   const editTransformRef = useRef<(objectId: string, t: Transform) => void>(() => {});
   const [grid, setGrid] = useState(true);
+  // Mesh/Splat layer toggles: view state only, never saved (ADR-005).
+  const [layers, setLayers] = useState<LayerView>(ALL_LAYERS);
   const [splatFallbacks, setSplatFallbacks] = useState<Record<string, string | null>>({});
   const [splatsLoading, setSplatsLoading] = useState<Record<string, boolean>>({});
 
@@ -222,7 +225,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       onSplatLoading: (objectId, loading) => setSplatsLoading((m) => ({ ...m, [objectId]: loading })),
       onSplatFallback: (objectId, reason) => {
         setSplatFallbacks((m) => ({ ...m, [objectId]: reason }));
-        setNotice({ tone: "bad", text: `Splat unavailable, showing the mesh instead: ${reason}` });
+        setNotice({ tone: "bad", text: `Splat unavailable: ${reason}` });
       },
     });
     viewport.current = vp;
@@ -339,6 +342,8 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   useEffect(() => viewport.current?.select(selected), [selected]);
   useEffect(() => viewport.current?.setTool(tool), [tool]);
   useEffect(() => viewport.current?.setGridVisible(grid), [grid]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => viewport.current?.setLayers(layers), [layers, !!loaded]);
   useEffect(() => viewport.current?.setNavigation(nav), [nav]);
 
   const save = useCallback(async () => {
@@ -588,6 +593,8 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const cameraKeys = activeCamera ? cameraTrack(present, activeCamera.id)?.keyframes.map(k => k.frame) ?? [] : [];
   const parentName = take.parent ? (loaded.takes.find((t) => t.takeId === take.parent!.takeId)?.name ?? "another take") : null;
   const chrome = "rounded-xl border border-line bg-panel shadow-sm";
+  const shownObjects = present.scene.objects.filter((o) => o.visible);
+  const nothingDrawn = shownObjects.length > 0 && !layers.mesh && !shownObjects.some((o) => drawsSplat(o, layers));
   const icon =
     "grid size-8 place-items-center rounded-lg text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
   const labelled =
@@ -611,9 +618,14 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           This take has no objects yet. Import a GLB, or capture a photo for reference.
         </p>
       )}
+      {nothingDrawn && (
+        <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-muted" role="status">
+          {layers.splat ? "No visible object has a splat. Turn on Mesh in Layers." : "No layers shown. Turn on Mesh or Splat in Layers."}
+        </p>
+      )}
 
       {/* Project chip: saves, project, take, saved state */}
-      <div className={`absolute top-3 left-3 flex h-11 max-w-[min(560px,calc(100vw-42rem))] items-center gap-1 px-1.5 ${chrome}`}>
+      <div className={`absolute top-3 left-3 flex h-11 max-w-[min(560px,calc(100vw-45rem))] items-center gap-1 px-1.5 ${chrome}`}>
         {onShowSaves ? (
           <button className={icon} onClick={onShowSaves} title="Saves" aria-label="Back to saves">
             <FolderOpenIcon className="size-5" />
@@ -702,6 +714,8 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         <button className={labelled} onClick={() => setPane((p) => (p === "generate" ? "objects" : "generate"))} aria-pressed={pane === "generate"}>
           <SparklesIcon className="size-5" />Generate
         </button>
+        {sep}
+        <LayersMenu layers={layers} onChange={setLayers} buttonClass={toolButton} panelClass={chrome} />
         {sep}
         <button className={labelled} disabled={!!busy || Object.values(splatsLoading).some(Boolean)} onClick={() => {
           setPlaying(false);
