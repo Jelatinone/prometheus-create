@@ -40,11 +40,14 @@ import {
   FalQueueError,
   SAM3D_OBJECTS_MODEL,
   SAM3_IMAGE_MODEL,
+  pickBundle,
   pickGlb,
   pickMasks,
   type FalQueue,
 } from "./fal-queue";
-import { normalizeGlb, type SourceUnits, type SourceUpAxis } from "./glb-normalize";
+import { normalizeGlb, type NormalizedGlb, type SourceUnits, type SourceUpAxis } from "./glb-normalize";
+import { PROVIDER_SPLAT_TO_GLB, SPLAT_MIME, bundleSplatPath, composeTransforms, parseSplatPly, toS1Splat } from "./splat";
+import { readZip } from "@/lib/editor/project-archive";
 
 export interface PollOptions {
   intervalMs: number;
@@ -110,6 +113,13 @@ export interface ReconstructionOutcome {
   inspection: GlbInspection | null;
   originalInspection: GlbInspection | null;
   recenterOffset: Vec3 | null;
+  /**
+   * Inferred Gaussian splat in S1 form (same object-local space as the mesh;
+   * PLAN v4 seam S2), or null when the job has none. Never measured depth.
+   */
+  splatAsset: Asset | null;
+  /** Why there is no splat (or what was pruned), for display; null when nothing to report. */
+  splatNote: string | null;
   /** Provider output JSON as returned (URLs are temporary). */
   providerOutput: unknown;
 }
@@ -288,8 +298,53 @@ function emptyOutcome(job: ReconstructionJob, providerOutput: unknown = null): R
     inspection: null,
     originalInspection: null,
     recenterOffset: null,
+    splatAsset: null,
+    splatNote: null,
     providerOutput,
   };
+}
+
+/**
+ * Store object `objectIndex`'s provider splat as an S1 asset aligned with the
+ * normalized mesh. Never fails the job: any problem yields `asset: null` and a
+ * note, and the mesh-only result stands.
+ */
+async function persistSplat(
+  deps: ReconstructionDeps,
+  projectId: string,
+  output: unknown,
+  normalized: NormalizedGlb,
+  objectIndex = 0,
+): Promise<{ asset: Asset | null; note: string | null }> {
+  const none = (note: string) => ({ asset: null, note });
+  const bundle = pickBundle(output);
+  if (!bundle) return none("provider returned no artifacts bundle; mesh only");
+  let zip: Uint8Array;
+  try {
+    zip = (await deps.fal.download(bundle.url)).bytes;
+  } catch (e) {
+    return none(`splat bundle download failed (${e instanceof Error ? e.message : String(e)}); mesh only`);
+  }
+  let entry: Uint8Array | undefined;
+  try {
+    entry = (await readZip(zip)).get(bundleSplatPath(objectIndex));
+  } catch (e) {
+    return none(`splat bundle is unreadable (${e instanceof Error ? e.message : String(e)}); mesh only`);
+  }
+  if (!entry) return none(`splat bundle has no ${bundleSplatPath(objectIndex)}; mesh only`);
+  const ply = parseSplatPly(entry);
+  if (!ply.ok) return none(`${ply.error.message}; mesh only`);
+  const root = normalized.rootTransform;
+  const s1 = toS1Splat(ply.value, composeTransforms(root, { translation: [0, 0, 0], rotation: PROVIDER_SPLAT_TO_GLB, scale: 1 }));
+  if (!s1.ok) return none(`${s1.error.message}; mesh only`);
+  const stored = await storeProjectAsset(assetDeps(deps), projectId, s1.value.bytes, { kind: "splat", mimeType: SPLAT_MIME, origin: "provider" });
+  if (!stored.ok) return none(`splat could not be stored (${stored.error.message}); mesh only`);
+  const { droppedForSize, droppedInvalid, count } = s1.value;
+  const notes = [
+    droppedForSize ? `${droppedForSize} faintest of ${count + droppedForSize} Gaussians dropped to fit storage` : "",
+    droppedInvalid ? `${droppedInvalid} invalid Gaussians dropped` : "",
+  ].filter(Boolean);
+  return { asset: stored.value, note: notes.length ? notes.join("; ") : null };
 }
 
 /** Check each mask is PNG on the observation's exact pixel grid (platform upload rule). */
@@ -356,9 +411,10 @@ async function finishReconstruction(
     origin: "provider",
   });
   if (!meshAsset.ok) return meshAsset;
+  const splat = await persistSplat(deps, job.projectId, output, normalized.value);
 
   const succeeded = await driver.move(job, "succeeded", {
-    output: { meshAssetId: meshAsset.value.id, splatAssetId: null, maskAssetIds: [], rawAssetIds: [rawAsset.value.id] },
+    output: { meshAssetId: meshAsset.value.id, splatAssetId: splat.asset?.id ?? null, maskAssetIds: [], rawAssetIds: [rawAsset.value.id] },
   });
   // A job canceled meanwhile keeps its assets but must not yield geometry.
   let settled: ReconstructionJob;
@@ -387,6 +443,8 @@ async function finishReconstruction(
     inspection: normalized.value.inspection,
     originalInspection: normalized.value.original,
     recenterOffset: normalized.value.recenterOffset,
+    splatAsset: splat.asset,
+    splatNote: splat.note,
     providerOutput: output,
   });
 }
@@ -488,6 +546,12 @@ export async function resumeReconstruction(
     if (!normalized.ok) return normalized;
     const mesh = await deps.assets.getAsset(deps.actor, job.projectId, job.output.meshAssetId);
     if (!mesh.ok) return mesh;
+    let splatAsset: Asset | null = null;
+    if (job.output.splatAssetId) {
+      const splat = await deps.assets.getAsset(deps.actor, job.projectId, job.output.splatAssetId);
+      if (!splat.ok) return splat;
+      splatAsset = splat.value;
+    }
     const apply = canApplyJobResult(job, current);
     return ok({
       job,
@@ -506,6 +570,8 @@ export async function resumeReconstruction(
       inspection: normalized.value.inspection,
       originalInspection: normalized.value.original,
       recenterOffset: normalized.value.recenterOffset,
+      splatAsset,
+      splatNote: splatAsset ? null : "this job has no stored splat",
       providerOutput: null,
     });
   }

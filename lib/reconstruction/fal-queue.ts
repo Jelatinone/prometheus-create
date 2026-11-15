@@ -66,6 +66,8 @@ export interface Sam3dObjectsOutput {
   model_glb?: FalFile | null;
   gaussian_splat?: FalFile | null;
   individual_glbs?: (FalFile | null)[] | null;
+  /** objects_bundle.zip: metadata.json, combined_scene.glb and object_NN/{mesh.glb,splat.ply} (object-local). */
+  artifacts_zip?: FalFile | null;
   metadata?: { object_index: number; scale?: unknown; rotation?: unknown; translation?: unknown; camera_pose?: unknown }[];
 }
 
@@ -84,6 +86,12 @@ export function pickGlb(output: unknown): FalFile | null {
   if (isFile(o.model_glb)) return o.model_glb;
   const first = o.individual_glbs?.find(isFile);
   return first ?? null;
+}
+
+/** The per-object artifacts bundle, or null when absent. */
+export function pickBundle(output: unknown): FalFile | null {
+  const o = (output ?? {}) as Sam3dObjectsOutput;
+  return isFile(o.artifacts_zip) ? o.artifacts_zip : null;
 }
 
 export function pickMasks(output: unknown): FalFile[] {

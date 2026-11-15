@@ -22,6 +22,8 @@ import { captureFixture, captureHarness, codeOf, expectOk } from "../capture/hel
 import { reconstructionCommand } from "@/lib/reconstruction/http";
 import { reconstructedObject } from "@/lib/editor/reconstruction";
 import { emptyCaptureManifest } from "@/lib/capture/project";
+import { buildZip } from "@/lib/editor/project-archive";
+import { buildSplatPly, readS1 } from "./splat-fixtures";
 
 type Call = { op: string; requestId?: string; storedRequestId?: string | null };
 
@@ -381,5 +383,75 @@ describe("runSegmentation (fake provider: plumbing only)", () => {
     const out = expectOk(await runSegmentation(deps, { projectId: request.projectId, observation, prompt: "chair" }));
     expect(out.job.state).toBe("failed");
     expect(out.job.error?.message).toContain("would not align");
+  });
+});
+
+describe("splat persistence (fake provider: plumbing only)", () => {
+  // The fake GLB is the 0.4 x 0.9 x 0.2 box, Y-up and centred. The provider's
+  // object splat is the same object Z-up: splat (x, y, z) = GLB (x, -z, y).
+  const corners = [-1, 1].flatMap((sx) => [-1, 1].flatMap((sy) => [-1, 1].map((sz) => [0.2 * sx, 0.45 * sy, 0.1 * sz] as const)));
+  const providerSplat = buildSplatPly(corners.map(([x, y, z]) => ({ p: [x, -z, y] as [number, number, number] })), { withNormals: true });
+  const withBundle = (files: { name: string; bytes: Uint8Array }[]) => {
+    const fal = new FakeFal();
+    fal.output = { ...(fal.output as object), artifacts_zip: { url: "fake://bundle.zip" } };
+    fal.files["fake://bundle.zip"] = buildZip(files);
+    return fal;
+  };
+
+  it("stores the object splat aligned with the normalized mesh and records it on the job", async () => {
+    const { h, deps, request } = await setup(withBundle([{ name: "object_00/splat.ply", bytes: providerSplat }]));
+    const out = expectOk(await runReconstruction(deps, request));
+    expect(out.job.state).toBe("succeeded");
+    expect(out.splatAsset).toMatchObject({ kind: "splat", mimeType: "model/ply", origin: "provider" });
+    expect(out.job.output?.splatAssetId).toBe(out.splatAsset!.id);
+    expect(out.splatNote).toBeNull();
+    expect(parseContract(CONTRACTS["reconstruction-job"].schema, out.job).ok).toBe(true);
+    const stored = expectOk(await h.blobs.get(assetStorageKey(h.projectId, out.splatAsset!.id))).bytes;
+    const gaussians = readS1(stored);
+    expect(gaussians).toHaveLength(8);
+    const { min, max } = out.geometry!.localBounds;
+    for (const axis of [0, 1, 2] as const) {
+      const key = (["x", "y", "z"] as const)[axis];
+      expect(Math.min(...gaussians.map((g) => g[key]))).toBeCloseTo(min[axis], 5);
+      expect(Math.max(...gaussians.map((g) => g[key]))).toBeCloseTo(max[axis], 5);
+    }
+  });
+
+  it("returns the stored splat when a succeeded job is resumed, without provider calls", async () => {
+    const { deps, request, fal } = await setup(withBundle([{ name: "object_00/splat.ply", bytes: providerSplat }]));
+    const first = expectOk(await runReconstruction(deps, request));
+    const before = fal.calls.length;
+    const again = expectOk(await resumeReconstruction(deps, { projectId: request.projectId, jobId: first.job.id }));
+    expect(again.splatAsset?.id).toBe(first.splatAsset!.id);
+    expect(fal.calls.length).toBe(before);
+  });
+
+  it("keeps a mesh-only success with a note when the splat is absent or unusable", async () => {
+    const cases: [string, FakeFal][] = [
+      ["no artifacts bundle", new FakeFal()],
+      ["bundle has no object_00/splat.ply", withBundle([{ name: "object_00/mesh.glb", bytes: buildBoxGlb({ size: [1, 1, 1] }) }])],
+      ["is not a PLY file", withBundle([{ name: "object_00/splat.ply", bytes: new TextEncoder().encode("not a ply") }])],
+    ];
+    const unreadable = withBundle([]);
+    unreadable.files["fake://bundle.zip"] = new Uint8Array([1, 2, 3]);
+    cases.push(["unreadable", unreadable]);
+    for (const [note, fal] of cases) {
+      const { deps, request } = await setup(fal);
+      const out = expectOk(await runReconstruction(deps, request));
+      expect(out.job.state, note).toBe("succeeded");
+      expect(out.meshAsset, note).not.toBeNull();
+      expect(out.splatAsset, note).toBeNull();
+      expect(out.job.output?.splatAssetId, note).toBeNull();
+      expect(out.splatNote, note).toContain(note);
+    }
+  });
+
+  it("does not store the camera-posed gaussian_splat when the bundle is missing", async () => {
+    const fal = new FakeFal();
+    fal.files["fake://scene.ply"] = providerSplat;
+    const { deps, request } = await setup(fal);
+    const out = expectOk(await runReconstruction(deps, request));
+    expect(out.splatAsset).toBeNull();
+    expect(fal.count("download:fake://scene.ply")).toBe(0);
   });
 });
