@@ -34,9 +34,9 @@ Cody (2026-11-15 ~07:55) made Claude the primary agent on production after STABL
 
 | ID | Kind | Outcome | Acceptance | State |
 | --- | --- | --- | --- | --- |
-| CP-026 | UI nit | Timeline key diamonds sit on the scrubber track at their frame | Keys at frame 0 and the last frame line up with the thumb at those frames | planned |
-| CP-027 | UI nit | Viewport hints ("no objects", "no visible splat/layers") become a top toast that fades and has a close (x) | No message text sits in the grid; toasts dismiss on x or after a few seconds | planned |
-| CP-028 | UI + API | Click the project name in the editor header to rename it | `PATCH /api/projects/[projectId]` {title}; `ProjectRepository.renameProject` in both backends with a conformance test; owner-only | planned (Cody's request is the approval for this port addition) |
+| CP-026 | UI nit | Timeline key diamonds sit on the scrubber track at their frame | Keys at frame 0 and the last frame line up with the thumb at those frames | ready_for_review (verify passes at ec062b2, 341 tests) |
+| CP-027 | UI nit | Viewport hints ("no objects", "no visible splat/layers") become a top toast that fades and has a close (x) | No message text sits in the grid; toasts dismiss on x or after a few seconds | ready_for_review (verify passes at ec062b2, 341 tests) |
+| CP-028 | UI + API | Click the project name in the editor header to rename it | `PATCH /api/projects/[projectId]` {title}; `ProjectRepository.renameProject` in both backends with a conformance test; owner-only | ready_for_review (verify passes at ec062b2, 341 tests) |
 | CP-029 | Experiment | Splats on ingest: a splat per frame/scene as extra datapoints, viewable apart from meshes; meshes only on request | Design first: provider, cost per call, how splats relate to existing transforms. No paid call without Cody's approval | proposed |
 | CP-030 | Experiment | Whole-scene splat (walls, floor) from the camera's view | Same gate as CP-029; reuse capture frames; disclose estimates | proposed |
 | CP-031 | Experiment | Multi-frame mesh generation (several views of one object; heavier model allowed) | Same gate; compare one result against the single-frame result | proposed |
