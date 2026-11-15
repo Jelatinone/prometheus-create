@@ -518,10 +518,15 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const toolButton = (on: boolean) =>
     `grid size-8 place-items-center rounded-lg disabled:opacity-35 ${on ? "bg-accent/15 text-accent" : "text-ink hover:bg-panel-2 hover:text-accent"}`;
   const sep = <span className="mx-1 h-5 w-px bg-line" aria-hidden />;
+  const loadingOverlay = (
+    <LoadingOverlay
+      show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat" || busy === "Loading splat" || !!busy?.startsWith("Exporting ") || Object.values(splatsLoading).some(Boolean)}
+      className={exportOpen ? "z-50" : ""}
+    />
+  );
 
   return (
     <div className="fixed inset-0 z-30 overflow-hidden bg-stage text-ink">
-      <div className="contents" inert={exportOpen}>
       {/* Viewport fills the screen; chrome floats over it. */}
       <div ref={viewportEl} className="absolute inset-0" />
       {present.scene.objects.length === 0 && (
@@ -825,13 +830,9 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           </button>
         </div>
       )}
-      </div>
-      <LoadingOverlay
-        show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat" || busy === "Loading splat" || !!busy?.startsWith("Exporting ") || Object.values(splatsLoading).some(Boolean)}
-        className={exportOpen ? "z-50" : ""}
-      />
+      {!exportOpen && loadingOverlay}
       {exportOpen && (
-        <ExportDialog takeName={take.name} frame={frame} animated={duration > 0} dirty={dirty} busy={!!busy} error={exportError}
+        <ExportDialog takeName={take.name} frame={frame} animated={duration > 0} dirty={dirty} busy={!!busy} error={exportError} progress={loadingOverlay}
           onClose={() => { if (!exporting.current) setExportOpen(false); }} onExport={(format) => void exportFile(format)} />
       )}
     </div>

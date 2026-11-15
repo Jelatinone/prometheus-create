@@ -1,7 +1,7 @@
 "use client";
 
 import { ArchiveBoxIcon, ArrowDownTrayIcon, CubeIcon, PhotoIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 export type ExportFormat = "png" | "glb" | "zip";
 
@@ -12,6 +12,7 @@ interface Props {
   dirty: boolean;
   busy: boolean;
   error: string | null;
+  progress: ReactNode;
   onClose(): void;
   onExport(format: ExportFormat): void;
 }
@@ -23,13 +24,15 @@ const formats = [
 ] as const;
 
 /** Local dialog chrome; export work is covered by the editor's shared overlay. */
-export function ExportDialog({ takeName, frame, animated, dirty, busy, error, onClose, onExport }: Props) {
+export function ExportDialog({ takeName, frame, animated, dirty, busy, error, progress, onClose, onExport }: Props) {
   const [format, setFormat] = useState<ExportFormat>("png");
-  const panel = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    return () => previous?.focus();
+    const dialog = panel.current;
+    dialog?.showModal(); // Native modality also isolates global account controls.
+    return () => { dialog?.close(); previous?.focus(); };
   }, []);
 
   useEffect(() => {
@@ -40,11 +43,7 @@ export function ExportDialog({ takeName, frame, animated, dirty, busy, error, on
   }, [busy]);
 
   return (
-    <div
-      className="absolute inset-0 z-40 grid place-items-center bg-ink/25 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
-    >
-      <div
+      <dialog
         ref={panel}
         role="dialog"
         aria-modal="true"
@@ -52,7 +51,13 @@ export function ExportDialog({ takeName, frame, animated, dirty, busy, error, on
         aria-describedby="export-description"
         aria-busy={busy}
         tabIndex={-1}
-        className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-xl border border-line bg-panel p-5 text-ink shadow-xl"
+        className="fixed inset-0 m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border border-line bg-panel p-5 text-ink shadow-xl backdrop:bg-ink/25"
+        onCancel={(e) => { e.preventDefault(); if (!busy) onClose(); }}
+        onClick={(e) => {
+          if (e.target !== e.currentTarget || busy) return;
+          const rect = e.currentTarget.getBoundingClientRect();
+          if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) onClose();
+        }}
         onKeyDown={(e) => {
           e.stopPropagation(); // Modal keystrokes must never edit or play the take.
           if (busy) { e.preventDefault(); return; }
@@ -97,7 +102,7 @@ export function ExportDialog({ takeName, frame, animated, dirty, busy, error, on
             <ArrowDownTrayIcon className="size-4" />Download
           </button>
         </div>
-      </div>
-    </div>
+        {progress}
+      </dialog>
   );
 }
