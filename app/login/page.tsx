@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { LoadingOverlay } from "@/components/ui/Loading";
+import { FlipTiles } from "@/components/ui/FlipTiles";
 import { Logo } from "@/components/ui/Logo";
 import { LoginForm } from "./login-form";
 
@@ -8,8 +9,9 @@ export const metadata: Metadata = { title: "Sign in" };
 
 export default function LoginPage() {
   return (
-    <main className="grid min-h-dvh place-items-center px-5 py-12">
-      <div className="w-full max-w-sm">
+    <main className="relative isolate grid min-h-dvh place-items-center overflow-hidden px-5 py-12">
+      <FlipTiles />
+      <div className="w-full max-w-sm animate-pop">
         {/* Optically centred: shift left by half the mark plus gap so the wordmark sits on the centre line. */}
         <div className="mb-8 flex justify-center">
           <span className="-translate-x-[22px]">

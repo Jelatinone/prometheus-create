@@ -68,6 +68,7 @@ import { PlatformBlobStore } from "@/lib/platform/blob-store";
 import { HttpBackend } from "@/lib/platform/http-backend";
 import { EditorViewport, type Navigation, type Tool } from "@/lib/scene/viewport";
 import { LoadingOverlay, LoadingScreen, Spinner } from "@/components/ui/Loading";
+import { Presence } from "@/components/ui/Presence";
 import { CapturePanel } from "@/components/capture/CapturePanel";
 import { Inspector } from "./Inspector";
 import { ALL_LAYERS, checkSplatPly, drawsSplat, type LayerView } from "@/lib/scene/splat";
@@ -736,8 +737,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         ))}
       </div>
 
-      {captureOpen && (
-        <aside className={`absolute top-17 bottom-20 left-16 z-10 w-[26rem] max-w-[calc(100%-5rem)] overflow-auto p-3 max-sm:bottom-[calc(36vh+7.5rem)] ${chrome}`}>
+      <Presence show={captureOpen} enter="animate-slide-left" role="complementary" aria-label="Capture drawer" className={`absolute top-17 bottom-20 left-16 z-10 w-[26rem] max-w-[calc(100%-5rem)] overflow-auto p-3 max-sm:bottom-[calc(36vh+7.5rem)] ${chrome}`}>
           <div className="mb-2 flex items-center justify-between">
             <h2 className="font-serif font-semibold">Capture</h2>
             <button className={icon} onClick={() => setCaptureOpen(false)} aria-label="Close capture">
@@ -745,11 +745,10 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             </button>
           </div>
           <CapturePanel ingestor={ingestor} onEntry={(entry) => { if (entry.ok) setCaptureCount((n) => n + 1); }} />
-        </aside>
-      )}
+      </Presence>
 
       {/* Details for the current mode */}
-      <div id="mode-details" role="tabpanel" aria-labelledby={`mode-${pane}`} className="absolute top-17 right-3 bottom-20 w-80 max-sm:top-auto max-sm:bottom-28 max-sm:left-3 max-sm:h-[36vh] max-sm:w-auto">
+      <div key={pane} id="mode-details" role="tabpanel" aria-labelledby={`mode-${pane}`} className="absolute top-17 right-3 bottom-20 w-80 animate-fade max-sm:top-auto max-sm:bottom-28 max-sm:left-3 max-sm:h-[36vh] max-sm:w-auto">
         {pane === "camera" && (
           <div className={`h-full overflow-auto ${chrome}`}>
             <CameraPane manifest={present} camera={activeCamera} frame={frame} captures={captures ?? []}
@@ -802,8 +801,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       </div>
 
       {/* Playback pop-up: play, seek and keys (opened from the bottom toolbar) */}
-      {playbackOpen && (
-        <div id="playback" className="absolute bottom-17 left-1/2 w-[min(46rem,calc(100vw-1.5rem))] -translate-x-1/2 max-sm:bottom-28">
+      <Presence show={playbackOpen} id="playback" className="absolute bottom-17 left-1/2 w-[min(46rem,calc(100vw-1.5rem))] -translate-x-1/2 max-sm:bottom-28">
           <Timeline
             rate={present.take.frameRate}
             durationFrames={duration}
@@ -818,8 +816,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             onAnimate={() => apply((h) => commit(h, setDuration(h.present, defaultDurationFrames(h.present.take.frameRate))))}
             onToggleKey={toggleKey}
           />
-        </div>
-      )}
+      </Presence>
 
       {/* Bottom toolbar: actions for the current mode, then playback, then view controls (always there) */}
       <div className={`absolute bottom-3 left-1/2 flex h-12 max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-0.5 px-1.5 max-sm:h-auto max-sm:w-[calc(100vw-1.5rem)] max-sm:flex-wrap max-sm:justify-center max-sm:py-1 ${chrome}`} role="toolbar" aria-label="Actions and view">
@@ -964,7 +961,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       {notice && (
         <div
           role={notice.tone === "bad" ? "alert" : "status"}
-          className={`absolute ${playbackOpen ? "bottom-32" : "bottom-17"} left-1/2 z-40 flex max-w-2xl -translate-x-1/2 items-start gap-3 rounded-xl border bg-panel px-3 py-2 text-sm shadow ${
+          className={`absolute ${playbackOpen ? "bottom-32" : "bottom-17"} left-1/2 z-40 flex max-w-2xl -translate-x-1/2 animate-pop items-start gap-3 rounded-xl border bg-panel px-3 py-2 text-sm shadow ${
             notice.tone === "bad" ? "border-bad text-bad" : notice.tone === "ok" ? "border-ok text-ok" : "border-line text-ink"
           }`}
         >

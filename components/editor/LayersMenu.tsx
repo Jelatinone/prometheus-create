@@ -2,6 +2,7 @@
 
 import { CheckIcon, CubeIcon, SparklesIcon, Square3Stack3DIcon } from "@heroicons/react/24/outline";
 import { useEffect, useRef, useState } from "react";
+import { Presence } from "@/components/ui/Presence";
 import type { LayerView } from "@/lib/scene/splat";
 
 interface Props {
@@ -58,8 +59,7 @@ export function LayersMenu({ layers, onChange, buttonClass, panelClass, above = 
       >
         <Square3Stack3DIcon className="size-5" />
       </button>
-      {open && (
-        <div role="menu" aria-label="Layers" className={`absolute z-20 w-36 p-1 ${above ? "bottom-11 left-1/2 -translate-x-1/2" : "top-10 right-0"} ${panelClass}`}>
+      <Presence show={open} role="menu" aria-label="Layers" className={`absolute z-20 w-36 p-1 ${above ? "bottom-11 left-1/2 -translate-x-1/2" : "top-10 right-0"} ${panelClass}`}>
           {ROWS.map(({ id, label, Icon }) => (
             <button
               key={id}
@@ -73,8 +73,7 @@ export function LayersMenu({ layers, onChange, buttonClass, panelClass, above = 
               {layers[id] && <CheckIcon className="size-4 text-accent" />}
             </button>
           ))}
-        </div>
-      )}
+      </Presence>
     </div>
   );
 }
