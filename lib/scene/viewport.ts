@@ -33,7 +33,8 @@ import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { Quat, Transform, Vec3 } from "@/lib/contracts/common";
 import type { TakeManifest } from "@/lib/contracts/revision";
-import type { Camera as SceneCamera } from "@/lib/contracts/scene";
+import type { Camera as SceneCamera, SceneObject } from "@/lib/contracts/scene";
+import { checkSplatPly, wantsSplat } from "./splat";
 
 export type Tool = "select" | "move" | "rotate" | "scale";
 /** What a left-drag (one-finger drag) does: orbit around the target, or pan the view. Right-drag always pans. */
@@ -47,7 +48,26 @@ export interface ViewportCallbacks {
   loadAsset(assetId: string): Promise<Uint8Array>;
   /** Asset failed to load or parse; the object is shown as missing. */
   onAssetError?(assetId: string, message: string): void;
+  /** The object's splat could not be shown; the viewport keeps drawing its mesh. */
+  onSplatFallback?(objectId: string, reason: string): void;
 }
+
+type SplatStatus = "none" | "loading" | "ready" | "failed";
+
+interface ObjectEntry {
+  group: Group;
+  /** Mesh layer (the GLB) and splat layer share the group's transform: one object, two looks. */
+  meshLayer: Group;
+  splatLayer: Group;
+  assetId: string | null;
+  splatAssetId: string | null;
+  splatStatus: SplatStatus;
+  wantsSplat: boolean;
+}
+
+/** Spark is browser-only and large; load it the first time a splat is needed. */
+let sparkModule: Promise<typeof import("@sparkjsdev/spark")> | null = null;
+const loadSpark = () => (sparkModule ??= import("@sparkjsdev/spark"));
 
 const CANVAS = new Color("#cbc8c1"); // --color-stage
 const SELECT = 0xff6842;
@@ -59,7 +79,8 @@ export class EditorViewport {
   private readonly orbit: OrbitControls;
   private readonly gizmo: TransformControls;
   private readonly helpers = new Group();
-  private readonly objects = new Map<string, { group: Group; assetId: string | null }>();
+  private readonly objects = new Map<string, ObjectEntry>();
+  private sparkAdded = false;
   private readonly assets = new Map<string, Promise<Object3D | null>>();
   private readonly loader = new GLTFLoader();
   private readonly resize: ResizeObserver;
@@ -133,29 +154,37 @@ export class EditorViewport {
         const group = new Group();
         group.name = object.name;
         group.userData.objectId = object.id;
+        const meshLayer = new Group();
+        meshLayer.name = "mesh";
+        const splatLayer = new Group();
+        splatLayer.name = "splat";
+        splatLayer.visible = false;
+        group.add(meshLayer, splatLayer);
         this.scene.add(group);
-        entry = { group, assetId: null };
+        entry = { group, meshLayer, splatLayer, assetId: null, splatAssetId: null, splatStatus: "none", wantsSplat: false };
         this.objects.set(object.id, entry);
       }
-      const { group } = entry;
+      const { group, meshLayer } = entry;
       group.name = object.name;
       group.visible = object.visible;
       applyTransform(group, object.transform);
       if (entry.assetId !== object.geometry.assetId) {
         entry.assetId = object.geometry.assetId;
         const assetId = object.geometry.assetId;
-        group.clear();
+        meshLayer.clear();
         loading.push(
           this.asset(assetId).then((model) => {
             if (this.disposed || this.objects.get(object.id)?.assetId !== assetId) return;
-            if (model) group.add(model.clone(true));
+            if (model) meshLayer.add(model.clone(true));
           }),
         );
       }
+      loading.push(this.syncSplat(object, entry));
     }
     for (const [id, entry] of this.objects)
       if (!seen.has(id)) {
         this.scene.remove(entry.group);
+        disposeSplats(entry.splatLayer);
         this.objects.delete(id);
       }
     this.select(this.selected && seen.has(this.selected) ? this.selected : null);
@@ -235,7 +264,13 @@ export class EditorViewport {
   async toGlb(): Promise<Uint8Array> {
     const root = new Scene();
     root.name = "Prometheus::create take";
-    for (const { group } of this.objects.values()) if (group.visible) root.add(group.clone(true));
+    for (const { group } of this.objects.values()) {
+      if (!group.visible) continue;
+      const copy = group.clone(false);
+      const mesh = group.getObjectByName("mesh");
+      if (mesh) copy.add(mesh.clone(true)); // splats are an appearance layer; GLB carries the mesh
+      root.add(copy);
+    }
     const out = await new GLTFExporter().parseAsync(root, { binary: true, onlyVisible: true, trs: true });
     if (!(out instanceof ArrayBuffer)) throw new Error("GLB export did not produce binary output");
     return new Uint8Array(out);
@@ -252,6 +287,57 @@ export class EditorViewport {
     this.renderer.domElement.removeEventListener("pointerup", this.onPointerUp);
     this.renderer.dispose();
     this.renderer.domElement.remove();
+  }
+
+  /** Which layer this object should draw, loading its splat when first needed. */
+  private async syncSplat(object: SceneObject, entry: ObjectEntry): Promise<void> {
+    entry.wantsSplat = wantsSplat(object);
+    const assetId = object.splat?.assetId ?? null;
+    if (entry.wantsSplat && assetId && assetId !== entry.splatAssetId) {
+      entry.splatAssetId = assetId;
+      entry.splatStatus = "loading";
+      disposeSplats(entry.splatLayer);
+      this.applyLayers(entry);
+      try {
+        const bytes = await this.cb.loadAsset(assetId);
+        const check = checkSplatPly(bytes);
+        if (!check.ok) throw new Error(check.reason);
+        const { SparkRenderer, SplatMesh } = await loadSpark();
+        if (this.disposed || entry.splatAssetId !== assetId) return;
+        if (!this.sparkAdded) {
+          this.scene.add(new SparkRenderer({ renderer: this.renderer }));
+          this.sparkAdded = true;
+        }
+        const splats = new SplatMesh({ fileBytes: bytes.slice().buffer, fileName: `${assetId}.ply` });
+        await splats.initialized;
+        if (this.disposed || entry.splatAssetId !== assetId) return splats.dispose();
+        entry.splatLayer.add(splats);
+        entry.splatStatus = "ready";
+      } catch (e) {
+        if (entry.splatAssetId !== assetId) return;
+        entry.splatStatus = "failed";
+        this.cb.onSplatFallback?.(object.id, e instanceof Error ? e.message : String(e));
+      }
+    } else if (!assetId && entry.splatAssetId) {
+      entry.splatAssetId = null;
+      entry.splatStatus = "none";
+      disposeSplats(entry.splatLayer);
+    }
+    this.applyLayers(entry);
+  }
+
+  /** Splat only when wanted and loaded; otherwise the mesh (the fallback). */
+  private applyLayers(entry: ObjectEntry) {
+    const splat = entry.wantsSplat && entry.splatStatus === "ready";
+    entry.splatLayer.visible = splat;
+    entry.meshLayer.visible = !splat;
+  }
+
+  /** What each object is currently drawing (for the inspector and tests). */
+  layerOf(objectId: string): { showing: "mesh" | "splat"; splat: SplatStatus } | null {
+    const entry = this.objects.get(objectId);
+    if (!entry) return null;
+    return { showing: entry.splatLayer.visible ? "splat" : "mesh", splat: entry.splatStatus };
   }
 
   private asset(assetId: string): Promise<Object3D | null> {
@@ -314,6 +400,13 @@ export class EditorViewport {
     this.select(id);
     this.cb.onSelect(id);
   };
+}
+
+function disposeSplats(layer: Group) {
+  for (const child of [...layer.children]) {
+    (child as Object3D & { dispose?: () => void }).dispose?.();
+    layer.remove(child);
+  }
 }
 
 function applyTransform(target: Object3D, t: Transform) {

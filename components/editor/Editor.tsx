@@ -51,7 +51,9 @@ import {
   renameObject,
   sameManifest,
   setObjectTransform,
+  attachSplat,
   setObjectVisible,
+  setSplatEnabled,
   startHistory,
   undo,
   type History,
@@ -63,6 +65,7 @@ import { EditorViewport, type Navigation, type Tool } from "@/lib/scene/viewport
 import { LoadingOverlay, LoadingScreen, Spinner } from "@/components/ui/Loading";
 import { CapturePanel } from "@/components/capture/CapturePanel";
 import { Inspector } from "./Inspector";
+import { checkSplatPly } from "@/lib/scene/splat";
 import { ReconstructPanel } from "./ReconstructPanel";
 import { reconstructedObject } from "@/lib/editor/reconstruction";
 
@@ -123,6 +126,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const [captureOpen, setCaptureOpen] = useState(false);
   const [reconstructOpen, setReconstructOpen] = useState(false);
   const [grid, setGrid] = useState(true);
+  const [splatFallbacks, setSplatFallbacks] = useState<Record<string, string | null>>({});
 
   const viewportEl = useRef<HTMLDivElement>(null);
   const viewport = useRef<EditorViewport | null>(null);
@@ -191,6 +195,10 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         return r.value.bytes;
       },
       onAssetError: (assetId, message) => setNotice({ tone: "bad", text: `Asset ${assetId} could not be shown: ${message}` }),
+      onSplatFallback: (objectId, reason) => {
+        setSplatFallbacks((m) => ({ ...m, [objectId]: reason }));
+        setNotice({ tone: "bad", text: `Splat unavailable, showing the mesh instead: ${reason}` });
+      },
     });
     viewport.current = vp;
     if (historyRef.current) void vp.sync(historyRef.current.present).then(() => onReadyRef.current?.());
@@ -255,6 +263,22 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       await open(takeId);
     },
     [dirty, open],
+  );
+
+  const attachSplatFile = useCallback(
+    async (objectId: string, file: File) => {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const check = checkSplatPly(bytes);
+      if (!check.ok) return setNotice({ tone: "bad", text: `${file.name} is not a usable splat (${check.reason}); the mesh stays.` });
+      setBusy("Uploading splat");
+      const asset = await storeProjectAsset(assetDeps, projectId, bytes, { kind: "splat", mimeType: "application/octet-stream", origin: "upload" });
+      setBusy(null);
+      if (!asset.ok) return setNotice({ tone: "bad", text: `Splat upload failed: ${asset.error.code} ${asset.error.message}` });
+      setSplatFallbacks((m) => ({ ...m, [objectId]: null }));
+      apply((h) => commit(h, attachSplat(h.present, objectId, asset.value.id)));
+      setNotice({ tone: "ok", text: `Attached ${file.name} (${check.info.vertexCount.toLocaleString()} splats). Save to keep it.` });
+    },
+    [assetDeps, projectId, apply],
   );
 
   const importGlb = useCallback(
@@ -391,7 +415,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     <div className="fixed inset-0 z-30 overflow-hidden bg-stage text-ink">
       {/* Viewport fills the screen; chrome floats over it. */}
       <div ref={viewportEl} className="absolute inset-0" />
-      <LoadingOverlay show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh"} />
+      <LoadingOverlay show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat"} />
       {present.scene.objects.length === 0 && (
         <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-muted">
           This take has no objects yet. Import a GLB, or capture a photo for reference.
@@ -536,6 +560,9 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           onTransform={(id, t) => apply((h) => commit(h, setObjectTransform(h.present, id, cleanTransform(t))))}
           onRename={(id, name) => apply((h) => commit(h, renameObject(h.present, id, name)))}
           onVisible={(id, v) => apply((h) => commit(h, setObjectVisible(h.present, id, v)))}
+          onSplatLayer={(id, on) => apply((h) => commit(h, setSplatEnabled(h.present, id, on)))}
+          onAttachSplat={(id, file) => void attachSplatFile(id, file)}
+          splatFallback={selectedObject ? (splatFallbacks[selectedObject.id] ?? null) : null}
         />
       </div>
 
