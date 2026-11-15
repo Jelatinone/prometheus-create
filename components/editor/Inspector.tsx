@@ -23,8 +23,12 @@ interface Props {
   /** Persisted per-object layer: true draws the splat (when it loads), false the mesh. */
   onSplatLayer(id: string, splat: boolean): void;
   onAttachSplat(id: string, file: File): void;
+  /** Generated objects: fetch the splat stored with their generation job (no new provider job). */
+  onLoadGeneratedSplat?(id: string): void;
   /** Why the selected object's splat is not drawn (load/parse failure), if it is not. */
   splatFallback: string | null;
+  /** Keyframe: this object is animated, so transform edits set a key at the playhead. */
+  scope?: "scene" | "keyframe";
 }
 
 const fmt = (n: number, digits = 3) => (Number.isFinite(n) ? n.toFixed(digits) : "–");
@@ -98,7 +102,7 @@ function NameField({ initial, onCommit }: { initial: string; onCommit(name: stri
   );
 }
 
-export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible, onSplatLayer, onAttachSplat, splatFallback }: Props) {
+export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible, onSplatLayer, onAttachSplat, onLoadGeneratedSplat, splatFallback, scope = "scene" }: Props) {
 
   const empty = manifest.scene.objects.length === 0;
   return (
@@ -140,8 +144,11 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
         <div className="space-y-3 p-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Inspector</h2>
-            <span className="rounded bg-panel-2 px-1.5 py-0.5 text-[10px] font-semibold" title="Edits change this take's saved scene, not a keyframe">
-              Scope: Scene
+            <span
+              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${scope === "keyframe" ? "bg-accent/15 text-accent" : "bg-panel-2"}`}
+              title={scope === "keyframe" ? "Animated: edits set a key at the playhead" : "Edits change this take's scene, not a keyframe"}
+            >
+              Scope: {scope === "keyframe" ? "Keyframe" : "Scene"}
             </span>
           </div>
           <NameField key={`${selected.id}:${selected.name}`} initial={selected.name} onCommit={(n) => onRename(selected.id, n)} />
@@ -174,7 +181,7 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
             </div>
           </div>
 
-          <LayerSection object={selected} fallback={splatFallback} onSplatLayer={onSplatLayer} onAttachSplat={onAttachSplat} />
+          <LayerSection object={selected} fallback={splatFallback} onSplatLayer={onSplatLayer} onAttachSplat={onAttachSplat} onLoadGeneratedSplat={onLoadGeneratedSplat} />
 
           <div className="rounded border border-line bg-canvas p-2 text-xs">
             <div className="font-semibold">Geometry</div>
@@ -211,11 +218,13 @@ function LayerSection({
   fallback,
   onSplatLayer,
   onAttachSplat,
+  onLoadGeneratedSplat,
 }: {
   object: SceneObject;
   fallback: string | null;
   onSplatLayer(id: string, splat: boolean): void;
   onAttachSplat(id: string, file: File): void;
+  onLoadGeneratedSplat?(id: string): void;
 }) {
   const state = splatState(object);
   const on = state === "available" && !!object.splat?.enabled;
@@ -241,7 +250,19 @@ function LayerSection({
         </label>
       </div>
       {state === "none" ? (
-        <p className="text-[11px] text-muted">Mesh only: no splat attached.</p>
+        <>
+          <p className="text-[11px] text-muted">Mesh only: no splat attached.</p>
+          {object.provenance.jobId && onLoadGeneratedSplat && (
+            <button
+              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line px-2 py-1 text-xs hover:text-accent"
+              onClick={() => onLoadGeneratedSplat(object.id)}
+              title="Fetch the Gaussian splat stored with this object's generation job (no new provider job)"
+            >
+              <SparklesIcon className="size-4" />
+              Load generated splat
+            </button>
+          )}
+        </>
       ) : (
         <>
           <div className="flex gap-1 rounded-lg border border-line bg-canvas p-0.5" role="group" aria-label="Layer">

@@ -68,7 +68,11 @@ import { CapturePanel } from "@/components/capture/CapturePanel";
 import { Inspector } from "./Inspector";
 import { checkSplatPly } from "@/lib/scene/splat";
 import { ReconstructPanel } from "./ReconstructPanel";
-import { reconstructedObject } from "@/lib/editor/reconstruction";
+import { providerSplatFor, reconstructedObject } from "@/lib/editor/reconstruction";
+import { runJob } from "@/lib/editor/batch";
+import { defaultDurationFrames, evaluateAt, framesPerSecond, keyFrames, keyTrackOf, removeKey, setDuration, setKey, sourceAt } from "@/lib/editor/timeline";
+import { SourcePane } from "./SourcePane";
+import { Timeline } from "./Timeline";
 
 interface Props {
   projectId: string;
@@ -125,7 +129,11 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
-  const [reconstructOpen, setReconstructOpen] = useState(false);
+  const [pane, setPane] = useState<"objects" | "generate" | "source">("objects");
+  const [playhead, setPlayhead] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const playheadRef = useRef(0);
+  const editTransformRef = useRef<(objectId: string, t: Transform) => void>(() => {});
   const [grid, setGrid] = useState(true);
   const [splatFallbacks, setSplatFallbacks] = useState<Record<string, string | null>>({});
   const [splatsLoading, setSplatsLoading] = useState<Record<string, boolean>>({});
@@ -189,8 +197,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     if (!el || !loaded) return;
     const vp = new EditorViewport(el, {
       onSelect: setSelected,
-      onTransformEnd: (objectId: string, t: Transform) =>
-        apply((h) => commit(h, setObjectTransform(h.present, objectId, cleanTransform(t)))),
+      onTransformEnd: (objectId: string, t: Transform) => editTransformRef.current(objectId, t),
       loadAsset: async (assetId) => {
         const r = await loadProjectAsset(assetDeps, projectId, assetId);
         if (!r.ok) throw new Error(`${r.error.code}: ${r.error.message}`);
@@ -213,9 +220,53 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!loaded, apply, assetDeps, projectId]);
 
+  // What the viewport (and PNG export) shows: the take evaluated at the playhead.
+  const duration = present?.take.durationFrames ?? 0;
+  const frame = duration > 0 ? Math.min(playhead, duration - 1) : 0;
+  const evaluated = useMemo(() => (present ? evaluateAt(present, frame) : null), [present, frame]);
   useEffect(() => {
-    if (present) viewport.current?.sync(present);
-  }, [present]);
+    playheadRef.current = frame;
+  }, [frame]);
+  useEffect(() => {
+    if (evaluated) viewport.current?.sync(evaluated);
+  }, [evaluated]);
+
+  /** Animated objects change only through keys: an edit sets a key at the playhead. Others edit the scene. */
+  const editTransform = useCallback(
+    (objectId: string, t: Transform) =>
+      apply((h) =>
+        commit(h, keyTrackOf(h.present, objectId) ? setKey(h.present, objectId, playheadRef.current, cleanTransform(t)) : setObjectTransform(h.present, objectId, cleanTransform(t))),
+      ),
+    [apply],
+  );
+  useEffect(() => {
+    editTransformRef.current = editTransform;
+  }, [editTransform]);
+
+  /** K / key button: remove the key at the playhead, or set one from the pose on screen. */
+  const toggleKey = useCallback(() => {
+    if (!selected || !evaluated || duration <= 0) return;
+    const pose = findObject(evaluated, selected)?.transform;
+    if (!pose) return;
+    apply((h) => commit(h, keyFrames(h.present, selected).includes(frame) ? removeKey(h.present, selected, frame) : setKey(h.present, selected, frame, pose)));
+  }, [selected, evaluated, duration, frame, apply]);
+
+  // Playback: advance the playhead at the take's frame rate, looping; purely local (no provider or asset calls).
+  useEffect(() => {
+    if (!playing || duration <= 0 || !present) return;
+    const fps = framesPerSecond(present.take.frameRate);
+    const start = performance.now();
+    const from = playheadRef.current;
+    let raf = 0;
+    const tick = (now: number) => {
+      setPlayhead((from + Math.floor(((now - start) / 1000) * fps)) % duration);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // The take's rate and length are fixed while playing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, duration]);
   useEffect(() => viewport.current?.select(selected), [selected]);
   useEffect(() => viewport.current?.setTool(tool), [tool]);
   useEffect(() => viewport.current?.setGridVisible(grid), [grid]);
@@ -266,6 +317,32 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       await open(takeId);
     },
     [dirty, open],
+  );
+
+  /** CP-014: the splat stored with a generated object's job, via attach_splat (resume only; never a provider submit). */
+  const loadGeneratedSplat = useCallback(
+    async (objectId: string) => {
+      const object = historyRef.current ? findObject(historyRef.current.present, objectId) : null;
+      const jobId = object?.provenance.jobId;
+      const sourceId = object?.provenance.sourceIds[0];
+      const observationId = object?.provenance.observationIds[0];
+      if (!object || !jobId || !sourceId || !observationId) return setNotice({ tone: "bad", text: "This object has no generation job to take a splat from." });
+      setBusy("Loading splat");
+      const r = await runJob(
+        (command) => api.request(actor, "POST", "/api/reconstruction", command),
+        { projectId, sourceId, observationId, jobId, action: "attach_splat" },
+        { jobId, stage: "pending" },
+        { onUpdate: () => {} },
+      );
+      setBusy(null);
+      if (r.job.stage !== "done" || !r.outcome) return setNotice({ tone: "bad", text: `Could not load the splat: ${r.job.error ?? "the splat job did not finish"}` });
+      const splat = providerSplatFor(object, r.outcome as Parameters<typeof providerSplatFor>[1]);
+      if (!splat.ok) return setNotice({ tone: "bad", text: `${splat.error.message}.` });
+      setSplatFallbacks((m) => ({ ...m, [objectId]: null }));
+      apply((h) => commit(h, attachSplat(h.present, objectId, splat.value.assetId)));
+      setNotice({ tone: "ok", text: "Generated splat attached and shown. Save to keep it." });
+    },
+    [api, actor, projectId, apply],
   );
 
   const attachSplatFile = useCallback(
@@ -325,15 +402,18 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   );
 
   const exportPng = useCallback(async () => {
-    if (!viewport.current || !present) return;
+    if (!viewport.current || !present || !evaluated) return;
+    setPlaying(false);
     viewport.current.select(null);
     try {
-      download(await viewport.current.toPng(), `${slug(present.take.name)}.png`);
+      await viewport.current.sync(evaluated); // the scene at the current playhead, exactly as shown
+      const at = present.take.durationFrames > 0 ? `-f${playheadRef.current}` : "";
+      download(await viewport.current.toPng(), `${slug(present.take.name)}${at}.png`);
     } catch (e) {
       setNotice({ tone: "bad", text: `PNG export failed: ${(e as Error).message}` });
     }
     viewport.current.select(selected);
-  }, [present, selected]);
+  }, [present, evaluated, selected]);
 
   const exportGlb = useCallback(async () => {
     if (!viewport.current || !present) return;
@@ -371,6 +451,11 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         if (found) setTool(found.id);
         else if (k === "f") viewport.current?.frame();
         else if (k === "h") setNav((n) => (n === "pan" ? "orbit" : "pan"));
+        else if (k === " " && duration > 0) {
+          e.preventDefault();
+          setPlaying((p) => !p);
+        } else if (k === "home") setPlayhead(0);
+        else if (k === "k" && selected) toggleKey();
         else if ((k === "delete" || k === "backspace") && selected) {
           apply((h) => commit(h, removeObject(h.present, selected)));
           setSelected(null);
@@ -379,7 +464,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [apply, save, selected]);
+  }, [apply, save, selected, duration, toggleKey]);
 
   // Warn before leaving with unsaved edits.
   useEffect(() => {
@@ -403,6 +488,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
 
   const take = present.take;
   const selectedObject = findObject(present, selected);
+  const shownObject = evaluated ? findObject(evaluated, selected) : selectedObject;
   const activeCamera = present.scene.cameras.find((c) => c.id === take.activeCameraId) ?? null;
   const parentName = take.parent ? (loaded.takes.find((t) => t.takeId === take.parent!.takeId)?.name ?? "another take") : null;
   const chrome = "rounded-xl border border-line bg-panel shadow-sm";
@@ -419,7 +505,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       {/* Viewport fills the screen; chrome floats over it. */}
       <div ref={viewportEl} className="absolute inset-0" />
       <LoadingOverlay
-        show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat" || Object.values(splatsLoading).some(Boolean)}
+        show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat" || busy === "Loading splat" || Object.values(splatsLoading).some(Boolean)}
       />
       {present.scene.objects.length === 0 && (
         <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-muted">
@@ -507,14 +593,14 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         </label>
         <button
           className={toolButton(captureOpen)}
-          onClick={() => { setCaptureOpen((v) => !v); setReconstructOpen(false); }}
+          onClick={() => setCaptureOpen((v) => !v)}
           aria-pressed={captureOpen}
           title="Capture (upload, camera, video)"
           aria-label="Capture"
         >
           <CameraIcon className="size-5" />
         </button>
-        <button className={labelled} onClick={() => { setReconstructOpen(v => !v); setCaptureOpen(false); }} aria-pressed={reconstructOpen}>
+        <button className={labelled} onClick={() => setPane((p) => (p === "generate" ? "objects" : "generate"))} aria-pressed={pane === "generate"}>
           <SparklesIcon className="size-5" />Generate
         </button>
         {sep}
@@ -529,7 +615,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       </div>
 
       {captureOpen && (
-        <aside className={`absolute top-17 bottom-20 left-3 z-10 w-[26rem] max-w-[calc(100%-1.5rem)] overflow-auto p-3 ${chrome}`}>
+        <aside className={`absolute top-17 bottom-32 left-3 z-10 w-[26rem] max-w-[calc(100%-1.5rem)] overflow-auto p-3 ${chrome}`}>
           <div className="mb-2 flex items-center justify-between">
             <h2 className="font-serif font-semibold">Capture</h2>
             <button className={icon} onClick={() => setCaptureOpen(false)} aria-label="Close capture">
@@ -543,9 +629,48 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         </aside>
       )}
 
-      {reconstructOpen && <aside className={`absolute top-17 bottom-20 left-3 z-10 w-[26rem] max-w-[calc(100%-1.5rem)] overflow-auto p-3 ${chrome}`}>
-        <div className="mb-3 flex items-center justify-between"><h2 className="font-serif font-semibold">Generate</h2><button className={icon} onClick={() => setReconstructOpen(false)} aria-label="Close generate"><XMarkIcon className="size-5" /></button></div>
-        <ReconstructPanel api={api} actor={actor} projectId={projectId} takeId={take.id} onApply={(requestedTake, name, observation, outcome, placement) => {
+
+      {/* Right pane: context-aware tabs */}
+      <div className="absolute top-17 right-3 bottom-32 flex w-80 flex-col gap-1.5">
+        <div className={`flex shrink-0 gap-0.5 p-1 ${chrome}`} role="tablist" aria-label="Right pane">
+          {(
+            [
+              ["objects", "Objects", CubeIcon],
+              ["generate", "Generate", SparklesIcon],
+              ["source", "Source", PhotoIcon],
+            ] as const
+          ).map(([id, label, TabIcon]) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={pane === id}
+              onClick={() => setPane(id)}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-sm ${pane === id ? "bg-accent/15 text-accent" : "hover:bg-panel-2 hover:text-accent"}`}
+            >
+              <TabIcon className="size-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="min-h-0 flex-1" role="tabpanel">
+          {pane === "objects" && (
+            <Inspector
+          manifest={evaluated ?? present}
+          selected={shownObject}
+          onSelect={setSelected}
+          onTransform={editTransform}
+          scope={selected && keyTrackOf(present, selected) ? "keyframe" : "scene"}
+          onRename={(id, name) => apply((h) => commit(h, renameObject(h.present, id, name)))}
+          onVisible={(id, v) => apply((h) => commit(h, setObjectVisible(h.present, id, v)))}
+          onSplatLayer={(id, on) => apply((h) => commit(h, setSplatEnabled(h.present, id, on)))}
+          onAttachSplat={(id, file) => void attachSplatFile(id, file)}
+          onLoadGeneratedSplat={(id) => void loadGeneratedSplat(id)}
+          splatFallback={selectedObject ? (splatFallbacks[selectedObject.id] ?? null) : null}
+        />
+          )}
+          {pane === "generate" && (
+            <div className={`h-full overflow-auto p-3 ${chrome}`}>
+              <ReconstructPanel api={api} actor={actor} projectId={projectId} takeId={take.id} onApply={(requestedTake, name, observation, outcome, placement) => {
           const current = historyRef.current;
           if (!current) return false;
           const r = reconstructedObject(current.present, requestedTake, name, observation, outcome, placement);
@@ -554,25 +679,34 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           setNotice({ tone: "ok", text: "Estimated mesh added. Save to keep it; dimensions are not calibrated." });
           return true;
         }} />
-      </aside>}
-
-      {/* Inspector */}
-      <div className="absolute top-17 right-3 bottom-20 w-72">
-        <Inspector
-          manifest={present}
-          selected={selectedObject}
-          onSelect={setSelected}
-          onTransform={(id, t) => apply((h) => commit(h, setObjectTransform(h.present, id, cleanTransform(t))))}
-          onRename={(id, name) => apply((h) => commit(h, renameObject(h.present, id, name)))}
-          onVisible={(id, v) => apply((h) => commit(h, setObjectVisible(h.present, id, v)))}
-          onSplatLayer={(id, on) => apply((h) => commit(h, setSplatEnabled(h.present, id, on)))}
-          onAttachSplat={(id, file) => void attachSplatFile(id, file)}
-          splatFallback={selectedObject ? (splatFallbacks[selectedObject.id] ?? null) : null}
-        />
+            </div>
+          )}
+          {pane === "source" && (
+            <div className={`h-full overflow-auto p-3 ${chrome}`}>
+              <SourcePane api={api} actor={actor} projectId={projectId} manifest={present} selected={shownObject} />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Context-aware toolbar: tools and view always; object actions with a selection */}
-      <div className={`absolute bottom-3 left-1/2 flex h-12 -translate-x-1/2 items-center gap-0.5 px-1.5 ${chrome}`} role="toolbar" aria-label="Tools and view">
+      <div className="absolute right-3 bottom-3 left-3">
+        <Timeline
+          rate={present.take.frameRate}
+          durationFrames={duration}
+          playhead={frame}
+          playing={playing}
+          sourceUs={sourceAt(present, frame)?.us ?? null}
+          keys={selected ? keyFrames(present, selected) : []}
+          canKey={!!selectedObject && duration > 0}
+          onPlay={setPlaying}
+          onSeek={(f) => { setPlaying(false); setPlayhead(f); }}
+          onAnimate={() => apply((h) => commit(h, setDuration(h.present, defaultDurationFrames(h.present.take.frameRate))))}
+          onToggleKey={toggleKey}
+        />
+      </div>
+
+      <div className={`absolute bottom-17 left-1/2 flex h-12 -translate-x-1/2 items-center gap-0.5 px-1.5 ${chrome}`} role="toolbar" aria-label="Tools and view">
         {TOOLS.map((t) => {
           const Icon = t.icon;
           const needsSelection = t.id !== "select" && !selectedObject;
@@ -659,7 +793,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       {notice && (
         <div
           role={notice.tone === "bad" ? "alert" : "status"}
-          className={`absolute bottom-18 left-1/2 z-40 flex max-w-2xl -translate-x-1/2 items-start gap-3 rounded-xl border bg-panel px-3 py-2 text-sm shadow ${
+          className={`absolute bottom-32 left-1/2 z-40 flex max-w-2xl -translate-x-1/2 items-start gap-3 rounded-xl border bg-panel px-3 py-2 text-sm shadow ${
             notice.tone === "bad" ? "border-bad text-bad" : notice.tone === "ok" ? "border-ok text-ok" : "border-line text-ink"
           }`}
         >

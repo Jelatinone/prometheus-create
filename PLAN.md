@@ -13,10 +13,10 @@ schema_version: 2
 project_name: "Prometheus::create"
 event_name: "HackUTA 2026"
 project_status: "ideation"
-plan_version: 5
+plan_version: 6
 approval: "proposed"
 approval_ref: null
-updated_at: "2026-11-15T01:45:00-06:00"
+updated_at: "2026-11-15T06:30:00-06:00"
 timezone: "America/Chicago"
 code_start: "2026-11-14T12:00:00-06:00"
 code_end: "2026-11-15T00:00:00-06:00"
@@ -31,6 +31,33 @@ current_stable_release: null
 **Clock warning:** the end and submission timestamps above conservatively use the supplied opening deck, page 32. The [official website](https://www.hackuta.com/) instead describes a noon-to-noon coding window. These conflict. The feature freeze is our earlier internal cutoff. Until an organizer resolves the discrepancy, produce and submit the early version, stop coding at the earlier cutoff, and treat the second half of the 24-hour schedule as conditional. Do not silently correct AM to PM. H+0 throughout this plan means the official start, not the moment implementation begins; elapsed planning time must be deducted.
 
 ## 1. Product contract
+
+### Current continuation v6: sponsor targets, live-call loop, layers, camera, unified export (2026-11-15)
+
+**Authority:** Cody asked for plan revisions only (no implementation in this pass). He set the targets as **Chert, Best General, FaZe and Tiger Data**, plus whatever else fits without major architectural change. The v5 rules still apply: tracks, seams, the track rule, CP-016 (UI/UX pass) as the last major feature item, and CP-017 (security pass) last of all. Decisions: ADR-003 (targets), ADR-004 (live-call loop), ADR-005 (layers).
+
+**Principle:** improve what exists. A provider job stays single-shot (one image, one mask, one result). "Continuous" generation happens at the **session** level: the capture agent keeps ingesting while jobs run on the best fresh frame. There is no streaming provider job and no contract change unless Cody approves one.
+
+**New work, in order** (records in §5):
+
+| Order | Checkpoint | Track | Outcome |
+| --- | --- | --- | --- |
+| 1 | CP-022 live-call loop | A | During a FaceTime call: frames dedupe (drop near-repeats, as the call is about 35 s); segmentation runs on the best fresh keyframe while ingestion continues; at most one reconstruction starts before hang-up; a newer frame replaces the pending one only if coverage improves (ADR-004) |
+| 2 | CP-023 return video to the caller | A | The agent publishes a video track: the latest captured frame with recognised objects boxed, red → green by coverage (mask area and view count). At minimum, what the agent shows the caller is that feed. Activates F-012 within budget |
+| 3 | CP-024 ElevenLabs capture coaching | A | Spoken guidance over the call from simple coverage and motion metrics: "move slower", "move faster", "keep the chair in view", "capture more of the scene". ElevenLabs TTS on the agent's existing audio track |
+| 4 | CP-018 layers menu and hover highlight | B | Top-toolbar Layers pop-up: Mesh and Splat toggles, independently (both or none allowed). Hovering an object highlights it in the accent colour, including when only the splat is visible (raycast against the mesh layer) (ADR-005) |
+| 5 | CP-019 unified export | B | One Export button opens one modal: PNG (current playhead), GLB, video (CP-020), project .zip. It replaces the separate PNG/GLB buttons |
+| 6 | CP-020 camera track, spline and video | B | A camera track per take: an editable spline the view camera follows; seeded from capture camera estimates where they exist, otherwise authored; a 5 s video export along it. It absorbs CP-015 |
+| 7 | CP-021 agentic inference for playback (design first) | A+B | A design spike, then a bounded build. A model proposes motion (keys or camera path) from a short instruction and the captured evidence; the person accepts or edits; nothing is applied without review (D-009). Candidate for Gemini (SP-003) |
+| then | CP-016 UI/UX pass, CP-017 security pass | — | unchanged; still last |
+
+**Submission work per target:**
+- **Chert:** the FaceTime loop (CP-022 to CP-024) is the proof.
+- **Tiger Data:** the existing Postgres projects, revisions, jobs and ingestion records; the write-up shows them.
+- **Best General:** the whole product; the demo is capture → generate → edit → fork → export.
+- **FaZe:** read the full challenge requirements before any work (SP-008a). The likely angle is creators reshaping a filmed space into alternate takes and clips.
+- **ElevenLabs:** needs a "How We Used ElevenLabs" section.
+- **Opportunistic:** DEV post, Gemini (if CP-021 uses it), GoDaddy domain or Vultr only if real hosting needs them.
 
 ### Current continuation v5: integrated tracks, then manual test, remaining work, UI/UX pass, security pass (2026-11-15)
 
@@ -233,6 +260,18 @@ The supplied evidence is `HackUTA 2026_compressed.pdf`, 80 pages, from the user'
 | SP-006 | MongoDB Atlas, deck p.58 and [MLH listing](https://www.mlh.com/events/hackuta-53). | Actual Atlas persistence. | Would require the database to be used meaningfully. | deferred | Choose TigerData; do not add a second application database to collect a track. |
 | SP-007 | Vultr, deck p.59; GoDaddy Registry, p.60. | Real hosting or qualifying domain use. | Live deployment or domain resolves to the tested build. | deferred | Opportunistic only if it replaces an already needed service within 30 minutes; verify category terms first. |
 | SP-008 | FaZe challenge p.13; Solana p.56; SpaceXSI p.50/57; hardware p.73-74. | Fan engagement/monetization, blockchain, specified development workflow, or hardware respectively. | None in the planned product. | deferred | Poor fit or extra work. Do not claim workflow raffle eligibility from unrelated AI use. CIQ, Mouser, and other sponsor logos do not establish a software prize requirement. |
+
+#### v6 target set (ADR-003, 2026-11-15)
+
+| Priority | Track | Plan |
+| --- | --- | --- |
+| Primary | Chert: Best Use of FaceTime (SP-001) | Live capture + return video + spoken coaching (CP-022 to CP-024). Must show the agent seeing the caller's view and showing them something useful |
+| Primary | General track (main prizes) | The complete product and demo |
+| Primary | FaZe Clan Challenge (SP-008a, replaces the FaZe part of SP-008) | **Gate:** read the full requirements first and record the exact clause here; build nothing until it fits the existing product. Candidate: creator-facing alternate takes and short clips from a filmed space |
+| Primary | Best Use of Tiger Data (SP-002) | Already real: Postgres projects, revisions, assets, jobs, ingestion. Write-up and demo show it |
+| Secondary | ElevenLabs (SP-005, now active) | CP-024 voice coaching on the call; submission needs "How We Used ElevenLabs" |
+| Opportunistic | Gemini (SP-003), DEV writing, GoDaddy domain, Vultr | Gemini only through CP-021; DEV post after the demo; domain or hosting only if a real deployment needs them |
+| Not pursued | Solana, MongoDB Atlas, hardware, SpaceXSI (Cursor + Grok workflow) | No fit without a second database, blockchain, hardware or a workflow we did not use; never claim them |
 
 ### Chert feasibility gate
 
@@ -787,11 +826,13 @@ depends_on: ["CP-013"]
 owner: "Track B agent"
 approval: "approved"
 approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
-status: "planned"
+status: "deferred"
 acceptance_gate: "A 5 s clip matches the playhead-evaluated scene frame by frame at the take rate; no provider calls during export; npm run verify passes."
 cut_fallback: "Defer; PNG at the playhead remains the export"
 evidence_ref: "docs/changes/HK-012.md"
 ```
+
+**v6:** absorbed by CP-020 (video export along the camera spline).
 
 ### CP-016
 
@@ -823,6 +864,118 @@ status: "planned"
 acceptance_gate: "Documented review of: auth and project ownership on every route (including attach_splat, assets, jobs, ingest); signed-URL lifetimes and private storage; secrets handling (.env.local never printed or committed; server-only keys); provider spend controls (no unauthenticated or repeated paid submits); input validation and size limits; dependency audit (npm audit findings triaged); test-user and rate-limit settings restored; findings fixed or accepted by Cody; npm run verify passes."
 cut_fallback: "Fix high-severity findings; record accepted risks with Cody's approval"
 evidence_ref: "docs/changes/HK-014.md"
+```
+
+### CP-018
+
+```yaml
+id: "CP-018"
+objective: "Layers pop-up in the top toolbar (Mesh and Splat toggles; both or none) and accent hover highlight that also works over splats"
+task_ids: ["HK-012"]
+depends_on: ["CP-014"]
+owner: "Track B agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-15 (plan revision before merging Track B into track-a)"
+status: "planned"
+acceptance_gate: "Toggles are view state (not saved) and combine per ADR-005; hover highlights the object under the cursor in the accent colour with Mesh only, Splat only and both; no layer → empty view with a visible hint; npm run verify passes; browser evidence."
+cut_fallback: "Keep the per-object switch; highlight on mesh only"
+evidence_ref: "docs/changes/HK-012.md"
+```
+
+### CP-019
+
+```yaml
+id: "CP-019"
+objective: "Unified export: one Export button and one modal (PNG at playhead, GLB, video when available, project .zip)"
+task_ids: ["HK-012"]
+depends_on: ["CP-013"]
+owner: "Track B agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-15 (plan revision before merging Track B into track-a)"
+status: "planned"
+acceptance_gate: "Every existing export reachable from the modal with the same output as before; options shown only when implemented; progress via the shared overlay; npm run verify passes."
+cut_fallback: "Separate buttons stay"
+evidence_ref: "docs/changes/HK-012.md"
+```
+
+### CP-020
+
+```yaml
+id: "CP-020"
+objective: "Camera track and editable spline the camera follows, seeded from capture camera estimates where available; 5 s video export along it (absorbs CP-015)"
+task_ids: ["HK-012"]
+depends_on: ["CP-013", "CP-019"]
+owner: "Track B agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-15 (plan revision before merging Track B into track-a)"
+status: "planned"
+acceptance_gate: "Camera keys or spline points edit like object keys (undo, fork, save); playback and PNG/video use the camera path; video exported in the tested browser's supported format matches the playhead scene; capture-seeded path only when real estimates exist (otherwise labelled authored); npm run verify passes."
+cut_fallback: "Authored camera keys only; PNG at playhead"
+evidence_ref: "docs/changes/HK-012.md"
+```
+
+### CP-021
+
+```yaml
+id: "CP-021"
+objective: "Agentic inference for playback: design spike, then a bounded build where a model proposes object motion or a camera path that the person reviews"
+task_ids: ["HK-012", "HK-011"]
+depends_on: ["CP-020"]
+owner: "Track B agent (design with Track A)"
+approval: "proposed"
+approval_ref: "Cody chat 2026-11-15 (plan revision before merging Track B into track-a): brainstorm needed before building"
+status: "planned"
+acceptance_gate: "Design note with options, cost per proposal and the review UI, approved by Cody; then a proposal becomes editable keys, never auto-applied; real model response recorded."
+cut_fallback: "Manual keys and camera spline only"
+evidence_ref: "docs/changes/HK-012.md"
+```
+
+### CP-022
+
+```yaml
+id: "CP-022"
+objective: "Live-call loop: dedupe frames, segment the best fresh keyframe while ingesting, start at most one reconstruction before hang-up (session-level continuous, ADR-004)"
+task_ids: ["HK-011"]
+depends_on: ["CP-009"]
+owner: "Track A agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-15 (plan revision before merging Track B into track-a)"
+status: "planned"
+acceptance_gate: "Real call: near-duplicate frames dropped (count recorded); a segmentation job runs during the call on a frame received in it; a newer frame supersedes only with better coverage; no job resubmitted; spend reported and within budget; tests for the selector; npm run verify passes."
+cut_fallback: "Ingest during the call, generate after hang-up (today's behaviour)"
+evidence_ref: "docs/changes/HK-011.md"
+```
+
+### CP-023
+
+```yaml
+id: "CP-023"
+objective: "Return video to the caller: latest captured frame with recognised-object boxes coloured red to green by coverage (activates F-012)"
+task_ids: ["HK-011"]
+depends_on: ["CP-022"]
+owner: "Track A agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-15 (plan revision before merging Track B into track-a)"
+status: "planned"
+acceptance_gate: "On a real call the caller sees the agent's video track change as frames and boxes update; no echo loop or growing queue; works within the ~35 s call; recorded evidence."
+cut_fallback: "Static status card as the agent's video"
+evidence_ref: "docs/changes/HK-011.md"
+```
+
+### CP-024
+
+```yaml
+id: "CP-024"
+objective: "ElevenLabs spoken capture coaching on the FaceTime call (move slower or faster, keep the object in view, capture more of the scene)"
+task_ids: ["HK-011"]
+depends_on: ["CP-022"]
+owner: "Track A agent"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-15 (plan revision before merging Track B into track-a)"
+status: "planned"
+acceptance_gate: "Guidance derived from real metrics (frame-to-frame motion, coverage, object in frame); spoken through ElevenLabs TTS on the agent audio track; rate-limited so prompts do not overlap; free credits only; how it is used recorded for the Devpost section; npm run verify passes."
+cut_fallback: "Text guidance only (status card)"
+evidence_ref: "docs/changes/HK-011.md"
 ```
 
 Only Cody can update accepted architecture, integration, and gate status. Follow the toolkit sequence: kickoff records -> plan checkpoint -> implement the assigned checkpoint -> test identified revision -> review integration -> authorized stable promotion -> demo preparation -> submission preflight -> handoff/recap. `ready_for_review` is not `merged`, and a passing test is not proof of deployment or submission.
@@ -956,6 +1109,7 @@ Prepare a 90-120-second submission video if the final rules allow it, with intel
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 2026-11-14 | None | None | Planning assistant | User selected Daedalus, confirmed solo/no starter, specified Chert ingestion and optional return video. No implementation approval or gate evidence recorded. | Final planning baseline aligned with inspected toolkit and current documentation. |
 | 2 | 2026-11-14 | None | ADR-001, ADR-002 | Claude Code for Cody (HK-001) | Cody's chat instructions during HK-001 (name and palette); see docs/DECISIONS.md. Plan approval and the lane replan remain proposed. | Record the selected name, visual identity, and logo. |
+| 6 | 2026-11-15 | None | ADR-003, ADR-004, ADR-005 | Claude Code (Track B) for Cody | Cody chat 2026-11-15 (plan revision before merging Track B into track-a) | Sponsor targets (Chert, General, FaZe, Tiger Data; ElevenLabs secondary); live-call loop, return video and voice coaching (CP-022 to CP-024); layers, unified export, camera spline and agentic playback (CP-018 to CP-021); CP-015 absorbed by CP-020; CP-016/CP-017 stay last |
 
 ### Decision register for kickoff
 

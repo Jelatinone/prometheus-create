@@ -54,3 +54,19 @@ export function reconstructedObject(
     splat: attachedSplat(outcome, outcome.geometry.geometryRevision), collider: null, physics: null,
   });
 }
+
+/**
+ * CP-014: the splat that `attach_splat` returns for an object's own generation
+ * job, attached and shown. Refused unless the backfill proves it belongs to
+ * this exact mesh (its `meshAsset` is the object's geometry asset), so a splat
+ * is never shown against a mesh it was not aligned with.
+ */
+export function providerSplatFor(object: SceneObject, outcome: ReconstructionOutcome): Result<NonNullable<SceneObject["splat"]>> {
+  if (outcome.job.state !== "succeeded") return err("INVALID_TRANSITION", "the splat job has not finished");
+  const splat = (outcome as OutcomeWithSplat).splatAsset;
+  if (!splat || splat.kind !== "splat") return err("MISSING_ASSET", "this generation has no stored splat");
+  if (outcome.job.projectId !== splat.projectId) return err("NOT_FOUND", "the splat belongs to another project");
+  if (!outcome.meshAsset || outcome.meshAsset.id !== object.geometry.assetId)
+    return err("STALE_REVISION", "the stored splat belongs to a different mesh than this object's; the mesh stays");
+  return ok({ assetId: splat.id, enabled: true, validForGeometryRevision: object.geometry.geometryRevision });
+}

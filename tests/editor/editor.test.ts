@@ -123,7 +123,7 @@ describe("take session over the ProjectRepository port", () => {
   });
 
   it("a stale save returns REVISION_CONFLICT instead of overwriting", async () => {
-    const { backend, actor, projectId, manifest } = await seed();
+    const { backend, actor, manifest } = await seed();
     expectOk(await saveTake(backend.projects, actor, setObjectTransform(manifest, BOX, { ...findObject(manifest, BOX)!.transform, position: [2, 0, 0] }), 2));
     const stale = await saveTake(backend.projects, actor, manifest, 2);
     expect(stale.ok ? "ok" : stale.error.code).toBe("REVISION_CONFLICT");

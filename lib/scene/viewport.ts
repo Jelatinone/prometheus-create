@@ -303,8 +303,15 @@ export class EditorViewport {
 
   /** Which layer this object should draw, loading its splat when first needed. */
   private async syncSplat(object: SceneObject, entry: ObjectEntry): Promise<void> {
+    const wanted = entry.wantsSplat;
     entry.wantsSplat = wantsSplat(object);
     const assetId = object.splat?.assetId ?? null;
+    // Switching back to an already-loaded splat: Spark re-sorts before it draws, so hold the mesh and overlay until then.
+    if (!wanted && entry.wantsSplat && entry.splatStatus === "ready" && assetId === entry.splatAssetId) {
+      entry.splatStatus = "settling";
+      entry.settlingSince = performance.now();
+      this.cb.onSplatLoading?.(object.id, true);
+    }
     if (entry.wantsSplat && assetId && assetId !== entry.splatAssetId) {
       entry.splatAssetId = assetId;
       entry.splatStatus = "loading";
