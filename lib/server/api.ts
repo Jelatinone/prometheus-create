@@ -15,6 +15,7 @@ import {
   JobId,
   ObservationId,
   ProjectId,
+  RenameProjectRequest,
   ReconstructionJob,
   SaveRevisionRequest,
   SourceId,
@@ -74,6 +75,15 @@ export async function getProject(ctx: ApiContext, projectId: string): Promise<Re
   const id = readParam("projectId", projectId, ProjectId);
   if (!id.ok) return respond(id);
   return respond(await ctx.backend.projects.getProject(ctx.actor, id.value));
+}
+
+export async function renameProject(ctx: ApiContext, request: Request, projectId: string): Promise<Response> {
+  if (!ctx.actor) return signIn();
+  const id = readParam("projectId", projectId, ProjectId);
+  if (!id.ok) return respond(id);
+  const body = await readBody(request, RenameProjectRequest);
+  if (!body.ok) return respond(body);
+  return respond(await ctx.backend.projects.renameProject(ctx.actor, id.value, body.value.title));
 }
 
 export async function listTakes(ctx: ApiContext, projectId: string): Promise<Response> {

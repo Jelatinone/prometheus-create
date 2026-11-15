@@ -9,6 +9,7 @@
 import {
   Asset,
   CreateProjectRequest,
+  RenameProjectRequest,
   ForkTakeRequest,
   IngestEnvelope,
   ReconstructionJob,
@@ -209,6 +210,16 @@ export class MemoryBackend implements Backend {
     getProject: async (actor: Actor, projectId: string): Promise<Result<Project>> => {
       const state = this.access(actor, projectId);
       if (!state.ok) return state;
+      return ok(cloneJson(state.value.project));
+    },
+
+    renameProject: async (actor: Actor, projectId: string, title: string): Promise<Result<Project>> => {
+      const state = this.access(actor, projectId);
+      if (!state.ok) return state;
+      const parsed = parseContract(RenameProjectRequest, { title });
+      if (!parsed.ok) return parsed;
+      state.value.project.title = parsed.value.title;
+      state.value.project.updatedAt = this.timestamp();
       return ok(cloneJson(state.value.project));
     },
 

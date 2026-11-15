@@ -23,6 +23,7 @@
 import {
   Asset,
   CreateProjectRequest,
+  RenameProjectRequest,
   ForkTakeRequest,
   IngestEnvelope,
   ReconstructionJob,
@@ -283,6 +284,18 @@ export class PostgresBackend implements Backend {
       if (!actor) return unauthorized();
       const { rows } = await this.pool.query<ProjectRow>("select * from projects where id = $1", [projectId]);
       if (!rows.length || !owns(actor, rows[0].owner_id)) return projectNotFound(projectId);
+      return ok(toProject(rows[0]));
+    },
+
+    renameProject: async (actor: Actor, projectId: string, title: string): Promise<Result<Project>> => {
+      if (!actor) return unauthorized();
+      const parsed = parseContract(RenameProjectRequest, { title });
+      if (!parsed.ok) return parsed;
+      const { rows } = await this.pool.query<ProjectRow>(
+        "update projects set title = $3, updated_at = now() where id = $1 and owner_id = $2 returning *",
+        [projectId, actor.userId, parsed.value.title],
+      );
+      if (!rows.length) return projectNotFound(projectId);
       return ok(toProject(rows[0]));
     },
 

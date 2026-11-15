@@ -69,6 +69,8 @@ import { HttpBackend } from "@/lib/platform/http-backend";
 import { EditorViewport, type Navigation, type Tool } from "@/lib/scene/viewport";
 import { LoadingOverlay, LoadingScreen, Spinner } from "@/components/ui/Loading";
 import { Presence } from "@/components/ui/Presence";
+import { Toast } from "@/components/ui/Toast";
+import { ProjectTitle } from "./ProjectTitle";
 import { CapturePanel } from "@/components/capture/CapturePanel";
 import { Inspector } from "./Inspector";
 import { ALL_LAYERS, checkSplatPly, drawsSplat, type LayerView } from "@/lib/scene/splat";
@@ -611,6 +613,14 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const chrome = "rounded-xl border border-line bg-panel shadow-sm";
   const shownObjects = present.scene.objects.filter((o) => o.visible);
   const nothingDrawn = shownObjects.length > 0 && !layers.mesh && !shownObjects.some((o) => drawsSplat(o, layers));
+  const hint =
+    present.scene.objects.length === 0
+      ? "This take has no objects yet. Import a GLB, or capture a photo for reference."
+      : nothingDrawn
+        ? layers.splat
+          ? "No visible object has a splat. Turn on Mesh in Layers."
+          : "No layers shown. Turn on Mesh or Splat in Layers."
+        : null;
   const icon =
     "grid size-8.5 place-items-center rounded-lg text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
   const labelled =
@@ -629,15 +639,10 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     <div className="fixed inset-0 z-30 overflow-hidden bg-stage text-ink">
       {/* Viewport fills the screen; chrome floats over it. */}
       <div ref={viewportEl} className="absolute inset-0" />
-      {present.scene.objects.length === 0 && (
-        <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-muted">
-          This take has no objects yet. Import a GLB, or capture a photo for reference.
-        </p>
-      )}
-      {nothingDrawn && (
-        <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-muted" role="status">
-          {layers.splat ? "No visible object has a splat. Turn on Mesh in Layers." : "No layers shown. Turn on Mesh or Splat in Layers."}
-        </p>
+      {hint && (
+        <div className="pointer-events-none absolute inset-x-0 top-17 z-40 flex justify-center px-3">
+          <Toast key={hint} text={hint} />
+        </div>
       )}
 
       {/* Project chip: saves, project, take, saved state */}
@@ -651,9 +656,19 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             <FolderOpenIcon className="size-5" />
           </Link>
         )}
-        <span className="truncate px-1 font-serif font-semibold max-sm:hidden" title={loaded.project.title}>
-          {loaded.project.title}
-        </span>
+        <ProjectTitle
+          key={loaded.project.id}
+          title={loaded.project.title}
+          onRename={async (title) => {
+            const r = await api.projects.renameProject(actor, loaded.project.id, title);
+            if (!r.ok) {
+              setNotice({ tone: "bad", text: `Rename failed: ${r.error.message}` });
+              return false;
+            }
+            setLoaded((l) => (l ? { ...l, project: r.value } : l));
+            return true;
+          }}
+        />
         {sep}
         <select
           className="h-8.5 min-w-0 rounded-lg bg-transparent px-1.5 text-sm hover:bg-panel-2"

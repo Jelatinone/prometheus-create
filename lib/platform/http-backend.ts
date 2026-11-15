@@ -84,7 +84,7 @@ export class HttpBackend implements Backend {
   }
 
   /** One API call; the building block for the ports and for PlatformBlobStore. */
-  async request<T>(actor: Actor, method: "GET" | "POST", path: string, body?: unknown): Promise<Result<T>> {
+  async request<T>(actor: Actor, method: "GET" | "POST" | "PATCH", path: string, body?: unknown): Promise<Result<T>> {
     const auth = await this.authorize(actor);
     let response: Response;
     try {
@@ -147,6 +147,9 @@ export class HttpBackend implements Backend {
 
     getProject: (actor: Actor, projectId: string) =>
       this.request<Project>(actor, "GET", `/api/projects/${enc(projectId)}`),
+
+    renameProject: (actor: Actor, projectId: string, title: string) =>
+      this.request<Project>(actor, "PATCH", `/api/projects/${enc(projectId)}`, { title }),
 
     listTakes: (actor: Actor, projectId: string) =>
       this.request<TakeSummary[]>(actor, "GET", `/api/projects/${enc(projectId)}/takes`),

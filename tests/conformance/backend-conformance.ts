@@ -145,6 +145,17 @@ export function describeBackendConformance(name: string, makeHarness: HarnessFac
       expect(first.origin).toBe("create");
     });
 
+    it("renames a project for its owner only, trimming the title", async () => {
+      const h = await makeHarness();
+      const { projectId } = await seedProject(h);
+      const renamed = expectOk(await h.backend.projects.renameProject(h.owner, projectId, "  Living room  "));
+      expect(renamed.title).toBe("Living room");
+      expect(expectOk(await h.backend.projects.getProject(h.owner, projectId)).title).toBe("Living room");
+      expectCode(await h.backend.projects.renameProject(h.owner, projectId, "   "), "INVALID_SCHEMA");
+      expectCode(await h.backend.projects.renameProject(h.other, projectId, "Mine now"), "NOT_FOUND");
+      expectCode(await h.backend.projects.renameProject(null, projectId, "x"), "UNAUTHORIZED");
+    });
+
     it("rejects unauthenticated callers with UNAUTHORIZED", async () => {
       const h = await makeHarness();
       const { projectId, takeId } = await seedProject(h);

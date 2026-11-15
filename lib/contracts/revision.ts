@@ -122,6 +122,10 @@ export const RevisionConflictDetails = z.strictObject({
 });
 export type RevisionConflictDetails = z.infer<typeof RevisionConflictDetails>;
 
+/** PATCH /api/projects/[projectId]: rename a project (owner only). */
+export const RenameProjectRequest = z.strictObject({ title: z.string().trim().min(1).max(120) });
+export type RenameProjectRequest = z.infer<typeof RenameProjectRequest>;
+
 export const CreateProjectRequest = z
   .strictObject({
     projectId: ProjectId,

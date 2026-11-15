@@ -34,6 +34,8 @@ export type Actor = { userId: string } | null;
 export interface ProjectRepository {
   createProject(actor: Actor, req: CreateProjectRequest): Promise<Result<CreateProjectResponse>>;
   getProject(actor: Actor, projectId: string): Promise<Result<Project>>;
+  /** Owner only; the title is trimmed (1-120 characters). */
+  renameProject(actor: Actor, projectId: string, title: string): Promise<Result<Project>>;
   listTakes(actor: Actor, projectId: string): Promise<Result<TakeSummary[]>>;
   /** A specific revision number, or the head when `revision` is omitted. */
   getRevision(
