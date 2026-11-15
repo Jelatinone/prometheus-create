@@ -38,19 +38,19 @@ current_stable_release: null
 
 **Principle:** improve what exists. A provider job stays single-shot (one image, one mask, one result). "Continuous" generation happens at the **session** level: the capture agent keeps ingesting while jobs run on the best fresh frame. There is no streaming provider job and no contract change unless Cody approves one.
 
-**New work, in order** (records in §5):
+**Done:** CP-022 live-call loop and CP-023 return video to the caller, both `ready_for_review` and proven on real calls (HK-011).
 
-| Order | Checkpoint | Track | Outcome |
-| --- | --- | --- | --- |
-| 1 | CP-022 live-call loop | A | During a FaceTime call: frames dedupe (drop near-repeats, as the call is about 35 s); segmentation runs on the best fresh keyframe while ingestion continues; at most one reconstruction starts before hang-up; a newer frame replaces the pending one only if coverage improves (ADR-004) |
-| 2 | CP-023 return video to the caller | A | The agent publishes a video track: the latest captured frame with recognised objects boxed, red → green by coverage (mask area and view count). At minimum, what the agent shows the caller is that feed. Activates F-012 within budget |
-| 3 | CP-024 ElevenLabs capture coaching | A | Spoken guidance over the call from simple coverage and motion metrics: "move slower", "move faster", "keep the chair in view", "capture more of the scene". ElevenLabs TTS on the agent's existing audio track |
-| 4 | CP-018 layers menu and hover highlight | B | Top-toolbar Layers pop-up: Mesh and Splat toggles, independently (both or none allowed). Hovering an object highlights it in the accent colour, including when only the splat is visible (raycast against the mesh layer) (ADR-005) |
-| 5 | CP-019 unified export | B | One Export button opens one modal: PNG (current playhead), GLB, video (CP-020), project .zip. It replaces the separate PNG/GLB buttons |
-| 6 | CP-020 camera track, spline and video | B | A camera track per take: an editable spline the view camera follows; seeded from capture camera estimates where they exist, otherwise authored; a 5 s video export along it. It absorbs CP-015 |
-| 7 | CP-021 agentic inference for playback (design first) | A+B | A design spike, then a bounded build. A model proposes motion (keys or camera path) from a short instruction and the captured evidence; the person accepts or edits; nothing is applied without review (D-009). Candidate for Gemini (SP-003) |
-| 8 | CP-025 timeline editor and export screen | B | Added 2026-11-15 at Cody's request. Each object has its own track with a clip range: outside its range the object is absent, so trimming half its duration makes it disappear for that half. Keys sit on their track. A full export screen chooses the range, duration, frame rate, resolution and camera, and replaces the fixed 5 s clip |
-| then | CP-016 UI/UX pass, CP-017 security pass | — | unchanged; still last |
+**Remaining work, by feature priority** (reordered 2026-11-15 at Cody's request; CP numbers unchanged; records in §5). The order follows demo value for the targets: the journey capture → generate → edit → export, which ends in a video, comes first. Where a lower-priority checkpoint is a prerequisite of a higher one, it moves up with it (marked *prereq*). The Track column is historical: in linear mode one agent works all of them on `production`.
+
+| Priority | Checkpoint | Track | Outcome | Why here |
+| --- | --- | --- | --- | --- |
+| 1 | CP-019 unified export | B | One Export button opens one modal: PNG (current playhead), GLB, video (CP-020), project .zip. It replaces the separate PNG/GLB buttons | *prereq* of CP-020 and CP-025; also the end of the demo journey |
+| 2 | CP-020 camera track, spline and video | B | A camera track per take: an editable spline the view camera follows; seeded from capture camera estimates where they exist, otherwise authored; a 5 s video export along it. It absorbs CP-015 | Video output is the biggest missing piece of the demo (Best General, FaZe clips); *prereq* of CP-025 and CP-021 |
+| 3 | CP-025 timeline editor and export screen | B | Added 2026-11-15 at Cody's request. Each object has its own track with a clip range: outside its range the object is absent, so trimming half its duration makes it disappear for that half. Keys sit on their track. A full export screen chooses the range, duration, frame rate, resolution and camera, and replaces the fixed 5 s clip | Cody named it as needed; it turns one fixed clip into authored takes |
+| 4 | CP-018 layers menu and hover highlight | B | Top-toolbar Layers pop-up: Mesh and Splat toggles, independently (both or none allowed). Hovering an object highlights it in the accent colour, including when only the splat is visible (raycast against the mesh layer) (ADR-005) | Editor polish; small and independent |
+| 5 | CP-024 capture coaching | A | Guidance over the call from simple coverage and motion metrics: "move slower", "move faster", "keep the chair in view", "capture more of the scene". Spoken by ElevenLabs TTS, or as text in the return-video status line | Cody prefers agent audio muted or off, so the text fallback is likely; the Chert proof (CP-022/023) already exists |
+| 6 | CP-021 agentic inference for playback (design first) | A+B | A design spike, then a bounded build. A model proposes motion (keys or camera path) from a short instruction and the captured evidence; the person accepts or edits; nothing is applied without review (D-009). Candidate for Gemini (SP-003) | Still `proposed`; needs a brainstorm and Cody's approval before any build |
+| then | CP-016 UI/UX pass, CP-017 security pass | — | unchanged; still last | — |
 
 **Submission work per target:**
 - **Chert:** the FaceTime loop (CP-022 to CP-024) is the proof.
@@ -957,7 +957,7 @@ depends_on: ["CP-009"]
 owner: "Track A agent"
 approval: "approved"
 approval_ref: "Cody chat 2026-11-15 (plan revision before merging Track B into track-a)"
-status: "planned"
+status: "ready_for_review"
 acceptance_gate: "Real call: near-duplicate frames dropped (count recorded); a segmentation job runs during the call on a frame received in it; a newer frame supersedes only with better coverage; no job resubmitted; spend reported and within budget; tests for the selector; npm run verify passes."
 cut_fallback: "Ingest during the call, generate after hang-up (today's behaviour)"
 evidence_ref: "docs/changes/HK-011.md"
@@ -973,7 +973,7 @@ depends_on: ["CP-022"]
 owner: "Track A agent"
 approval: "approved"
 approval_ref: "Cody chat 2026-11-15 (plan revision before merging Track B into track-a)"
-status: "planned"
+status: "ready_for_review"
 acceptance_gate: "On a real call the caller sees the agent's video track change as frames and boxes update; no echo loop or growing queue; works within the ~35 s call; recorded evidence."
 cut_fallback: "Static status card as the agent's video"
 evidence_ref: "docs/changes/HK-011.md"
