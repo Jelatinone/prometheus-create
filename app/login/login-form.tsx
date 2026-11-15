@@ -8,9 +8,10 @@ import { supabaseBrowser } from "@/lib/platform/supabase-browser";
 type Step = "email" | "code";
 
 const field =
-  "mt-1 w-full rounded border border-line bg-panel px-3 py-2 text-ink focus:border-accent focus:outline-none";
+  "mt-1 w-full rounded-lg border border-line bg-canvas px-3 py-2 text-ink focus:border-accent focus:outline-none";
 const button =
-  "mt-4 rounded bg-ink px-4 py-2 font-medium text-canvas hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60";
+  "mt-4 w-full rounded-lg bg-ink px-4 py-2 font-medium text-canvas hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60";
+const link = "mx-auto mt-3 block text-sm text-muted underline-offset-2 hover:text-accent hover:underline";
 
 export function LoginForm() {
   const router = useRouter();
@@ -75,7 +76,7 @@ export function LoginForm() {
           </button>
           <button
             type="button"
-            className="mt-4 ml-4 text-sm text-muted underline hover:text-accent"
+            className={link}
             onClick={() => {
               setStep("code");
               setMessage(null);
@@ -114,17 +115,13 @@ export function LoginForm() {
           <button type="submit" disabled={busy} className={button}>
             {busy ? "Checking…" : "Sign in"}
           </button>
-          <button
-            type="button"
-            className="mt-4 ml-4 text-sm text-muted underline hover:text-accent"
-            onClick={() => setStep("email")}
-          >
+          <button type="button" className={link} onClick={() => setStep("email")}>
             Use a different email
           </button>
         </form>
       )}
       {message && (
-        <p role="status" className="mt-4 text-sm">
+        <p role="status" className="mt-4 text-center text-sm text-muted">
           {message}
         </p>
       )}
