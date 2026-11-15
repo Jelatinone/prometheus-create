@@ -73,7 +73,14 @@ async function ProjectList() {
           {rows.map(({ project, heads }) => (
             <li key={project.id} className="rounded border border-line bg-panel p-4" data-project-id={project.id}>
               <div className="flex flex-wrap items-baseline gap-3">
-                <h2 className="text-lg font-semibold">{project.title}</h2>
+                <h2 className="text-lg font-semibold">
+                  <Link href={`/projects/${project.id}`} className="hover:text-accent hover:underline">
+                    {project.title}
+                  </Link>
+                </h2>
+                <Link href={`/projects/${project.id}`} className="text-sm underline hover:text-accent">
+                  Open in editor
+                </Link>
                 <code className="text-xs text-muted">{project.id}</code>
                 <span className="ml-auto text-xs text-muted">updated {project.updatedAt}</span>
               </div>
