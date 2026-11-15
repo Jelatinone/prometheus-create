@@ -42,6 +42,9 @@ interface Props {
   projectId: string;
   actor: NonNullable<Actor>;
   userLabel: string;
+  /** Slides the save viewer back in (Studio); without it the logo links to /projects. */
+  onShowSaves?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 interface Loaded {
@@ -72,7 +75,7 @@ function slug(text: string) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "take";
 }
 
-export function Editor({ projectId, actor, userLabel }: Props) {
+export function Editor({ projectId, actor, userLabel, onShowSaves, onDirtyChange }: Props) {
   const api = useMemo(() => new HttpBackend(), []);
   const blobs = useMemo(() => new PlatformBlobStore({ api, actor }), [api, actor]);
   const assetDeps = useMemo(() => ({ assets: api.assets, blobs, actor }), [api, blobs, actor]);
@@ -100,6 +103,7 @@ export function Editor({ projectId, actor, userLabel }: Props) {
 
   const present = history?.present ?? null;
   const dirty = !!(present && loaded && !sameManifest(present, loaded.revision.manifest));
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
   /** Explicit (re)load of a take: switch, fork, conflict reload. */
   const open = useCallback(
@@ -339,9 +343,15 @@ export function Editor({ projectId, actor, userLabel }: Props) {
     <div className="fixed inset-0 z-30 grid grid-rows-[auto_1fr_auto] overflow-hidden bg-canvas text-ink">
       {/* Top bar */}
       <header className="flex flex-wrap items-center gap-2 border-b border-line bg-panel px-3 py-2">
-        <Link href="/projects" className="font-semibold hover:text-accent" title="All projects">
-          Prometheus::create
-        </Link>
+        {onShowSaves ? (
+          <button className={button} onClick={onShowSaves} title="Back to your saves">
+            ← Saves
+          </button>
+        ) : (
+          <Link href="/projects" className="font-semibold hover:text-accent" title="All projects">
+            Prometheus::create
+          </Link>
+        )}
         <span className="text-muted">/</span>
         <span className="max-w-48 truncate font-medium" title={loaded.project.title}>
           {loaded.project.title}

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { Editor } from "@/components/editor/Editor";
+import { Studio } from "@/components/editor/Studio";
 import { nextCookieJar, sessionUser } from "@/lib/server/auth";
 
 export const metadata: Metadata = { title: "Editor" };
@@ -21,5 +21,5 @@ async function EditorForUser({ params }: { params: Promise<{ projectId: string }
   const { projectId } = await params;
   const user = await sessionUser(await nextCookieJar());
   if (!user) redirect(`/login?next=${encodeURIComponent(`/projects/${projectId}`)}`);
-  return <Editor projectId={projectId} actor={user.actor} userLabel={user.email ?? user.actor.userId} />;
+  return <Studio actor={user.actor} userLabel={user.email ?? user.actor.userId} initialProjectId={projectId} />;
 }
