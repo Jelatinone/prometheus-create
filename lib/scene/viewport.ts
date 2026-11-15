@@ -35,6 +35,7 @@ import type { Quat, Transform, Vec3 } from "@/lib/contracts/common";
 import type { TakeManifest } from "@/lib/contracts/revision";
 import type { Camera as SceneCamera, SceneObject } from "@/lib/contracts/scene";
 import { checkSplatPly, wantsSplat } from "./splat";
+import { meshExportScene } from "./mesh-export";
 
 export type Tool = "select" | "move" | "rotate" | "scale";
 /** What a left-drag (one-finger drag) does: orbit around the target, or pan the view. Right-drag always pans. */
@@ -274,15 +275,7 @@ export class EditorViewport {
 
   /** Binary glTF of the visible objects with their manifest transforms (meters, +Y up). */
   async toGlb(): Promise<Uint8Array> {
-    const root = new Scene();
-    root.name = "Prometheus::create take";
-    for (const { group } of this.objects.values()) {
-      if (!group.visible) continue;
-      const copy = group.clone(false);
-      const mesh = group.getObjectByName("mesh");
-      if (mesh) copy.add(mesh.clone(true)); // splats are an appearance layer; GLB carries the mesh
-      root.add(copy);
-    }
+    const root = meshExportScene([...this.objects.values()].map(({ group }) => group));
     const out = await new GLTFExporter().parseAsync(root, { binary: true, onlyVisible: true, trs: true });
     if (!(out instanceof ArrayBuffer)) throw new Error("GLB export did not produce binary output");
     return new Uint8Array(out);
