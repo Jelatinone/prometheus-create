@@ -8,6 +8,7 @@
  */
 import {
   ArrowPathIcon,
+  ArrowDownTrayIcon,
   ArrowsPointingOutIcon,
   ArrowsRightLeftIcon,
   ArrowUpTrayIcon,
@@ -73,6 +74,8 @@ import { runJob } from "@/lib/editor/batch";
 import { defaultDurationFrames, evaluateAt, framesPerSecond, keyFrames, keyTrackOf, removeKey, setDuration, setKey, sourceAt } from "@/lib/editor/timeline";
 import { SourcePane } from "./SourcePane";
 import { Timeline } from "./Timeline";
+import { ExportDialog, type ExportFormat } from "./ExportDialog";
+import { exportProject } from "@/lib/editor/project-archive";
 
 interface Props {
   projectId: string;
@@ -132,6 +135,9 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const [pane, setPane] = useState<"objects" | "generate" | "source">("objects");
   const [playhead, setPlayhead] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const exporting = useRef(false);
   const playheadRef = useRef(0);
   const editTransformRef = useRef<(objectId: string, t: Transform) => void>(() => {});
   const [grid, setGrid] = useState(true);
@@ -401,33 +407,46 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     [assetDeps, projectId, apply],
   );
 
-  const exportPng = useCallback(async () => {
-    if (!viewport.current || !present || !evaluated) return;
-    setPlaying(false);
-    viewport.current.select(null);
+  const exportFile = useCallback(async (format: ExportFormat) => {
+    const vp = viewport.current;
+    if (!vp || !present || !evaluated || busy || exporting.current) return;
+    if (format === "zip" && dirty) return;
+    exporting.current = true;
+    setBusy(`Exporting ${format.toUpperCase()}`);
+    setExportError(null);
     try {
-      await viewport.current.sync(evaluated); // the scene at the current playhead, exactly as shown
-      const at = present.take.durationFrames > 0 ? `-f${playheadRef.current}` : "";
-      download(await viewport.current.toPng(), `${slug(present.take.name)}${at}.png`);
+      // Let the shared overlay paint before encoding or packing the download.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      if (format === "zip") {
+        const result = await exportProject({ ...assetDeps, projects: api.projects }, projectId);
+        if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`);
+        const name = result.value.title.replace(/[^\w\- ]+/g, "").trim() || "prometheus-project";
+        download(new Blob([result.value.zip.slice().buffer], { type: "application/zip" }), `${name}.zip`);
+      } else {
+        await vp.sync(evaluated);
+        if (format === "png") {
+          vp.select(null);
+          const at = present.take.durationFrames > 0 ? `-f${frame}` : "";
+          download(await vp.toPng(), `${slug(present.take.name)}${at}.png`);
+        } else {
+          const bytes = await vp.toGlb();
+          download(new Blob([bytes.slice().buffer], { type: "model/gltf-binary" }), `${slug(present.take.name)}.glb`);
+        }
+      }
+      setExportOpen(false);
     } catch (e) {
-      setNotice({ tone: "bad", text: `PNG export failed: ${(e as Error).message}` });
+      setExportError(`${format.toUpperCase()} export failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      if (format === "png") vp.select(selected);
+      exporting.current = false;
+      setBusy(null);
     }
-    viewport.current.select(selected);
-  }, [present, evaluated, selected]);
-
-  const exportGlb = useCallback(async () => {
-    if (!viewport.current || !present) return;
-    try {
-      const bytes = await viewport.current.toGlb();
-      download(new Blob([bytes.slice().buffer], { type: "model/gltf-binary" }), `${slug(present.take.name)}.glb`);
-    } catch (e) {
-      setNotice({ tone: "bad", text: `GLB export failed: ${(e as Error).message}` });
-    }
-  }, [present]);
+  }, [present, evaluated, busy, dirty, assetDeps, api, projectId, frame, selected]);
 
   // Keyboard: tools, frame, undo/redo, delete, save; never while typing.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (exportOpen || exporting.current) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
       const mod = e.ctrlKey || e.metaKey;
@@ -464,7 +483,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [apply, save, selected, duration, toggleKey]);
+  }, [apply, save, selected, duration, toggleKey, exportOpen]);
 
   // Warn before leaving with unsaved edits.
   useEffect(() => {
@@ -495,7 +514,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const icon =
     "grid size-8 place-items-center rounded-lg text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
   const labelled =
-    "flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
+    "flex h-8.5 items-center gap-1.5 rounded-lg px-2.5 text-sm text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
   const toolButton = (on: boolean) =>
     `grid size-8 place-items-center rounded-lg disabled:opacity-35 ${on ? "bg-accent/15 text-accent" : "text-ink hover:bg-panel-2 hover:text-accent"}`;
   const sep = <span className="mx-1 h-5 w-px bg-line" aria-hidden />;
@@ -505,7 +524,8 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       {/* Viewport fills the screen; chrome floats over it. */}
       <div ref={viewportEl} className="absolute inset-0" />
       <LoadingOverlay
-        show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat" || busy === "Loading splat" || Object.values(splatsLoading).some(Boolean)}
+        show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat" || busy === "Loading splat" || !!busy?.startsWith("Exporting ") || Object.values(splatsLoading).some(Boolean)}
+        className={exportOpen ? "z-50" : ""}
       />
       {present.scene.objects.length === 0 && (
         <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-muted">
@@ -604,15 +624,20 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           <SparklesIcon className="size-5" />Generate
         </button>
         {sep}
-        <button className={labelled} onClick={() => void exportPng()} title="Download the current view as PNG">
-          <PhotoIcon className="size-5" />
-          PNG
-        </button>
-        <button className={labelled} onClick={() => void exportGlb()} title="Download the visible objects as GLB">
-          <CubeIcon className="size-5" />
-          GLB
+        <button className={labelled} disabled={!!busy || Object.values(splatsLoading).some(Boolean)} onClick={() => {
+          setPlaying(false);
+          setExportError(null);
+          setExportOpen(true);
+        }} aria-haspopup="dialog" title="Export image, 3D scene or project">
+          <ArrowDownTrayIcon className="size-5" />
+          Export
         </button>
       </div>
+
+      {exportOpen && (
+        <ExportDialog takeName={take.name} frame={frame} animated={duration > 0} dirty={dirty} busy={!!busy} error={exportError}
+          onClose={() => { if (!exporting.current) setExportOpen(false); }} onExport={(format) => void exportFile(format)} />
+      )}
 
       {captureOpen && (
         <aside className={`absolute top-17 bottom-32 left-3 z-10 w-[26rem] max-w-[calc(100%-1.5rem)] overflow-auto p-3 ${chrome}`}>
