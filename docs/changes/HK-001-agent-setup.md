@@ -25,6 +25,8 @@ owned_paths: [".agents/skills/**", ".claude/skills/**", "scripts/agent-skills.mj
 
 ## 2. Implementation plan
 
+Worktree rollout authorized by Cody in the subsequent chat request: workers are stopped; apply only committed repair `9cea3fa` to capture, editor and platform. Inspect each clean baseline, normalize recognized legacy links, merge the exact repair commit, resolve only obsolete link conflicts in favor of the portable adapters, preserve lane dependencies and application files, then check skills and focused tests. Record before/after revisions and cleanliness. Do not install dependencies, run external service tests, or advance production.
+
 ### Objective
 
 Replace machine-specific links and Git index hiding with portable, tracked native adapters and a shared check/sync tool.
@@ -111,3 +113,5 @@ rollback: "Revert the local maintenance commit; no toolkit or active-worktree ch
 ```
 
 **Integrator note:** Cody retains review/integration ownership and will manually apply the completed patch to each active worktree. Implementation is local commit `e9bb966`; this evidence-only follow-up adds the real-clone result without changing implementation. The central checkout remains on `codex/fix-agent-skills`, ready for review; `production` was not advanced. Follow `docs/AGENT_SETUP.md` to normalize legacy Windows entries before merging the repair branch. No active worktree was modified or used for validation. Nothing was pushed.
+
+**Subsequent authorized rollout (2026-11-14):** Cody requested applying the committed repair to all three stopped workers. Editor fast-forwarded from `23ba9c9` to `9cea3fa`; capture merged from `1247da1` to `a8a37c0`; platform merged from `58c782a` to `b99f876`. The only conflict was platform's package.json scripts: both database commands and both new skill commands were retained, along with all lane dependencies. All three worktrees are clean; each passes the 24-entrypoint skill check and all 15 focused skill/lane tests. Application files, worker task notes and lockfiles compare unchanged against their pre-merge revisions. No dependency installation, service tests, worker feature edits, production advancement or push occurred. This later authorization supersedes the earlier central-only rollout restriction. Full lane application verification was not rerun for this setup-only merge.
