@@ -778,7 +778,6 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             scope={selected && keyTrackOf(present, selected) ? "keyframe" : "scene"}
             onRename={(id, name) => apply((h) => commit(h, renameObject(h.present, id, name)))}
             onVisible={(id, v) => apply((h) => commit(h, setObjectVisible(h.present, id, v)))}
-            onSplatLayer={(id, on) => apply((h) => commit(h, setSplatEnabled(h.present, id, on)))}
             onAttachSplat={(id, file) => void attachSplatFile(id, file)}
             splatFallback={selectedObject ? (splatFallbacks[selectedObject.id] ?? null) : null}
             source={shownObject ? <SourcePane api={api} actor={actor} projectId={projectId} manifest={present} selected={shownObject} /> : null}

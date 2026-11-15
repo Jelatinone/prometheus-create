@@ -76,9 +76,9 @@ export function splatState(object: SceneObject): SplatLayerState {
   return object.splat.validForGeometryRevision === object.geometry.geometryRevision ? "available" : "stale";
 }
 
-/** Whether this object opts in to the splat layer: a valid splat whose saved `enabled` is true. */
+/** Whether this object can draw on the splat layer: any valid splat. The Layers menu alone decides what is shown. */
 export function wantsSplat(object: SceneObject): boolean {
-  return splatState(object) === "available" && !!object.splat?.enabled;
+  return splatState(object) === "available";
 }
 
 /** Which layers the viewport draws. View state only: never saved with the take (ADR-005). */

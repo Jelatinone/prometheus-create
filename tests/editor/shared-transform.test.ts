@@ -78,13 +78,14 @@ describe("one object transform drives both layers", () => {
     }
   });
 
-  it("the layer choice is per take: switching the fork to Mesh leaves the original on Splat", async () => {
+  it("the saved splat flag is per take (display itself follows the Layers menu)", async () => {
     const { backend, actor, projectId, takeId } = await seedWithSplat();
     const original = expectOk(await loadTake(backend.projects, actor, projectId));
     const fork = expectOk(await forkTake(backend.projects, actor, { projectId, takeId, revision: original.revision.number }, "Mesh only"));
     const forked = expectOk(await loadTake(backend.projects, actor, projectId, fork.takeId));
     expectOk(await saveTake(backend.projects, actor, setSplatEnabled(forked.revision.manifest, BOX, false), forked.revision.number));
-    expect(wantsSplat(findObject(expectOk(await loadTake(backend.projects, actor, projectId, fork.takeId)).revision.manifest, BOX)!)).toBe(false);
-    expect(wantsSplat(findObject(expectOk(await loadTake(backend.projects, actor, projectId, takeId)).revision.manifest, BOX)!)).toBe(true);
+    expect(findObject(expectOk(await loadTake(backend.projects, actor, projectId, fork.takeId)).revision.manifest, BOX)!.splat?.enabled).toBe(false);
+    expect(findObject(expectOk(await loadTake(backend.projects, actor, projectId, takeId)).revision.manifest, BOX)!.splat?.enabled).toBe(true);
+    expect(wantsSplat(findObject(expectOk(await loadTake(backend.projects, actor, projectId, fork.takeId)).revision.manifest, BOX)!)).toBe(true);
   });
 });

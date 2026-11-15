@@ -5,7 +5,7 @@
  * (position m, rotation °, uniform scale), dimensions, geometry and evidence.
  * Numeric fields commit on Enter or blur, one undoable edit each.
  */
-import { ArrowUpTrayIcon, CubeIcon, EyeIcon, EyeSlashIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { ArrowUpTrayIcon, EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { useState, type ReactNode } from "react";
 import type { Transform, Vec3 } from "@/lib/contracts/common";
 import type { TakeManifest } from "@/lib/contracts/revision";
@@ -21,7 +21,6 @@ interface Props {
   onRename(id: string, name: string): void;
   onVisible(id: string, visible: boolean): void;
   /** Persisted per-object layer: true draws the splat (when it loads), false the mesh. */
-  onSplatLayer(id: string, splat: boolean): void;
   /** Generated objects: fetch the splat stored with their generation job (no new provider job). */
   onAttachSplat(id: string, file: File): void;
   /** Why the selected object's splat is not drawn (load/parse failure), if it is not. */
@@ -103,7 +102,7 @@ function NameField({ initial, onCommit }: { initial: string; onCommit(name: stri
   );
 }
 
-export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible, onSplatLayer, onAttachSplat, splatFallback, scope = "scene", source }: Props) {
+export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible, onAttachSplat, splatFallback, scope = "scene", source }: Props) {
 
   const empty = manifest.scene.objects.length === 0;
   return (
@@ -182,7 +181,7 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
             </div>
           </div>
 
-          <LayerSection object={selected} fallback={splatFallback} onSplatLayer={onSplatLayer} onAttachSplat={onAttachSplat} />
+          <LayerSection object={selected} fallback={splatFallback} onAttachSplat={onAttachSplat} />
 
           {source && (
             <div className="border-t border-line pt-3">
@@ -196,22 +195,17 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
   );
 }
 
-/** The object's splat: replace it from a .ply file, and choose whether it is drawn. */
+/** The object's splat: replace it from a .ply file. Whether splats are drawn is the Layers menu's job. */
 function LayerSection({
   object,
   fallback,
-  onSplatLayer,
   onAttachSplat,
 }: {
   object: SceneObject;
   fallback: string | null;
-  onSplatLayer(id: string, splat: boolean): void;
   onAttachSplat(id: string, file: File): void;
 }) {
   const state = splatState(object);
-  const on = state === "available" && !!object.splat?.enabled;
-  const seg = (active: boolean) =>
-    `flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-xs ${active ? "bg-accent/15 text-accent" : "hover:text-accent"}`;
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-xs text-muted">
@@ -231,21 +225,9 @@ function LayerSection({
           />
         </label>
       </div>
-      {state !== "none" && (
-        <>
-          <div className="flex gap-1 rounded-lg border border-line bg-canvas p-0.5" role="group" aria-label="Splat for this object">
-            <button className={seg(!on)} aria-pressed={!on} onClick={() => onSplatLayer(object.id, false)}>
-              <CubeIcon className="size-4" />
-              Mesh only
-            </button>
-            <button className={seg(on)} aria-pressed={on} disabled={state === "stale"} onClick={() => onSplatLayer(object.id, true)}>
-              <SparklesIcon className="size-4" />
-              With splat
-            </button>
-          </div>
-          {on && fallback && <p className="mt-1 text-[11px] text-bad">Splat unavailable: {fallback}</p>}
-        </>
-      )}
+      {state === "stale" && <p className="text-[11px] text-muted">The splat was made for an older geometry revision, so it is not shown.</p>}
+      {state === "available" && fallback && <p className="text-[11px] text-bad">Splat unavailable: {fallback}</p>}
+      {state === "available" && !fallback && <p className="text-[11px] text-muted">Shown with the Splat layer (Layers menu).</p>}
     </div>
   );
 }

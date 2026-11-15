@@ -43,7 +43,8 @@ describe("splat layer edits", () => {
     expect(wantsSplat(box())).toBe(true);
 
     h = commit(h, setSplatEnabled(h.present, BOX, false));
-    expect(wantsSplat(box())).toBe(false);
+    expect(box().splat?.enabled).toBe(false);
+    expect(wantsSplat(box())).toBe(true); // the Layers menu alone decides display
     expect(splatState(box())).toBe("available");
     h = commit(h, setObjectTransform(h.present, BOX, { ...box().transform, position: [1, 0.45, 0] }));
     expect(box().splat?.assetId).toBe("ast_box_splat_0001");
@@ -53,7 +54,7 @@ describe("splat layer edits", () => {
     expect(findObject(start, BOX)!.splat).toBeNull();
   });
 
-  it("layer toggles are view state: the splat draws only with the Splat layer on and the object opted in (ADR-005)", () => {
+  it("layer toggles are view state: a valid splat draws whenever the Splat layer is on", () => {
     const m = attachSplat(original(), BOX, "ast_box_splat_0001");
     const box = findObject(m, BOX)!;
     const before = structuredClone(m);
@@ -61,7 +62,6 @@ describe("splat layer edits", () => {
     expect(drawsSplat(box, { mesh: false, splat: true })).toBe(true); // independent of the Mesh layer
     expect(drawsSplat(box, { mesh: true, splat: false })).toBe(false);
     expect(drawsSplat(box, { mesh: false, splat: false })).toBe(false);
-    expect(drawsSplat(findObject(setSplatEnabled(m, BOX, false), BOX)!, ALL_LAYERS)).toBe(false); // opted out
     expect(drawsSplat(findObject(original(), BOX)!, ALL_LAYERS)).toBe(false); // no splat attached
     expect(drawsSplat({ ...box, geometry: { ...box.geometry, geometryRevision: 2 } }, ALL_LAYERS)).toBe(false); // stale
     expect(m).toEqual(before); // asking never edits the take
