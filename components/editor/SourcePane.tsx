@@ -74,14 +74,19 @@ export function SourcePane({ api, actor, projectId, manifest, selected }: {
         </div>
       )}
       <div className="text-xs">
-        <div className="font-semibold">Source mappings in this take</div>
+        <div className="font-semibold">Videos in this take</div>
         {mappings.length === 0 ? (
           <p className="text-muted">None.</p>
         ) : (
           <ul className="mt-1 space-y-0.5">
-            {mappings.map((m, i) => (
-              <li key={i} className="font-mono">frames {m.takeInFrame}–{m.takeOutFrame} ← source {formatMicroseconds(m.sourceInUs)} ×{m.rate}</li>
-            ))}
+            {[...new Set(mappings.map((m) => m.sourceId))].map((sourceId, i) => {
+              const first = mappings.find((m) => m.sourceId === sourceId)!;
+              return (
+                <li key={sourceId} title={sourceId}>
+                  Capture video {i + 1} <span className="text-muted">· from {formatMicroseconds(first.sourceInUs)}</span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

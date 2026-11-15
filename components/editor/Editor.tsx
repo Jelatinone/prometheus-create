@@ -73,7 +73,7 @@ import { Toast } from "@/components/ui/Toast";
 import { ProjectTitle } from "./ProjectTitle";
 import { CapturePanel } from "@/components/capture/CapturePanel";
 import { Inspector } from "./Inspector";
-import { ALL_LAYERS, checkSplatPly, drawsSplat, type LayerView } from "@/lib/scene/splat";
+import { ALL_LAYERS, drawsSplat, type LayerView } from "@/lib/scene/splat";
 import { LayersMenu } from "./LayersMenu";
 import { ReconstructPanel } from "./ReconstructPanel";
 import { providerSplatFor, reconstructedObject } from "@/lib/editor/reconstruction";
@@ -437,22 +437,6 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     [api, actor, projectId, apply],
   );
 
-  const attachSplatFile = useCallback(
-    async (objectId: string, file: File) => {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const check = checkSplatPly(bytes);
-      if (!check.ok) return setNotice({ tone: "bad", text: `${file.name} is not a usable splat (${check.reason}); the mesh stays.` });
-      setBusy("Uploading splat");
-      const asset = await storeProjectAsset(assetDeps, projectId, bytes, { kind: "splat", mimeType: "application/octet-stream", origin: "upload" });
-      setBusy(null);
-      if (!asset.ok) return setNotice({ tone: "bad", text: `Splat upload failed: ${asset.error.code} ${asset.error.message}` });
-      setSplatFallbacks((m) => ({ ...m, [objectId]: null }));
-      apply((h) => commit(h, attachSplat(h.present, objectId, asset.value.id)));
-      setNotice({ tone: "ok", text: `Attached ${file.name} (${check.info.vertexCount.toLocaleString()} splats). Save to keep it.` });
-    },
-    [assetDeps, projectId, apply],
-  );
-
   const importGlb = useCallback(
     async (file: File) => {
       const bytes = new Uint8Array(await file.arrayBuffer());
@@ -790,7 +774,6 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             onRename={(id, name) => apply((h) => commit(h, renameObject(h.present, id, name)))}
             onVisible={(id, v) => apply((h) => commit(h, setObjectVisible(h.present, id, v)))}
             onSplatLayer={(id, on) => apply((h) => commit(h, setSplatEnabled(h.present, id, on)))}
-            onAttachSplat={(id, file) => void attachSplatFile(id, file)}
             onLoadGeneratedSplat={(id) => void loadGeneratedSplat(id)}
             splatFallback={selectedObject ? (splatFallbacks[selectedObject.id] ?? null) : null}
           />

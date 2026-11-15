@@ -5,7 +5,7 @@
  * (position m, rotation °, uniform scale), dimensions, geometry and evidence.
  * Numeric fields commit on Enter or blur, one undoable edit each.
  */
-import { ArrowUpTrayIcon, CubeIcon, EyeIcon, EyeSlashIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { CubeIcon, EyeIcon, EyeSlashIcon, SparklesIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
 import type { Transform, Vec3 } from "@/lib/contracts/common";
 import type { TakeManifest } from "@/lib/contracts/revision";
@@ -22,7 +22,6 @@ interface Props {
   onVisible(id: string, visible: boolean): void;
   /** Persisted per-object layer: true draws the splat (when it loads), false the mesh. */
   onSplatLayer(id: string, splat: boolean): void;
-  onAttachSplat(id: string, file: File): void;
   /** Generated objects: fetch the splat stored with their generation job (no new provider job). */
   onLoadGeneratedSplat?(id: string): void;
   /** Why the selected object's splat is not drawn (load/parse failure), if it is not. */
@@ -102,7 +101,7 @@ function NameField({ initial, onCommit }: { initial: string; onCommit(name: stri
   );
 }
 
-export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible, onSplatLayer, onAttachSplat, onLoadGeneratedSplat, splatFallback, scope = "scene" }: Props) {
+export function Inspector({ manifest, selected, onSelect, onTransform, onRename, onVisible, onSplatLayer, onLoadGeneratedSplat, splatFallback, scope = "scene" }: Props) {
 
   const empty = manifest.scene.objects.length === 0;
   return (
@@ -181,29 +180,7 @@ export function Inspector({ manifest, selected, onSelect, onTransform, onRename,
             </div>
           </div>
 
-          <LayerSection object={selected} fallback={splatFallback} onSplatLayer={onSplatLayer} onAttachSplat={onAttachSplat} onLoadGeneratedSplat={onLoadGeneratedSplat} />
-
-          <div className="rounded border border-line bg-canvas p-2 text-xs">
-            <div className="font-semibold">Geometry</div>
-            <div>Revision {selected.geometry.geometryRevision}</div>
-            <div className="truncate font-mono text-[11px] text-muted" title={selected.geometry.assetId}>
-              {selected.geometry.assetId}
-            </div>
-            <div className="text-muted">
-              Source units {selected.geometry.normalization.sourceUnits}, up {selected.geometry.normalization.sourceUpAxis}, scale applied{" "}
-              {selected.geometry.normalization.scaleApplied}
-            </div>
-          </div>
-
-          <div className="rounded border border-line bg-canvas p-2 text-xs">
-            <div className="font-semibold">Evidence</div>
-            <div>
-              Origin: <span className="font-medium">{selected.provenance.kind}</span>
-              {selected.provenance.provider && <> · {selected.provenance.provider}</>}
-            </div>
-            {selected.provenance.note && <div className="text-muted">{selected.provenance.note}</div>}
-            {selected.provenance.observationIds.length > 0 && <div className="text-muted">{selected.provenance.observationIds.length} source observation(s)</div>}
-          </div>
+          <LayerSection object={selected} fallback={splatFallback} onSplatLayer={onSplatLayer} onLoadGeneratedSplat={onLoadGeneratedSplat} />
 
         </div>
       )}
@@ -216,13 +193,11 @@ function LayerSection({
   object,
   fallback,
   onSplatLayer,
-  onAttachSplat,
   onLoadGeneratedSplat,
 }: {
   object: SceneObject;
   fallback: string | null;
   onSplatLayer(id: string, splat: boolean): void;
-  onAttachSplat(id: string, file: File): void;
   onLoadGeneratedSplat?(id: string): void;
 }) {
   const state = splatState(object);
@@ -231,23 +206,7 @@ function LayerSection({
     `flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-xs ${active ? "bg-accent/15 text-accent" : "hover:text-accent"}`;
   return (
     <div>
-      <div className="mb-0.5 flex items-center justify-between text-xs text-muted">
-        <span>Splat</span>
-        <label className="flex cursor-pointer items-center gap-1 hover:text-accent" title="Attach a 3DGS splat (.ply) in this object's local space">
-          <ArrowUpTrayIcon className="size-3.5" />
-          {state === "none" ? "Attach splat" : "Replace splat"}
-          <input
-            type="file"
-            accept=".ply"
-            className="sr-only"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              e.target.value = "";
-              if (f) onAttachSplat(object.id, f);
-            }}
-          />
-        </label>
-      </div>
+      <div className="mb-0.5 text-xs text-muted">Splat</div>
       {state === "none" ? (
         <>
           <p className="text-[11px] text-muted">Mesh only: no splat attached.</p>

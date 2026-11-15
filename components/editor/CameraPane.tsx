@@ -46,7 +46,7 @@ export function CameraPane(props: Props) {
   return <div className="space-y-4 p-3 text-sm">
     <div>
       <h2 className="font-serif font-semibold">Render camera</h2>
-      {manifest.scene.cameras.length > 0 && <select aria-label="Active render camera" value={manifest.take.activeCameraId ?? ""} onChange={e => props.onChoose(e.target.value)} className="mt-2 h-8 w-full rounded-md border border-line bg-canvas px-2 text-xs">
+      {manifest.scene.cameras.length > 1 && <select aria-label="Active render camera" value={manifest.take.activeCameraId ?? ""} onChange={e => props.onChoose(e.target.value)} className="mt-2 h-8 w-full rounded-md border border-line bg-canvas px-2 text-xs">
         {!manifest.take.activeCameraId && <option value="">Choose a camera</option>}
         {manifest.scene.cameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
       </select>}
@@ -92,7 +92,6 @@ export function CameraPane(props: Props) {
     </div>
     <div className="border-t border-line pt-3 text-xs">
       <h3 className="font-serif text-sm font-semibold">Start from capture</h3>
-      <button className="mt-1 text-xs text-muted underline hover:text-accent" onClick={props.onRefreshCaptures}>Refresh capture info</button>
       {!choice ? <p className="mt-1 text-muted">No captured timing in this project.</p> : <>
         <select aria-label="Camera capture source" value={choice.source.id} onChange={e => setCaptureId(e.target.value)} className="mt-2 h-8 w-full rounded border border-line bg-canvas px-2">
           {captures.map((c, i) => <option key={c.source.id} value={c.source.id}>Capture {i + 1} · {c.source.media.kind.replaceAll("_", " ")}</option>)}
