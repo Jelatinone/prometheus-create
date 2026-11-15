@@ -83,12 +83,15 @@ Open <http://localhost:3000>; it starts at sign-in. Enter your email and the one
   - **Download (.zip)** saves a project as `project.json` (every take's latest revision) plus `assets/`.
   - Select a row to preview it. Drag the preview to orbit. **Open** (or double-click) opens the editor.
 - **Editor:**
-  - Tools are **V** select, **W** move, **E** rotate, **R** scale and **F** frame.
-  - **Ctrl+Z** / **Ctrl+Shift+Z** undo and redo, **Ctrl+S** saves, **Ctrl+D** duplicates and **Del** deletes.
-  - **Fork take** copies the saved revision into a new take. The take menu switches between takes.
-  - The camera icon opens the upload, phone camera and video panel.
+  - The rail on the left picks the mode: **Objects**, **Camera**, **Generate** or **Source**. The right pane shows that mode's details and the bottom toolbar shows its actions.
+    - **Objects:** select, move, rotate, scale and Import GLB; with an object selected also hide, duplicate and delete.
+    - **Camera:** Align to view and Key from view; the pane edits the render camera, its keys and the take duration.
+    - **Generate:** choose a captured frame, describe what to find, then generate the found objects and add them to the take. Results are kept per frame.
+    - **Generate** and **Source** also show **Capture** (upload, phone camera, video).
+  - The bottom toolbar always has **Playback** (play, seek and keys), **Layers** (Mesh and Splat, independently), pan, frame, camera view and grid.
+  - The header has undo, redo, **Save**, **Fork** (copies the saved revision into a new take) and **Export** (image, 3D scene, video, project). The take menu switches between takes.
+  - Keys: **V** select, **W** move, **E** rotate, **R** scale, **F** frame, **Space** play, **K** key. **Ctrl+Z** / **Ctrl+Shift+Z** undo and redo, **Ctrl+S** saves, **Ctrl+D** duplicates and **Del** deletes.
   - The folder icon (top left) slides the save viewer back.
-  - The tools sit in the bottom toolbar; with an object selected it also shows hide, duplicate and delete.
 - **Capture lab** (`/api/capture/lab`, development only): the capture panel on an in-memory backend, with no sign-in.
 
 Live camera capture needs HTTPS or `localhost`. A phone reaching the dev server over LAN HTTP can still use **Take photo**.
@@ -105,7 +108,7 @@ Import the resulting `normalized.glb` into a project with **Import GLB**.
 
 ### Optional: Chert / LiveKit capture agent (Python)
 
-See [services/capture-agent/README.md](services/capture-agent/README.md). Outbound FaceTime calls currently fail with `recipient_not_verified`; see `docs/changes/HK-002.md`.
+See [services/capture-agent/README.md](services/capture-agent/README.md). Outbound FaceTime calls only reach a destination that Chert has verified; an unverified one fails with `recipient_not_verified`.
 
 ## Verify
 
