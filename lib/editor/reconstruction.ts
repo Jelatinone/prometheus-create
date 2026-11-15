@@ -7,11 +7,11 @@ import type { ReconstructionOutcome } from "@/lib/reconstruction/runner";
  */
 type OutcomeWithSplat = ReconstructionOutcome & { splatAsset?: Asset | null };
 
-/** S3 attach: the provider splat rides on the object, off by default, valid for this geometry revision. */
+/** S3 attach: the provider splat rides on the object and is shown as soon as the Splat layer is on (CP-029), valid for this geometry revision. */
 export function attachedSplat(outcome: OutcomeWithSplat, geometryRevision: number): SceneObject["splat"] {
   const asset = outcome.splatAsset;
   if (!asset || asset.kind !== "splat" || asset.projectId !== outcome.job.projectId) return null;
-  return { assetId: asset.id, enabled: false, validForGeometryRevision: geometryRevision };
+  return { assetId: asset.id, enabled: true, validForGeometryRevision: geometryRevision };
 }
 
 /**

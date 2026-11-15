@@ -82,7 +82,7 @@ describe("S3 attach from a reconstruction outcome", () => {
   const splatAsset = { id: "ast_round_table_splat", kind: "splat", projectId: "prj_fixture_demo" } as Asset;
 
   it("attaches the outcome's splat asset, off by default, for this geometry revision", () => {
-    expect(attachedSplat({ job, splatAsset } as never, 3)).toEqual({ assetId: "ast_round_table_splat", enabled: false, validForGeometryRevision: 3 });
+    expect(attachedSplat({ job, splatAsset } as never, 3)).toEqual({ assetId: "ast_round_table_splat", enabled: true, validForGeometryRevision: 3 });
   });
 
   it("stays mesh-only without a usable splat asset (before S2 lands, null, wrong kind or project)", () => {
