@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyIcon, ViewfinderCircleIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useRef, useState } from "react";
 import type { Camera, Keyframe, Observation, Source, TakeManifest, Transform, Vec3 } from "@/lib/contracts";
 import { activeCamera, cameraTrack, captureTiming } from "@/lib/editor/camera";
@@ -9,8 +9,8 @@ import { formatTakeTime, framesPerSecond } from "@/lib/editor/timeline";
 
 export interface CaptureChoice { source: Source; observations: Observation[] }
 interface Props {
-  manifest: TakeManifest; camera: Camera | null; frame: number; cameraView: boolean; captures: CaptureChoice[];
-  onView(camera: boolean): void; onChoose(id: string): void; onUseView(key: boolean): void;
+  manifest: TakeManifest; camera: Camera | null; frame: number; captures: CaptureChoice[];
+  onChoose(id: string): void;
   onPose(pose: Transform): void; onFov(degrees: number): void; onDuration(frames: number): void;
   onSeek(frame: number): void; onRemove(frame: number): void; onMove(from: number, to: number): void;
   onInterpolation(mode: Keyframe["interpolation"]): void; onSeed(choice: CaptureChoice): void;
@@ -33,7 +33,7 @@ function NumberDraft({ name, value, onChange, digits }: { name: string; value: n
 }
 
 export function CameraPane(props: Props) {
-  const { manifest, camera, frame, cameraView, captures } = props;
+  const { manifest, camera, frame, captures } = props;
   const [captureId, setCaptureId] = useState("");
   const base = activeCamera(manifest);
   const track = base ? cameraTrack(manifest, base.id) : null;
@@ -51,11 +51,6 @@ export function CameraPane(props: Props) {
         {!manifest.take.activeCameraId && <option value="">Choose a camera</option>}
         {manifest.scene.cameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
       </select>}
-      <div className="mt-2 grid grid-cols-2 gap-1">
-        <button className={`${button} ${!cameraView ? "bg-panel-2 font-semibold" : ""}`} aria-pressed={!cameraView} onClick={() => props.onView(false)}>Free view</button>
-        <button className={`${button} ${cameraView ? "bg-panel-2 font-semibold" : ""}`} disabled={!camera} aria-pressed={cameraView} onClick={() => props.onView(true)}>Camera view</button>
-      </div>
-      <button className={`${button} mt-2 w-full`} disabled={cameraView} onClick={() => props.onUseView(false)}><ViewfinderCircleIcon className="size-4" />Align camera to free view</button>
       {camera && <p className="mt-2 text-xs text-muted">{camera.origin === "source_estimate" ? "Capture estimate · inferred pose" : "Authored camera"}{track ? " · edits set a key at the playhead" : " · edits change the base pose"}</p>}
     </div>
     {camera && <>
@@ -83,8 +78,6 @@ export function CameraPane(props: Props) {
     </div>
     <div className="border-t border-line pt-3">
       <div className="flex items-center justify-between gap-2"><h3 className="font-serif font-semibold">Camera keys</h3><span className="text-xs text-muted">frame {frame}</span></div>
-      <button className={`${button} mt-2 w-full`} disabled={cameraView} onClick={() => props.onUseView(true)}><KeyIcon className="size-4" />Key camera from free view</button>
-      <p className="mt-1 text-[11px] text-muted">Frame a shot in free view, seek, then key it. Play or scrub in Camera view to preview the path.</p>
       {track && <>
         <label className="mt-2 flex items-center justify-between gap-2 text-xs text-muted">Position interpolation
           <select aria-label="Camera interpolation" className="h-7 rounded border border-line bg-canvas px-1" value={track.keyframes[0].interpolation} onChange={e => props.onInterpolation(e.target.value as Keyframe["interpolation"])}>

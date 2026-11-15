@@ -7,6 +7,7 @@
  * platform client (HttpBackend + PlatformBlobStore) with the session cookie.
  */
 import {
+  ArrowDownOnSquareIcon,
   ArrowPathIcon,
   ArrowDownTrayIcon,
   ArrowsPointingOutIcon,
@@ -24,7 +25,9 @@ import {
   EyeSlashIcon,
   FolderOpenIcon,
   HandRaisedIcon,
+  KeyIcon,
   PhotoIcon,
+  PlayPauseIcon,
   SparklesIcon,
   Square2StackIcon,
   Squares2X2Icon,
@@ -72,7 +75,7 @@ import { LayersMenu } from "./LayersMenu";
 import { ReconstructPanel } from "./ReconstructPanel";
 import { providerSplatFor, reconstructedObject } from "@/lib/editor/reconstruction";
 import { runJob } from "@/lib/editor/batch";
-import { defaultDurationFrames, evaluateAt, framesPerSecond, keyFrames, keyTrackOf, removeKey, setDuration, setKey, sourceAt } from "@/lib/editor/timeline";
+import { defaultDurationFrames, evaluateAt, formatTakeTime, framesPerSecond, keyFrames, keyTrackOf, removeKey, setDuration, setKey, sourceAt } from "@/lib/editor/timeline";
 import { SourcePane } from "./SourcePane";
 import { Timeline } from "./Timeline";
 import { ExportDialog, type ExportFormat } from "./ExportDialog";
@@ -97,6 +100,15 @@ interface Loaded {
   takes: TakeSummary[];
   revision: Revision;
 }
+
+type Pane = "objects" | "camera" | "generate" | "source";
+/** The mode rail: each mode sets the right-hand details and the bottom actions. */
+const MODES: { id: Pane; label: string; Icon: typeof CubeIcon }[] = [
+  { id: "objects", label: "Objects", Icon: CubeIcon },
+  { id: "camera", label: "Camera", Icon: VideoCameraIcon },
+  { id: "generate", label: "Generate", Icon: SparklesIcon },
+  { id: "source", label: "Source", Icon: PhotoIcon },
+];
 
 type Notice = { tone: "ok" | "bad" | "info"; text: string; conflict?: boolean } | null;
 
@@ -137,7 +149,8 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
-  const [pane, setPane] = useState<"objects" | "camera" | "generate" | "source">("objects");
+  const [pane, setPane] = useState<Pane>("objects");
+  const [playbackOpen, setPlaybackOpen] = useState(false);
   const [cameraView, setCameraView] = useState(false);
   const [captures, setCaptures] = useState<CaptureChoice[] | null>(null);
   const [playhead, setPlayhead] = useState(0);
@@ -289,7 +302,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     apply(h => commit(h, result.value));
   }, [apply]);
 
-  const useCameraView = useCallback((key: boolean) => {
+  const poseCameraFromView = useCallback((key: boolean) => {
     const view = viewport.current?.captureView();
     if (!view) return;
     setPlaying(false);
@@ -625,7 +638,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       )}
 
       {/* Project chip: saves, project, take, saved state */}
-      <div className={`absolute top-3 left-3 flex h-11 max-w-[min(560px,calc(100vw-45rem))] items-center gap-1 px-1.5 ${chrome}`}>
+      <div className={`absolute top-3 left-3 flex h-11 max-w-[min(560px,calc(100vw-32rem))] items-center gap-1 px-1.5 ${chrome}`}>
         {onShowSaves ? (
           <button className={icon} onClick={onShowSaves} title="Saves" aria-label="Back to saves">
             <FolderOpenIcon className="size-5" />
@@ -689,34 +702,6 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           Fork
         </button>
         {sep}
-        <label className={`${icon} cursor-pointer`} title="Import GLB mesh" aria-label="Import GLB mesh">
-          <ArrowUpTrayIcon className="size-5" />
-          <input
-            type="file"
-            accept=".glb,model/gltf-binary"
-            className="sr-only"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              e.target.value = "";
-              if (f) void importGlb(f);
-            }}
-          />
-        </label>
-        <button
-          className={toolButton(captureOpen)}
-          onClick={() => setCaptureOpen((v) => !v)}
-          aria-pressed={captureOpen}
-          title="Capture (upload, camera, video)"
-          aria-label="Capture"
-        >
-          <CameraIcon className="size-5" />
-        </button>
-        <button className={labelled} onClick={() => setPane((p) => (p === "generate" ? "objects" : "generate"))} aria-pressed={pane === "generate"}>
-          <SparklesIcon className="size-5" />Generate
-        </button>
-        {sep}
-        <LayersMenu layers={layers} onChange={setLayers} buttonClass={toolButton} panelClass={chrome} />
-        {sep}
         <button className={labelled} disabled={!!busy || Object.values(splatsLoading).some(Boolean)} onClick={() => {
           setPlaying(false);
           setExportError(null);
@@ -727,169 +712,226 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         </button>
       </div>
 
+      {/* Mode rail: picks what the right pane and the bottom actions are about */}
+      <div className={`absolute top-17 left-3 flex flex-col gap-0.5 p-1 ${chrome}`} role="tablist" aria-orientation="vertical" aria-label="Mode">
+        {MODES.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            id={`mode-${id}`}
+            role="tab"
+            aria-selected={pane === id}
+            aria-controls="mode-details"
+            className={toolButton(pane === id)}
+            onClick={() => {
+              setPane(id);
+              if (id === "objects" || id === "camera") setCaptureOpen(false);
+            }}
+            title={label}
+            aria-label={label}
+          >
+            <Icon className="size-5" />
+          </button>
+        ))}
+      </div>
+
       {captureOpen && (
-        <aside className={`absolute top-17 bottom-32 left-3 z-10 w-[26rem] max-w-[calc(100%-1.5rem)] overflow-auto p-3 ${chrome}`}>
+        <aside className={`absolute top-17 bottom-20 left-16 z-10 w-[26rem] max-w-[calc(100%-5rem)] overflow-auto p-3 ${chrome}`}>
           <div className="mb-2 flex items-center justify-between">
             <h2 className="font-serif font-semibold">Capture</h2>
             <button className={icon} onClick={() => setCaptureOpen(false)} aria-label="Close capture">
               <XMarkIcon className="size-5" />
             </button>
           </div>
-          <p className="mb-2 text-xs text-muted">
-            Photos, camera frames and video frames are saved privately to this project. Open Generate to turn up to three captured objects into meshes.
-          </p>
           <CapturePanel ingestor={ingestor} />
         </aside>
       )}
 
-
-      {/* Right pane: context-aware tabs */}
-      <div className="absolute top-17 right-3 bottom-32 flex w-80 flex-col gap-1.5">
-        <div className={`flex shrink-0 gap-0.5 p-1 ${chrome}`} role="tablist" aria-label="Right pane">
-          {(
-            [
-              ["objects", "Objects", CubeIcon],
-              ["camera", "Camera", VideoCameraIcon],
-              ["generate", "Generate", SparklesIcon],
-              ["source", "Source", PhotoIcon],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={pane === id}
-              onClick={() => setPane(id)}
-              className={`flex flex-1 items-center justify-center rounded-lg px-1 py-1.5 text-sm ${pane === id ? "bg-accent/15 text-accent" : "hover:bg-panel-2 hover:text-accent"}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="min-h-0 flex-1" role="tabpanel">
-          {pane === "camera" && <div className={`h-full overflow-auto ${chrome}`}><CameraPane manifest={present} camera={activeCamera} frame={frame} cameraView={cameraView} captures={captures ?? []}
-            onView={setCameraView} onChoose={id => apply(h => commit(h, chooseCamera(h.present, id)))} onUseView={useCameraView}
-            onPose={pose => activeCamera && apply(h => commit(h, editCamera(h.present, activeCamera.id, frame, cleanTransform(pose))))}
-            onFov={degrees => activeCamera && apply(h => commit(h, cameraFov(h.present, activeCamera.id, degrees)))}
-            onDuration={frames => applyCameraResult(resizeTake(present, frames))}
-            onSeek={next => { setPlaying(false); setPlayhead(next); }}
-            onRemove={key => activeCamera && apply(h => commit(h, removeCameraKey(h.present, activeCamera.id, key)))}
-            onMove={(from, to) => activeCamera && applyCameraResult(moveCameraKey(present, activeCamera.id, from, to))}
-            onInterpolation={mode => activeCamera && apply(h => commit(h, cameraInterpolation(h.present, activeCamera.id, mode)))}
-            onSeed={choice => applyCameraResult(seedCamera(present, choice.source, choice.observations))}
-            onRefreshCaptures={() => setCaptures(null)}
-          /></div>}
-          {pane === "objects" && (
-            <Inspector
-          manifest={evaluated ?? present}
-          selected={shownObject}
-          onSelect={setSelected}
-          onTransform={editTransform}
-          scope={selected && keyTrackOf(present, selected) ? "keyframe" : "scene"}
-          onRename={(id, name) => apply((h) => commit(h, renameObject(h.present, id, name)))}
-          onVisible={(id, v) => apply((h) => commit(h, setObjectVisible(h.present, id, v)))}
-          onSplatLayer={(id, on) => apply((h) => commit(h, setSplatEnabled(h.present, id, on)))}
-          onAttachSplat={(id, file) => void attachSplatFile(id, file)}
-          onLoadGeneratedSplat={(id) => void loadGeneratedSplat(id)}
-          splatFallback={selectedObject ? (splatFallbacks[selectedObject.id] ?? null) : null}
-        />
-          )}
-          {pane === "generate" && (
-            <div className={`h-full overflow-auto p-3 ${chrome}`}>
-              <ReconstructPanel api={api} actor={actor} projectId={projectId} takeId={take.id} onApply={(requestedTake, name, observation, outcome, placement) => {
-          const current = historyRef.current;
-          if (!current) return false;
-          const r = reconstructedObject(current.present, requestedTake, name, observation, outcome, placement);
-          if (!r.ok) { setNotice({ tone: "bad", text: r.error.message }); return false; }
-          apply(h => commit(h, addObject(h.present, r.value))); setSelected(r.value.id);
-          setNotice({ tone: "ok", text: "Estimated mesh added. Save to keep it; dimensions are not calibrated." });
-          return true;
-        }} />
-            </div>
-          )}
-          {pane === "source" && (
-            <div className={`h-full overflow-auto p-3 ${chrome}`}>
-              <SourcePane api={api} actor={actor} projectId={projectId} manifest={present} selected={shownObject} />
-            </div>
-          )}
-        </div>
+      {/* Details for the current mode */}
+      <div id="mode-details" role="tabpanel" aria-labelledby={`mode-${pane}`} className="absolute top-17 right-3 bottom-20 w-80">
+        {pane === "camera" && (
+          <div className={`h-full overflow-auto ${chrome}`}>
+            <CameraPane manifest={present} camera={activeCamera} frame={frame} captures={captures ?? []}
+              onChoose={id => apply(h => commit(h, chooseCamera(h.present, id)))}
+              onPose={pose => activeCamera && apply(h => commit(h, editCamera(h.present, activeCamera.id, frame, cleanTransform(pose))))}
+              onFov={degrees => activeCamera && apply(h => commit(h, cameraFov(h.present, activeCamera.id, degrees)))}
+              onDuration={frames => applyCameraResult(resizeTake(present, frames))}
+              onSeek={next => { setPlaying(false); setPlayhead(next); }}
+              onRemove={key => activeCamera && apply(h => commit(h, removeCameraKey(h.present, activeCamera.id, key)))}
+              onMove={(from, to) => activeCamera && applyCameraResult(moveCameraKey(present, activeCamera.id, from, to))}
+              onInterpolation={mode => activeCamera && apply(h => commit(h, cameraInterpolation(h.present, activeCamera.id, mode)))}
+              onSeed={choice => applyCameraResult(seedCamera(present, choice.source, choice.observations))}
+              onRefreshCaptures={() => setCaptures(null)}
+            />
+          </div>
+        )}
+        {pane === "objects" && (
+          <Inspector
+            manifest={evaluated ?? present}
+            selected={shownObject}
+            onSelect={setSelected}
+            onTransform={editTransform}
+            scope={selected && keyTrackOf(present, selected) ? "keyframe" : "scene"}
+            onRename={(id, name) => apply((h) => commit(h, renameObject(h.present, id, name)))}
+            onVisible={(id, v) => apply((h) => commit(h, setObjectVisible(h.present, id, v)))}
+            onSplatLayer={(id, on) => apply((h) => commit(h, setSplatEnabled(h.present, id, on)))}
+            onAttachSplat={(id, file) => void attachSplatFile(id, file)}
+            onLoadGeneratedSplat={(id) => void loadGeneratedSplat(id)}
+            splatFallback={selectedObject ? (splatFallbacks[selectedObject.id] ?? null) : null}
+          />
+        )}
+        {pane === "generate" && (
+          <div className={`h-full overflow-auto p-3 ${chrome}`}>
+            <ReconstructPanel api={api} actor={actor} projectId={projectId} takeId={take.id} onApply={(requestedTake, name, observation, outcome, placement) => {
+              const current = historyRef.current;
+              if (!current) return false;
+              const r = reconstructedObject(current.present, requestedTake, name, observation, outcome, placement);
+              if (!r.ok) { setNotice({ tone: "bad", text: r.error.message }); return false; }
+              apply(h => commit(h, addObject(h.present, r.value))); setSelected(r.value.id);
+              setNotice({ tone: "ok", text: "Estimated mesh added. Save to keep it; dimensions are not calibrated." });
+              return true;
+            }} />
+          </div>
+        )}
+        {pane === "source" && (
+          <div className={`h-full overflow-auto p-3 ${chrome}`}>
+            <SourcePane api={api} actor={actor} projectId={projectId} manifest={present} selected={shownObject} />
+          </div>
+        )}
       </div>
 
-      {/* Context-aware toolbar: tools and view always; object actions with a selection */}
-      <div className="absolute right-3 bottom-3 left-3">
-        <Timeline
-          rate={present.take.frameRate}
-          durationFrames={duration}
-          playhead={frame}
-          playing={playing}
-          sourceUs={sourceAt(present, frame)?.us ?? null}
-          keys={pane === "camera" ? cameraKeys : selected ? keyFrames(present, selected) : []}
-          canKey={duration > 0 && (pane === "camera" ? !!activeCamera : !!selectedObject)}
-          keyTarget={pane === "camera" ? "camera" : "object"}
-          onPlay={setPlaying}
-          onSeek={(f) => { setPlaying(false); setPlayhead(f); }}
-          onAnimate={() => apply((h) => commit(h, setDuration(h.present, defaultDurationFrames(h.present.take.frameRate))))}
-          onToggleKey={toggleKey}
-        />
-      </div>
+      {/* Playback pop-up: play, seek and keys (opened from the bottom toolbar) */}
+      {playbackOpen && (
+        <div id="playback" className="absolute bottom-17 left-1/2 w-[min(46rem,calc(100vw-1.5rem))] -translate-x-1/2">
+          <Timeline
+            rate={present.take.frameRate}
+            durationFrames={duration}
+            playhead={frame}
+            playing={playing}
+            sourceUs={sourceAt(present, frame)?.us ?? null}
+            keys={pane === "camera" ? cameraKeys : selected ? keyFrames(present, selected) : []}
+            canKey={duration > 0 && (pane === "camera" ? !!activeCamera : !!selectedObject)}
+            keyTarget={pane === "camera" ? "camera" : "object"}
+            onPlay={setPlaying}
+            onSeek={(f) => { setPlaying(false); setPlayhead(f); }}
+            onAnimate={() => apply((h) => commit(h, setDuration(h.present, defaultDurationFrames(h.present.take.frameRate))))}
+            onToggleKey={toggleKey}
+          />
+        </div>
+      )}
 
-      <div className={`absolute bottom-17 left-1/2 flex h-12 -translate-x-1/2 items-center gap-0.5 px-1.5 ${chrome}`} role="toolbar" aria-label="Tools and view">
-        {TOOLS.map((t) => {
-          const Icon = t.icon;
-          const needsSelection = t.id !== "select" && !selectedObject;
-          return (
-            <button
-              key={t.id}
-              className={toolButton(tool === t.id)}
-              onClick={() => setTool(t.id)}
-              aria-pressed={tool === t.id}
-              title={`${t.label} (${t.key}): ${needsSelection ? "select an object first" : t.hint}`}
-              aria-label={t.label}
-            >
-              <Icon className="size-5" />
-            </button>
-          );
-        })}
-        {selectedObject && (
+      {/* Bottom toolbar: actions for the current mode, then playback, then view controls (always there) */}
+      <div className={`absolute bottom-3 left-1/2 flex h-12 max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-0.5 px-1.5 ${chrome}`} role="toolbar" aria-label="Actions and view">
+        {pane === "objects" && (
           <>
+            {TOOLS.map((t) => {
+              const Icon = t.icon;
+              const needsSelection = t.id !== "select" && !selectedObject;
+              return (
+                <button
+                  key={t.id}
+                  className={toolButton(tool === t.id)}
+                  onClick={() => setTool(t.id)}
+                  aria-pressed={tool === t.id}
+                  title={`${t.label} (${t.key}): ${needsSelection ? "select an object first" : t.hint}`}
+                  aria-label={t.label}
+                >
+                  <Icon className="size-5" />
+                </button>
+              );
+            })}
             {sep}
-            <span className="max-w-40 truncate px-1.5 text-sm font-medium" title={selectedObject.name}>
-              {selectedObject.name}
-            </span>
-            <button
-              className={icon}
-              onClick={() => apply((h) => commit(h, setObjectVisible(h.present, selectedObject.id, !selectedObject.visible)))}
-              title={selectedObject.visible ? "Hide" : "Show"}
-              aria-label={selectedObject.visible ? "Hide object" : "Show object"}
-            >
-              {selectedObject.visible ? <EyeIcon className="size-5" /> : <EyeSlashIcon className="size-5" />}
+            <label className={`${icon} cursor-pointer`} title="Import GLB mesh" aria-label="Import GLB mesh">
+              <ArrowUpTrayIcon className="size-5" />
+              <input
+                type="file"
+                accept=".glb,model/gltf-binary"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) void importGlb(f);
+                }}
+              />
+            </label>
+            {selectedObject && (
+              <>
+                {sep}
+                <span className="max-w-40 truncate px-1.5 text-sm font-medium" title={selectedObject.name}>
+                  {selectedObject.name}
+                </span>
+                <button
+                  className={icon}
+                  onClick={() => apply((h) => commit(h, setObjectVisible(h.present, selectedObject.id, !selectedObject.visible)))}
+                  title={selectedObject.visible ? "Hide" : "Show"}
+                  aria-label={selectedObject.visible ? "Hide object" : "Show object"}
+                >
+                  {selectedObject.visible ? <EyeIcon className="size-5" /> : <EyeSlashIcon className="size-5" />}
+                </button>
+                <button
+                  className={icon}
+                  onClick={() => {
+                    const copy = newId("object");
+                    apply((h) => commit(h, duplicateObject(h.present, selectedObject.id, copy)));
+                    setSelected(copy);
+                  }}
+                  title="Duplicate (Ctrl+D)"
+                  aria-label="Duplicate object"
+                >
+                  <DocumentDuplicateIcon className="size-5" />
+                </button>
+                <button
+                  className={`${icon} hover:text-bad`}
+                  onClick={() => {
+                    apply((h) => commit(h, removeObject(h.present, selectedObject.id)));
+                    setSelected(null);
+                  }}
+                  title="Delete (Del)"
+                  aria-label="Delete object"
+                >
+                  <TrashIcon className="size-5" />
+                </button>
+              </>
+            )}
+          </>
+        )}
+        {pane === "camera" && (
+          <>
+            <button className={labelled} disabled={cameraView} onClick={() => poseCameraFromView(false)} title={cameraView ? "Switch to free view first" : "Move the render camera to the current free view"}>
+              <ArrowDownOnSquareIcon className="size-5" />
+              Align to view
             </button>
-            <button
-              className={icon}
-              onClick={() => {
-                const copy = newId("object");
-                apply((h) => commit(h, duplicateObject(h.present, selectedObject.id, copy)));
-                setSelected(copy);
-              }}
-              title="Duplicate (Ctrl+D)"
-              aria-label="Duplicate object"
-            >
-              <DocumentDuplicateIcon className="size-5" />
-            </button>
-            <button
-              className={`${icon} hover:text-bad`}
-              onClick={() => {
-                apply((h) => commit(h, removeObject(h.present, selectedObject.id)));
-                setSelected(null);
-              }}
-              title="Delete (Del)"
-              aria-label="Delete object"
-            >
-              <TrashIcon className="size-5" />
+            <button className={labelled} disabled={cameraView} onClick={() => poseCameraFromView(true)} title={cameraView ? "Switch to free view first" : "Set a camera key at the playhead from the current free view"}>
+              <KeyIcon className="size-5" />
+              Key from view
             </button>
           </>
         )}
-        {/* View controls: static, always on the right */}
+        {(pane === "generate" || pane === "source") && (
+          <button
+            className={`${labelled} ${captureOpen ? "bg-accent/15 text-accent" : ""}`}
+            onClick={() => setCaptureOpen((v) => !v)}
+            aria-pressed={captureOpen}
+            title="Capture a photo, camera frame or video frame"
+          >
+            <CameraIcon className="size-5" />
+            Capture
+          </button>
+        )}
         <span className="mx-1.5 h-7 w-px bg-line" aria-hidden />
+        <button
+          className={`${labelled} ${playbackOpen ? "bg-accent/15 text-accent" : ""}`}
+          onClick={() => setPlaybackOpen((v) => !v)}
+          aria-expanded={playbackOpen}
+          aria-controls="playback"
+          title="Playback, seek and keys"
+          aria-label="Playback"
+        >
+          <PlayPauseIcon className="size-5" />
+          <span className="font-mono text-xs tabular-nums">{duration > 0 ? formatTakeTime(frame, take.frameRate) : "Still"}</span>
+        </button>
+        {/* View controls: always here, in every mode */}
+        <span className="mx-1.5 h-7 w-px bg-line" aria-hidden />
+        <LayersMenu layers={layers} onChange={setLayers} buttonClass={toolButton} panelClass={chrome} above />
         <button
           className={toolButton(nav === "pan")}
           onClick={() => setNav((n) => (n === "pan" ? "orbit" : "pan"))}
@@ -920,7 +962,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       {notice && (
         <div
           role={notice.tone === "bad" ? "alert" : "status"}
-          className={`absolute bottom-32 left-1/2 z-40 flex max-w-2xl -translate-x-1/2 items-start gap-3 rounded-xl border bg-panel px-3 py-2 text-sm shadow ${
+          className={`absolute ${playbackOpen ? "bottom-32" : "bottom-17"} left-1/2 z-40 flex max-w-2xl -translate-x-1/2 items-start gap-3 rounded-xl border bg-panel px-3 py-2 text-sm shadow ${
             notice.tone === "bad" ? "border-bad text-bad" : notice.tone === "ok" ? "border-ok text-ok" : "border-line text-ink"
           }`}
         >

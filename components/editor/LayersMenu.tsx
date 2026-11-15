@@ -10,6 +10,8 @@ interface Props {
   /** The toolbar's button class for an on/off control. */
   buttonClass(on: boolean): string;
   panelClass: string;
+  /** Open upwards (for a toolbar at the bottom of the screen). */
+  above?: boolean;
 }
 
 const ROWS = [
@@ -18,7 +20,7 @@ const ROWS = [
 ] as const;
 
 /** Layers pop-up (CP-018, ADR-005): independent Mesh and Splat view toggles. View state only; nothing is saved. */
-export function LayersMenu({ layers, onChange, buttonClass, panelClass }: Props) {
+export function LayersMenu({ layers, onChange, buttonClass, panelClass, above = false }: Props) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -57,7 +59,7 @@ export function LayersMenu({ layers, onChange, buttonClass, panelClass }: Props)
         <Square3Stack3DIcon className="size-5" />
       </button>
       {open && (
-        <div role="menu" aria-label="Layers" className={`absolute top-10 right-0 z-20 w-36 p-1 ${panelClass}`}>
+        <div role="menu" aria-label="Layers" className={`absolute z-20 w-36 p-1 ${above ? "bottom-11 left-1/2 -translate-x-1/2" : "top-10 right-0"} ${panelClass}`}>
           {ROWS.map(({ id, label, Icon }) => (
             <button
               key={id}
