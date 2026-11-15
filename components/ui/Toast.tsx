@@ -5,7 +5,7 @@ import { XMarkIcon } from "@heroicons/react/24/outline";
 import { Presence } from "./Presence";
 
 /**
- * A short hint that fades out on its own, or at once from its close button.
+ * A one-line hint (truncated; full text on hover) that fades out on its own, or at once from its close button.
  * Key it by its text so a different hint shows again.
  */
 export function Toast({ text, ms = 5000 }: { text: string; ms?: number }) {
@@ -18,9 +18,9 @@ export function Toast({ text, ms = 5000 }: { text: string; ms?: number }) {
     <Presence
       show={open}
       role="status"
-      className="pointer-events-auto flex max-w-md items-start gap-3 rounded-xl border border-line bg-panel px-3 py-2 text-sm text-ink shadow"
+      className="pointer-events-auto flex h-11 max-w-[min(26rem,calc(100vw-56rem))] min-w-0 items-center max-lg:max-w-full gap-3 rounded-xl border border-line bg-panel px-3 text-sm text-ink shadow-sm"
     >
-      <span>{text}</span>
+      <span className="min-w-0 truncate" title={text}>{text}</span>
       <button className="text-muted hover:text-accent" onClick={() => setOpen(false)} aria-label="Dismiss" title="Dismiss">
         <XMarkIcon className="size-4" />
       </button>

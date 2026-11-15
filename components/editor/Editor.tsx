@@ -625,7 +625,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       {/* Viewport fills the screen; chrome floats over it. */}
       <div ref={viewportEl} className="absolute inset-0" />
       {hint && (
-        <div className="editor-hint pointer-events-none absolute inset-x-0 top-17 z-40 flex justify-center px-3">
+        <div className="editor-hint pointer-events-none absolute inset-x-0 top-3 z-40 flex justify-center px-3">
           <Toast key={hint} text={hint} />
         </div>
       )}
