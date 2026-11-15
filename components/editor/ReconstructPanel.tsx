@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * Generate objects from one captured frame (S4 phase 1, dynamic count).
- * Describe what to look for; each description finds every instance in the
- * frame (one segmentation). Found objects are listed with a cut-out preview and
- * can be removed; more descriptions can be added. Generate reconstructs
- * whatever is still listed. Job IDs are stored before each request, so a
- * reload resumes the same jobs; retries follow lib/editor/batch.
+ * Generate objects from one captured frame (S4 phase 1, dynamic count), as
+ * three steps: 1 choose the frame, 2 describe what to find (each description
+ * finds every instance in the frame, one segmentation), 3 generate the listed
+ * objects and add them to the take. Job IDs are stored before each request,
+ * so a reload resumes the same jobs; retries follow lib/editor/batch. Results
+ * are kept per frame.
  */
-import { ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, MagnifyingGlassIcon, SparklesIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon, ExclamationTriangleIcon, MagnifyingGlassIcon, PlusIcon, SparklesIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Actor, Observation } from "@/lib/contracts";
 import {
@@ -44,8 +44,10 @@ interface Saved {
 /** Jobs with a driver loop in this page; a dev double mount never drives a job twice. */
 const activeJobs = new Set<string>();
 
-export function ReconstructPanel({ api, actor, projectId, takeId, onApply }: {
+export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captureCount = 0 }: {
   api: HttpBackend; actor: NonNullable<Actor>; projectId: string; takeId: string;
+  /** Rises when a frame is captured elsewhere on the page, so the frame list follows it. */
+  captureCount?: number;
   onApply: (takeId: string, name: string, observation: Observation, outcome: ReconstructionOutcome, placement: LevelledPlacement | null) => boolean;
 }) {
   const key = `prometheus:generate2:${projectId}`;
@@ -129,13 +131,17 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply }: {
     for (const o of objects) if (o.mesh && (o.mesh.stage === "pending" || o.mesh.stage === "running")) void driveMesh(o.key);
   }, [persist, driveFind, driveMesh]);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (newest = false) => {
     const r = await api.request<Observation[]>(actor, "GET", `/api/reconstruction/frames?projectId=${projectId}`);
     if (!alive.current) return;
     if (!r.ok) return setError(r.error.message);
     setFrames(r.value);
-    setSelected((id) => (r.value.some((o) => o.id === id) ? id : r.value[0]?.id ?? ""));
+    // A frame captured just now becomes the choice, unless this frame already has work on it.
+    setSelected((id) => (r.value.some((o) => o.id === id) && !(newest && !savedRef.current) ? id : r.value[0]?.id ?? ""));
   }, [api, actor, projectId]);
+  useEffect(() => {
+    if (captureCount > 0) void Promise.resolve().then(() => refresh(true));
+  }, [captureCount, refresh]);
 
   // After mount: frames, and the saved batch. Unfinished jobs resume; finished meshes re-read their job (no resubmission).
   useEffect(() => {
@@ -280,96 +286,129 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply }: {
       </div>
     ) : null;
 
+  const index = frames.findIndex((o) => o.id === frame?.id);
+  const stepFrame = (delta: number) => {
+    const next = frames[index + delta];
+    if (next) chooseFrame(next.id);
+  };
+  const readyToAdd = saved ? objects.filter((o) => o.mesh?.stage === "done" && outcomes[o.key] && !saved.applied.includes(o.key)) : [];
+  const sameTake = !saved || saved.batch.takeId === takeId;
+  const heading = "flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted uppercase";
+  const number = "grid size-4.5 place-items-center rounded-full bg-accent/15 text-[10px] text-accent";
+
   return (
-    <section className="space-y-3" aria-label="Generate objects">
-      <p className="text-xs text-muted">Describe what to look for in a captured frame. Every match is listed; remove any you do not want, add more descriptions, then Generate. Matching is best effort, and hidden surfaces and scale are inferred.</p>
-      <div className="flex items-center justify-between">
-        <label htmlFor="reconstruct-frame" className="text-sm">Captured frame</label>
-        <button className={small} onClick={() => void refresh()} title="Refresh frames" aria-label="Refresh frames">
-          <ArrowPathIcon className="size-4" />
-        </button>
+    <section className="space-y-4" aria-label="Generate objects">
+      <div className="space-y-1.5">
+        <h3 className={heading}><span className={number}>1</span>Frame</h3>
+        {frames.length || saved ? (
+          <>
+            <div className="flex items-center gap-1">
+              <button className={small} disabled={busy || index <= 0} onClick={() => stepFrame(-1)} title="Previous frame in the list" aria-label="Previous frame">
+                <ChevronLeftIcon className="size-4" />
+              </button>
+              <select id="reconstruct-frame" aria-label="Captured frame" className="h-7.5 min-w-0 flex-1 rounded-md border border-line bg-panel px-1.5 text-xs" value={frame?.id ?? ""} disabled={busy} title={busy ? "Wait for the running jobs before changing frame" : "Results are kept per frame"} onChange={(e) => chooseFrame(e.target.value)}>
+                {saved && !frames.some((o) => o.id === saved.frame.id) && <option value={saved.frame.id}>Frame {saved.frame.sequence}</option>}
+                {frames.map((o) => <option key={o.id} value={o.id}>Frame {o.sequence} · {new Date(o.receivedAt).toLocaleTimeString()}{keptFrames.includes(o.id) ? " · has results" : ""}</option>)}
+              </select>
+              <button className={small} disabled={busy || index < 0 || index >= frames.length - 1} onClick={() => stepFrame(1)} title="Next frame in the list" aria-label="Next frame">
+                <ChevronRightIcon className="size-4" />
+              </button>
+              <button className={small} onClick={() => void refresh()} title="Refresh frames" aria-label="Refresh frames">
+                <ArrowPathIcon className="size-4" />
+              </button>
+            </div>
+            {/* Signed private asset URL, refreshed whenever the frame selection changes. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {preview && <img src={preview} alt="Selected captured frame" className="max-h-56 w-full rounded-lg bg-black object-contain" />}
+          </>
+        ) : (
+          <p className="text-sm text-muted">No captured frames yet. Use Capture below.</p>
+        )}
       </div>
-      <select id="reconstruct-frame" className="w-full rounded-lg border border-line bg-panel p-2 text-sm" value={frame?.id ?? ""} disabled={busy} title={busy ? "Wait for the running jobs before changing frame" : "Results are kept per frame"} onChange={(e) => chooseFrame(e.target.value)}>
-        {!frames.length && !saved && <option value="">Capture or upload a photo first</option>}
-        {saved && !frames.some((o) => o.id === saved.frame.id) && <option value={saved.frame.id}>Frame {saved.frame.sequence}</option>}
-        {frames.map((o) => <option key={o.id} value={o.id}>Frame {o.sequence} · {o.frame.width}×{o.frame.height} · {new Date(o.receivedAt).toLocaleTimeString()}{keptFrames.includes(o.id) ? " · has results" : ""}</option>)}
-      </select>
-      {/* Signed private asset URL, refreshed whenever the frame selection changes. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {preview && <img src={preview} alt="Selected captured frame" className="max-h-56 w-full rounded-lg bg-black object-contain" />}
 
-      <form className="flex gap-1.5" onSubmit={(e) => { e.preventDefault(); find(); }}>
-        <input className="w-full rounded-lg border border-line bg-panel p-2 text-sm" value={prompt} maxLength={200} placeholder={finds.length ? "Look for something else" : "What to look for, e.g. chairs"} aria-label="What to look for" onChange={(e) => setPrompt(e.target.value)} />
-        <button type="submit" className={small} disabled={!frame || !prompt.trim()} title="Find every match in this frame" aria-label="Find">
-          <MagnifyingGlassIcon className="size-4" />
-        </button>
-      </form>
+      <div className="space-y-1.5">
+        <h3 className={heading}><span className={number}>2</span>Find objects</h3>
+        <form className="flex gap-1.5" onSubmit={(e) => { e.preventDefault(); find(); }}>
+          <input className="h-8.5 w-full min-w-0 rounded-lg border border-line bg-panel px-2 text-sm" value={prompt} maxLength={200} placeholder={finds.length ? "Something else" : "e.g. chairs"} aria-label="What to look for" onChange={(e) => setPrompt(e.target.value)} />
+          <button type="submit" className={`${button} h-8.5 shrink-0 py-0`} disabled={!frame || !prompt.trim()} title="Find every match in this frame">
+            <MagnifyingGlassIcon className="size-4" />Find
+          </button>
+        </form>
+        {finds.length > 0 && (
+          <ul className="space-y-1" aria-label="Searches">
+            {finds.map((f) => {
+              const found = objects.filter((o) => o.findKey === f.key).length;
+              return (
+                <li key={f.key} className="text-xs" data-stage={f.job.stage}>
+                  <div className="flex items-center gap-1.5">
+                    {stateIcon(f.job)}
+                    <span className="min-w-0 flex-1 truncate">“{f.prompt}” · {f.job.stage === "done" ? (found ? `${found} found` : "nothing found") : jobStatus(f.job, "Looking", "")}</span>
+                    {f.job.stage === "failed" && !confirm[f.key] && <button className={small} onClick={() => retry("find", f.key, f.job)}><ArrowPathIcon className="size-3.5" />Retry</button>}
+                  </div>
+                  {confirmBox(f.key, "find", f.job)}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
 
-      {finds.length > 0 && (
-        <ul className="space-y-1" aria-label="Searches">
-          {finds.map((f) => {
-            const found = objects.filter((o) => o.findKey === f.key).length;
-            return (
-              <li key={f.key} className="text-xs" data-stage={f.job.stage}>
-                <div className="flex items-center gap-1.5">
-                  {stateIcon(f.job)}
-                  <span className="min-w-0 flex-1 truncate">“{f.prompt}” · {f.job.stage === "done" ? (found ? `${found} found` : "nothing found") : jobStatus(f.job, "Looking", "")}</span>
-                  {f.job.stage === "failed" && !confirm[f.key] && <button className={small} onClick={() => retry("find", f.key, f.job)}><ArrowPathIcon className="size-3.5" />Retry</button>}
-                </div>
-                {confirmBox(f.key, "find", f.job)}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {objects.length > 0 && (
-        <ul className="grid grid-cols-1 gap-1.5" aria-label="Found objects">
-          {objects.map((o) => {
-            const isApplied = saved!.applied.includes(o.key);
-            const ready = o.mesh?.stage === "done" && !!outcomes[o.key];
-            return (
-              <li key={o.key} className={`rounded-lg border border-line bg-canvas p-1.5 text-sm ${o.removed ? "opacity-45" : ""}`} data-stage={o.mesh?.stage ?? (o.removed ? "removed" : "found")}>
-                <div className="flex items-center gap-2">
-                  <span className="relative size-10 shrink-0 overflow-hidden rounded bg-black">
-                    {/* Cut-out preview: the frame multiplied by this object's white-on-black mask. */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {preview && <img src={preview} alt="" className="absolute inset-0 size-full object-cover" />}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {masks[o.maskAssetId] && <img src={masks[o.maskAssetId]} alt="" className="absolute inset-0 size-full object-cover mix-blend-multiply" />}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{o.label}</span>
-                    <span role="status" className={`block text-xs ${o.mesh?.stage === "failed" ? "text-bad" : "text-muted"}`}>
-                      {isApplied ? "Added to the take. Save to keep it." : o.mesh ? jobStatus(o.mesh, "Generating", "Mesh ready") : o.removed ? "Removed" : "Found"}
-                    </span>
-                  </span>
-                  {stateIcon(o.mesh)}
-                  {!o.mesh && (
-                    <button className="text-muted hover:text-accent" onClick={() => update((b) => setRemoved(b, o.key, !o.removed))} aria-label={o.removed ? `Keep ${o.label}` : `Remove ${o.label}`} title={o.removed ? "Keep" : "Remove"}>
-                      {o.removed ? <ArrowPathIcon className="size-4" /> : <XMarkIcon className="size-4" />}
-                    </button>
-                  )}
-                  {ready && !isApplied && <button className={small} disabled={saved!.batch.takeId !== takeId} onClick={() => apply(o)}>Add to take</button>}
-                  {o.mesh?.stage === "failed" && !confirm[o.key] && <button className={small} onClick={() => retry("mesh", o.key, o.mesh!)}><ArrowPathIcon className="size-3.5" />Retry</button>}
-                </div>
-                {o.mesh && confirmBox(o.key, "mesh", o.mesh)}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {saved && (
-        <button className={`${button} w-full bg-accent/15`} disabled={!pending.length} onClick={generate}>
-          <SparklesIcon className="size-4" /> Generate
-        </button>
-      )}
-      {saved && saved.batch.takeId !== takeId && <p className="text-xs text-muted">Switch back to the requesting take to add these objects.</p>}
-      {saved && !busy && (
-        <button className={`${small} w-full justify-center`} onClick={() => { persist(null); setOutcomes({}); setConfirm({}); setMasks({}); }}>
-          Clear results for this frame
-        </button>
+      {saved && (objects.length > 0 || finds.length > 0) && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <h3 className={heading}><span className={number}>3</span>Generate and add</h3>
+            <button className="text-xs text-muted hover:text-accent disabled:opacity-40" disabled={busy} onClick={() => { persist(null); setOutcomes({}); setConfirm({}); setMasks({}); }} title="Clear this frame's searches and results. Objects already added stay in the take.">
+              Clear
+            </button>
+          </div>
+          {objects.length > 0 && (
+            <ul className="grid grid-cols-1 gap-1.5" aria-label="Found objects">
+              {objects.map((o) => {
+                const isApplied = saved.applied.includes(o.key);
+                const ready = o.mesh?.stage === "done" && !!outcomes[o.key];
+                return (
+                  <li key={o.key} className={`rounded-lg border border-line bg-canvas p-1.5 text-sm ${o.removed ? "opacity-45" : ""}`} data-stage={o.mesh?.stage ?? (o.removed ? "removed" : "found")}>
+                    <div className="flex items-center gap-2">
+                      <span className="relative size-10 shrink-0 overflow-hidden rounded bg-black">
+                        {/* Cut-out preview: the frame multiplied by this object's white-on-black mask. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {preview && <img src={preview} alt="" className="absolute inset-0 size-full object-cover" />}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {masks[o.maskAssetId] && <img src={masks[o.maskAssetId]} alt="" className="absolute inset-0 size-full object-cover mix-blend-multiply" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{o.label}</span>
+                        <span role="status" className={`block text-xs ${o.mesh?.stage === "failed" ? "text-bad" : "text-muted"}`}>
+                          {isApplied ? "In the take" : o.mesh ? jobStatus(o.mesh, "Generating", "Ready · estimated") : o.removed ? "Skipped" : "Found"}
+                        </span>
+                      </span>
+                      {stateIcon(o.mesh)}
+                      {!o.mesh && (
+                        <button className="text-muted hover:text-accent" onClick={() => update((b) => setRemoved(b, o.key, !o.removed))} aria-label={o.removed ? `Keep ${o.label}` : `Skip ${o.label}`} title={o.removed ? "Keep" : "Skip"}>
+                          {o.removed ? <ArrowPathIcon className="size-4" /> : <XMarkIcon className="size-4" />}
+                        </button>
+                      )}
+                      {ready && !isApplied && <button className={small} disabled={!sameTake} onClick={() => apply(o)}><PlusIcon className="size-3.5" />Add</button>}
+                      {o.mesh?.stage === "failed" && !confirm[o.key] && <button className={small} onClick={() => retry("mesh", o.key, o.mesh!)}><ArrowPathIcon className="size-3.5" />Retry</button>}
+                    </div>
+                    {o.mesh && confirmBox(o.key, "mesh", o.mesh)}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {pending.length > 0 && (
+            <button className={`${button} w-full bg-accent/15`} onClick={generate}>
+              <SparklesIcon className="size-4" /> Generate {pending.length} {pending.length === 1 ? "object" : "objects"}
+            </button>
+          )}
+          {readyToAdd.length > 1 && (
+            <button className={`${button} w-full`} disabled={!sameTake} onClick={() => readyToAdd.forEach(apply)}>
+              <PlusIcon className="size-4" /> Add all {readyToAdd.length} to the take
+            </button>
+          )}
+          {!sameTake && <p className="text-xs text-muted">Switch back to the take that started this to add its objects.</p>}
+        </div>
       )}
       {error && <p role="alert" className="text-sm text-bad">{error}</p>}
     </section>

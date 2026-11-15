@@ -151,6 +151,8 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const [captureOpen, setCaptureOpen] = useState(false);
   const [pane, setPane] = useState<Pane>("objects");
   const [playbackOpen, setPlaybackOpen] = useState(false);
+  // Frames captured in this session: the Generate frame list follows new captures.
+  const [captureCount, setCaptureCount] = useState(0);
   const [cameraView, setCameraView] = useState(false);
   const [captures, setCaptures] = useState<CaptureChoice[] | null>(null);
   const [playhead, setPlayhead] = useState(0);
@@ -742,7 +744,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
               <XMarkIcon className="size-5" />
             </button>
           </div>
-          <CapturePanel ingestor={ingestor} />
+          <CapturePanel ingestor={ingestor} onEntry={(entry) => { if (entry.ok) setCaptureCount((n) => n + 1); }} />
         </aside>
       )}
 
@@ -781,7 +783,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         )}
         {pane === "generate" && (
           <div className={`h-full overflow-auto p-3 ${chrome}`}>
-            <ReconstructPanel api={api} actor={actor} projectId={projectId} takeId={take.id} onApply={(requestedTake, name, observation, outcome, placement) => {
+            <ReconstructPanel api={api} actor={actor} projectId={projectId} takeId={take.id} captureCount={captureCount} onApply={(requestedTake, name, observation, outcome, placement) => {
               const current = historyRef.current;
               if (!current) return false;
               const r = reconstructedObject(current.present, requestedTake, name, observation, outcome, placement);
