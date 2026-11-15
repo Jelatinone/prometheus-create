@@ -24,7 +24,7 @@ import { captureFixture, captureHarness, codeOf, expectOk } from "../capture/hel
 import { reconstructionCommand } from "@/lib/reconstruction/http";
 import { reconstructedObject } from "@/lib/editor/reconstruction";
 import { emptyCaptureManifest } from "@/lib/capture/project";
-import { buildZip } from "@/lib/editor/project-archive";
+import { buildZip, crc32 } from "@/lib/editor/project-archive";
 import { buildSplatPly, readS1 } from "./splat-fixtures";
 
 type Call = { op: string; requestId?: string; storedRequestId?: string | null };
@@ -43,8 +43,10 @@ class FakeFal implements FalQueue {
     this.calls.push({ op: `upload:${name}` });
     return `fake://uploads/${name}`;
   }
-  async submit(endpointId: string) {
+  inputs: Record<string, unknown>[] = [];
+  async submit(endpointId: string, input: Record<string, unknown> = {}) {
     this.calls.push({ op: `submit:${endpointId}` });
+    this.inputs.push(input);
     if (this.submitError) throw this.submitError;
     return { requestId: `req-fake-${++this.n}` };
   }
@@ -363,6 +365,30 @@ describe("runSegmentation (fake provider: plumbing only)", () => {
     expect(out.maskAssets).toHaveLength(1);
     expect(out.maskAssets[0].kind).toBe("mask");
     expect(out.job.output?.maskAssetIds).toEqual([out.maskAssets[0].id]);
+  });
+
+  it("asks for every matching instance (up to 3) and stores each mask, so one frame can yield 2-3 objects", async () => {
+    /** Same pixels, different bytes: a tEXt chunk after IHDR (masks are content-addressed). */
+    const variant = (png: Uint8Array, text: string) => {
+      const body = new TextEncoder().encode(`Comment ${text}`);
+      const chunk = new Uint8Array(12 + body.length);
+      const view = new DataView(chunk.buffer);
+      view.setUint32(0, body.length);
+      chunk.set(new TextEncoder().encode("tEXt"), 4);
+      chunk.set(body, 8);
+      view.setUint32(8 + body.length, crc32(chunk.subarray(4, 8 + body.length)));
+      const ihdrEnd = 8 + 25;
+      return new Uint8Array([...png.subarray(0, ihdrEnd), ...chunk, ...png.subarray(ihdrEnd)]);
+    };
+    const fal = new FakeFal();
+    fal.output = { masks: [{ url: "fake://a.png" }, { url: "fake://b.png" }] };
+    fal.files["fake://a.png"] = captureFixture("upright-64x48.png");
+    fal.files["fake://b.png"] = variant(captureFixture("upright-64x48.png"), "second chair");
+    const { deps, observation, request } = await setup(fal);
+    const out = expectOk(await runSegmentation(deps, { projectId: request.projectId, observation, prompt: "chair" }));
+    expect(fal.inputs[0]).toMatchObject({ return_multiple_masks: true, max_masks: 3, include_scores: true });
+    expect(out.maskAssets).toHaveLength(2);
+    expect(new Set(out.job.output?.maskAssetIds).size).toBe(2);
   });
 
   it("fails a non-PNG provider mask without storing an incompatible asset", async () => {

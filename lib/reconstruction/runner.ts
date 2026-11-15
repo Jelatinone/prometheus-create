@@ -149,6 +149,8 @@ export interface SegmentationOutcome {
 }
 
 const MASK_TYPE = "image/png";
+/** Masks requested per segmentation (fal-ai/sam-3/image max_masks; matches the 2-3 object batch). */
+export const SEGMENT_MAX_MASKS = 3;
 
 function assetDeps(deps: ReconstructionDeps): AssetDeps {
   return { assets: deps.assets, blobs: deps.blobs, actor: deps.actor, now: deps.now };
@@ -729,7 +731,7 @@ export async function backfillSplat(
  */
 export async function runSegmentation(deps: ReconstructionDeps, req: SegmentationRequest): Promise<Result<SegmentationOutcome>> {
   const driver = new JobDriver(deps);
-  const inputHash = await hashJson({ model: SAM3_IMAGE_MODEL, image: req.observation.frame.contentHash, prompt: req.prompt });
+  const inputHash = await hashJson({ model: SAM3_IMAGE_MODEL, image: req.observation.frame.contentHash, prompt: req.prompt, maxMasks: SEGMENT_MAX_MASKS });
   const created = await driver.create({
     schemaVersion: 1,
     id: req.jobId ?? newId("job"),
@@ -756,7 +758,10 @@ export async function runSegmentation(deps: ReconstructionDeps, req: Segmentatio
     prompt: req.prompt,
     apply_mask: false,
     output_format: "png",
-    return_multiple_masks: false,
+    // Every instance matching the prompt (up to 3), so one frame can yield 2-3 objects.
+    return_multiple_masks: true,
+    max_masks: SEGMENT_MAX_MASKS,
+    include_scores: true,
   });
   if (!submitted.ok) return submitted;
   job = submitted.value;
