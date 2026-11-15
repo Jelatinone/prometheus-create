@@ -154,10 +154,11 @@ export class LiveLoopPolicy {
     this.note(atMs, "segment_started", { observationId });
   }
 
-  segmentFinished(observationId: string, masks: LiveMask[], receivedAtMs: number, atMs: number) {
+  /** `chargedMasks`: masks the provider returned (and billed), including any that could not be measured. */
+  segmentFinished(observationId: string, masks: LiveMask[], receivedAtMs: number, atMs: number, chargedMasks = masks.length) {
     if (this.inFlight?.observationId === observationId) this.inFlight = null;
     this.reservedUsd -= this.config.segmentReserveUsd;
-    this.spentUsd += masks.length * this.config.segmentCostPerMaskUsd;
+    this.spentUsd += chargedMasks * this.config.segmentCostPerMaskUsd;
     const best = this.coverage(masks);
     if (!best) {
       this.counts.noUsableMask++;
