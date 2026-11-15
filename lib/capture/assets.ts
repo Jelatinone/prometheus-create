@@ -43,7 +43,7 @@ export async function storeProjectAsset(
     mimeType: meta.mimeType,
     byteSize: bytes.byteLength,
     contentHash,
-    storageKey,
+    storageKey: stored.value.storageKey,
     origin: meta.origin,
     createdAt: (deps.now ?? (() => new Date()))().toISOString(),
   });

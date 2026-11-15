@@ -68,11 +68,11 @@ async function setup(fal = new FakeFal(), poll: ReconstructionDeps["poll"] = { i
   const h = await captureHarness({ clock: () => clock });
   const image = expectOk(await h.ingestor.ingestImage({ bytes: captureFixture("upright-64x48.png"), adapter: "upload" }));
   const observation: Observation = expectOk(await h.backend.ingestion.latestObservation(h.actor, h.projectId, image.source.id));
-  // Any 64x48 still stands in for a mask here; masks only need the frame's pixel grid.
+  // PNG fixture stands in for a mask on the frame's exact pixel grid.
   const mask = expectOk(
-    await storeProjectAsset({ assets: h.backend.assets, blobs: h.blobs, actor: h.actor }, h.projectId, captureFixture("lossless-64x48.webp"), {
+    await storeProjectAsset({ assets: h.backend.assets, blobs: h.blobs, actor: h.actor }, h.projectId, captureFixture("upright-64x48.png"), {
       kind: "mask",
-      mimeType: "image/webp",
+      mimeType: "image/png",
       origin: "editor",
     }),
   );
@@ -103,7 +103,7 @@ describe("runReconstruction (fake provider: plumbing only)", () => {
     expect(out.job.history.slice(1).every((e) => e.providerRequestId === "req-fake-1")).toBe(true);
     expect(parseContract(CONTRACTS["reconstruction-job"].schema, out.job).ok).toBe(true);
     expect(fal.count("submit")).toBe(1);
-    expect(fal.calls.map((c) => c.op).slice(0, 3)).toEqual(["upload:frame.png", "upload:mask-0.webp", `submit:${SAM3D_OBJECTS_MODEL}`]);
+    expect(fal.calls.map((c) => c.op).slice(0, 3)).toEqual(["upload:frame.png", "upload:mask-0.png", `submit:${SAM3D_OBJECTS_MODEL}`]);
 
     expect(out.geometry).toMatchObject({
       geometryRevision: 1,
@@ -218,6 +218,19 @@ describe("runReconstruction (fake provider: plumbing only)", () => {
     expect(fal.calls).toEqual([]);
   });
 
+  it("rejects non-PNG and mislabeled mask bytes before any provider calls", async () => {
+    for (const mimeType of ["image/webp", "image/png"]) {
+      const { h, fal, deps, request } = await setup();
+      const bytes = captureFixture("lossless-64x48.webp");
+      const mask = expectOk(await storeProjectAsset(
+        { assets: h.backend.assets, blobs: h.blobs, actor: h.actor }, h.projectId,
+        bytes, { kind: "mask", mimeType, origin: "editor" },
+      ));
+      expect(codeOf(await runReconstruction(deps, { ...request, maskAssetIds: [mask.id] }))).toBe("UNSUPPORTED_MEDIA");
+      expect(fal.calls).toEqual([]);
+    }
+  });
+
   it("never resubmits a job id that already ran", async () => {
     const { fal, deps, request } = await setup();
     const first = expectOk(await runReconstruction(deps, { ...request, jobId: "job_once_only" }));
@@ -303,6 +316,19 @@ describe("runSegmentation (fake provider: plumbing only)", () => {
     expect(out.maskAssets).toHaveLength(1);
     expect(out.maskAssets[0].kind).toBe("mask");
     expect(out.job.output?.maskAssetIds).toEqual([out.maskAssets[0].id]);
+  });
+
+  it("fails a non-PNG provider mask without storing an incompatible asset", async () => {
+    const fal = new FakeFal();
+    fal.output = { masks: [{ url: "fake://mask.png" }] };
+    fal.files["fake://mask.png"] = captureFixture("lossless-64x48.webp");
+    const { h, deps, observation, request } = await setup(fal);
+    const before = h.blobs.size;
+    const out = expectOk(await runSegmentation(deps, { projectId: request.projectId, observation, prompt: "chair" }));
+    expect(out.job.state).toBe("failed");
+    expect(out.job.error?.code).toBe("UNSUPPORTED_MEDIA");
+    expect(out.maskAssets).toEqual([]);
+    expect(h.blobs.size).toBe(before);
   });
 
   it("fails when the mask does not match the frame's pixel grid", async () => {

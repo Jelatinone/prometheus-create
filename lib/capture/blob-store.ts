@@ -14,7 +14,7 @@ export interface StoredBlob {
 }
 
 export interface BlobStore {
-  /** Write bytes under an opaque private storage key. Idempotent per key + bytes. */
+  /** Write bytes idempotently. The returned key is authoritative; adapters may relocate the requested key. */
   put(storageKey: string, bytes: Uint8Array, mimeType: string): Promise<Result<{ storageKey: string }>>;
   get(storageKey: string): Promise<Result<StoredBlob>>;
 }

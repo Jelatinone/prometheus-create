@@ -285,7 +285,7 @@ function emptyOutcome(job: ReconstructionJob, providerOutput: unknown = null): R
   };
 }
 
-/** Check each mask is a still on the observation's exact pixel grid. */
+/** Check each mask is PNG on the observation's exact pixel grid (platform upload rule). */
 async function checkMasks(deps: ReconstructionDeps, req: ReconstructionRequest): Promise<Result<string[]>> {
   const hashes: string[] = [];
   for (const maskId of req.maskAssetIds) {
@@ -293,6 +293,8 @@ async function checkMasks(deps: ReconstructionDeps, req: ReconstructionRequest):
     if (!loaded.ok) return loaded;
     const probe = probeImage(loaded.value.bytes);
     if (!probe.ok) return probe;
+    if (loaded.value.asset.kind !== "mask" || loaded.value.asset.mimeType !== MASK_TYPE || probe.value.mimeType !== MASK_TYPE)
+      return err("UNSUPPORTED_MEDIA", `mask ${maskId} must be a PNG mask asset`);
     const { width, height } = req.observation.frame;
     if (probe.value.width !== width || probe.value.height !== height)
       return err("INVALID_SCHEMA", `mask ${maskId} is ${probe.value.width}x${probe.value.height}; frame is ${width}x${height}`);
@@ -560,6 +562,8 @@ export async function runSegmentation(deps: ReconstructionDeps, req: Segmentatio
     }
     const probe = probeImage(bytes);
     if (!probe.ok) return fail(probe.error, fetched.output);
+    if (probe.value.mimeType !== MASK_TYPE)
+      return fail(contractError("UNSUPPORTED_MEDIA", "provider mask must be PNG"), fetched.output);
     const { width, height } = req.observation.frame;
     if (probe.value.width !== width || probe.value.height !== height)
       return fail(
@@ -568,7 +572,7 @@ export async function runSegmentation(deps: ReconstructionDeps, req: Segmentatio
       );
     const stored = await storeProjectAsset(assetDeps(deps), req.projectId, bytes, {
       kind: "mask",
-      mimeType: probe.value.mimeType === "image/png" ? MASK_TYPE : probe.value.mimeType,
+      mimeType: MASK_TYPE,
       origin: "provider",
     });
     if (!stored.ok) return stored;
