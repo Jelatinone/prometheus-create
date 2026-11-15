@@ -13,6 +13,7 @@ import {
   ForkTakeRequest,
   IngestEnvelope,
   JobId,
+  ObservationId,
   ProjectId,
   ReconstructionJob,
   SaveRevisionRequest,
@@ -243,6 +244,16 @@ export async function createJob(ctx: ApiContext, request: Request): Promise<Resp
   const body = await readBody(request, ReconstructionJob);
   if (!body.ok) return respond(body);
   return respond(await ctx.backend.jobs.createJob(ctx.actor, body.value), 201);
+}
+
+/** GET /api/jobs?projectId&observationId: the jobs made from one captured frame, newest first. */
+export async function listJobs(ctx: ApiContext, request: Request): Promise<Response> {
+  if (!ctx.actor) return signIn();
+  const pid = readQuery(request, "projectId", ProjectId);
+  const oid = readQuery(request, "observationId", ObservationId);
+  const bad = first(pid, oid);
+  if (bad || !pid.ok || !oid.ok) return bad!;
+  return respond(await ctx.backend.jobs.listJobs(ctx.actor, pid.value, oid.value));
 }
 
 export async function getJob(ctx: ApiContext, request: Request, jobId: string): Promise<Response> {

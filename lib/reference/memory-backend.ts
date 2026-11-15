@@ -497,6 +497,16 @@ export class MemoryBackend implements Backend {
       return ok(cloneJson(job));
     },
 
+    listJobs: async (actor: Actor, projectId: string, observationId: string): Promise<Result<ReconstructionJob[]>> => {
+      const state = this.access(actor, projectId);
+      if (!state.ok) return state;
+      const jobs = [...state.value.jobs.values()].filter((j) => j.input.observationId === observationId);
+      // Newest first; insertion order breaks ties (the reference clock may not advance between jobs).
+      const order = new Map(jobs.map((j, i) => [j.id, i]));
+      jobs.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || order.get(b.id)! - order.get(a.id)!);
+      return ok(jobs.map((j) => cloneJson(j)));
+    },
+
     transitionJob: async (
       actor: Actor,
       projectId: string,

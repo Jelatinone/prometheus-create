@@ -212,6 +212,9 @@ export class HttpBackend implements Backend {
     getJob: (actor: Actor, projectId: string, jobId: string) =>
       this.request<ReconstructionJob>(actor, "GET", `/api/jobs/${enc(jobId)}?projectId=${enc(projectId)}`),
 
+    listJobs: (actor: Actor, projectId: string, observationId: string) =>
+      this.request<ReconstructionJob[]>(actor, "GET", `/api/jobs?projectId=${enc(projectId)}&observationId=${enc(observationId)}`),
+
     transitionJob: (actor: Actor, projectId: string, jobId: string, to: JobState, patch: JobPatch = {}) =>
       this.request<ReconstructionJob>(actor, "POST", `/api/jobs/${enc(jobId)}/transition`, { projectId, to, patch }),
   };

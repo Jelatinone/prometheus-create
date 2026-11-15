@@ -67,6 +67,8 @@ export interface JobStore {
   /** Idempotent on job id; a new job must start in "queued". */
   createJob(actor: Actor, job: ReconstructionJob): Promise<Result<ReconstructionJob>>;
   getJob(actor: Actor, projectId: string, jobId: string): Promise<Result<ReconstructionJob>>;
+  /** Every job whose input names this observation, newest first (so earlier results can be reused, not paid for again). */
+  listJobs(actor: Actor, projectId: string, observationId: string): Promise<Result<ReconstructionJob[]>>;
   transitionJob(
     actor: Actor,
     projectId: string,

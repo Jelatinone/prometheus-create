@@ -433,6 +433,22 @@ export function describeBackendConformance(name: string, makeHarness: HarnessFac
       const { projectId } = await seedProject(h);
       const job = expectOk(await h.backend.jobs.createJob(h.owner, newJob(projectId)));
       expectCode(await h.backend.jobs.getJob(h.other, projectId, job.id), "NOT_FOUND");
+      expectCode(await h.backend.jobs.listJobs(h.other, projectId, job.input.observationId), "NOT_FOUND");
+      expectCode(await h.backend.jobs.listJobs(null, projectId, job.input.observationId), "UNAUTHORIZED");
+    });
+
+    it("lists the jobs made from one observation, newest first, and nothing for another observation", async () => {
+      const h = await makeHarness();
+      const { projectId } = await seedProject(h);
+      const first = expectOk(await h.backend.jobs.createJob(h.owner, newJob(projectId)));
+      const second = expectOk(await h.backend.jobs.createJob(h.owner, { ...newJob(projectId), createdAt: "2099-01-01T00:00:00.000Z", updatedAt: "2099-01-01T00:00:00.000Z" }));
+      const elsewhere = { ...newJob(projectId), inputHash: "sha256:" + "b".repeat(64) };
+      elsewhere.input = { ...elsewhere.input, observationId: newId("observation") };
+      expectOk(await h.backend.jobs.createJob(h.owner, elsewhere));
+      const listed = expectOk(await h.backend.jobs.listJobs(h.owner, projectId, first.input.observationId));
+      expect(listed.map((j) => j.id)).toEqual([second.id, first.id]);
+      expect(listed[1]).toEqual(first);
+      expect(expectOk(await h.backend.jobs.listJobs(h.owner, projectId, newId("observation")))).toEqual([]);
     });
   });
 }

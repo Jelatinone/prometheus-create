@@ -880,6 +880,20 @@ export class PostgresBackend implements Backend {
       return ok(rows[0].doc);
     },
 
+    listJobs: async (actor: Actor, projectId: string, observationId: string): Promise<Result<ReconstructionJob[]>> => {
+      if (!actor) return unauthorized();
+      const { rows } = await this.pool.query<{ owner_id: string; doc: ReconstructionJob | null }>(
+        `select p.owner_id, j.doc from projects p
+           left join jobs j on j.project_id = p.id and j.doc->'input'->>'observationId' = $2
+          where p.id = $1
+          order by j.created_at desc nulls last, j.id desc
+          limit 200`,
+        [projectId, observationId],
+      );
+      if (!rows.length || !owns(actor, rows[0].owner_id)) return projectNotFound(projectId);
+      return ok(rows.flatMap((r) => (r.doc ? [r.doc] : [])));
+    },
+
     transitionJob: async (
       actor: Actor,
       projectId: string,
