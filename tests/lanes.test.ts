@@ -22,18 +22,18 @@ describe("lane globs", () => {
     for (const agent of [".agents", ".claude"]) {
       const path = `${agent}/skills/kickoff-project/SKILL.md`;
       expect((matchesAny as (p: string, g: string[]) => boolean)(path, lanes.ignore)).toBe(false);
-      expect(classifyFor(path, "editor")).toBe("shared");
+      expect(classifyFor(path, "track-b")).toBe("shared");
     }
     expect((matchesAny as (p: string, g: string[]) => boolean)(".claude/launch.json", lanes.ignore)).toBe(false);
   });
 
   it("classify owned, dependency, contract, other-lane and shared paths", () => {
-    expect(classifyFor("components/editor/Viewport.tsx", "editor")).toBe("owned");
-    expect(classifyFor("package-lock.json", "editor")).toBe("dependency");
-    expect(classifyFor("lib/contracts/scene.ts", "editor")).toBe("contract");
-    expect(classifyFor("db/migrations/001.sql", "editor")).toBe("other-lane:platform");
-    expect(classifyFor("app/layout.tsx", "capture")).toBe("shared");
-    expect(classifyFor("services/capture-agent/agent.py", "capture")).toBe("owned");
+    expect(classifyFor("components/editor/Viewport.tsx", "track-b")).toBe("owned");
+    expect(classifyFor("package-lock.json", "track-b")).toBe("dependency");
+    expect(classifyFor("lib/contracts/scene.ts", "track-b")).toBe("contract");
+    expect(classifyFor("db/migrations/001.sql", "track-b")).toBe("other-lane:platform");
+    expect(classifyFor("app/layout.tsx", "track-a")).toBe("shared");
+    expect(classifyFor("services/capture-agent/agent.py", "track-a")).toBe("owned");
   });
 
   it("no path is owned by two lanes", () => {

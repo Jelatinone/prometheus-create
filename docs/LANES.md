@@ -1,6 +1,6 @@
 # Lanes: parallel agent work
 
-**Current override (Cody, 2026-11-14):** one agent, root checkout, `production` branch. Follow PLAN v3's current continuation and the HK-002/HK-004 handoff. The lane protocol below is historical for this continuation; do not launch lane workers or switch to their older worktrees. Contracts still require explicit approval for changes. This override does not delete or rewrite historical lane ownership records.
+**Current work: Track A and Track B (Cody, PLAN v4, 2026-11-14).** Two agents run in parallel. **Track A** (lane key `track-a`) is generation: task HK-011, branch `feat/HK-011-track-a`, worktree `../prometheus-create-capture`, port 3001, checkpoints CP-007 to CP-010. **Track B** (lane key `track-b`) is the editor: task HK-012, branch `feat/HK-012-track-b`, worktree `../prometheus-create-editor`, port 3003, checkpoints CP-011 to CP-015. Start an agent with `implement-next-checkpoint` assigned to HK-011 (Track A) or HK-012 (Track B), from that track's worktree. It takes the earliest checkpoint of that track not yet `ready_for_review`/`complete`, does exactly that one and stops. Seams S1 to S5 and the track rule are in PLAN §1 "Current continuation v4". The platform lane has no agent. The v3 single-agent override and the older lane assignments (HK-002/HK-003/HK-004) are historical.
 
 Three lanes build on the HK-001 baseline at the same time, each on its own branch and worktree. `lanes.json` is the single source for each lane's task ID, branch, worktree path, and **owned paths**. PLAN.md §5 records the proposed replan; it needs Cody's approval before lanes start.
 
@@ -32,12 +32,12 @@ Three lanes build on the HK-001 baseline at the same time, each on its own branc
 Prerequisite: the baseline is merged into `production` (the `base` in `lanes.json`).
 
 ```bash
-npm run lane:create -- editor
+npm run lane:create -- track-b
 ```
 
-This creates `feat/HK-004-editor` from `production`, adds the worktree at `../prometheus-create-editor`, initializes the toolkit submodule, checks the tracked Codex and Claude skill entrypoints, and runs `npm ci`. In a worktree created another way (for example by Claude Code), run `npm run lane:setup` inside it once. The entrypoints use relative links into that worktree's own toolkit; setup does not create junctions or hide index changes. For an existing worktree from before this repair, follow [manual migration](AGENT_SETUP.md) before merging the repair commit.
+This creates the lane's branch (for `track-b`, `feat/HK-012-track-b`) from `production`, adds the worktree at its `worktree` path, initializes the toolkit submodule, checks the tracked Codex and Claude skill entrypoints, and runs `npm ci`. In a worktree created another way (for example by Claude Code), run `npm run lane:setup` inside it once. The entrypoints use relative links into that worktree's own toolkit; setup does not create junctions or hide index changes. For an existing worktree from before this repair, follow [manual migration](AGENT_SETUP.md) before merging the repair commit.
 
-Then point the agent at its task note, for example: "Implement HK-004 as assigned in docs/changes/HK-004.md."
+Then point the agent at its task note, for example: "Use implement-next-checkpoint for HK-012 (Track B)."
 
 ## Verifying a lane yourself
 

@@ -1,14 +1,21 @@
 {
-  "$comment": "Canonical lane ownership for parallel agent work. Branch and task IDs must match PLAN.md section 5 (checked by tests/lanes.test.ts). A lane may edit only its `owns` globs plus its task note; package.json/package-lock.json edits are allowed but must be listed in the task note. Every other path is shared: change it only with integration-owner approval. Check a branch with `npm run lane:check`.",
+  "$comment": "Canonical lane ownership for parallel agent work. Branch and task IDs must match PLAN.md section 5 (checked by tests/lanes.test.ts). A lane may edit only its `owns` globs plus its task note; package.json/package-lock.json edits are allowed but must be listed in the task note. Every other path is shared: change it only with integration-owner approval. Check a branch with `npm run lane:check`. Current work (PLAN v4): track-a and track-b; platform has no assigned agent.",
   "base": "production",
   "ignore": [],
-  "dependencyFiles": ["package.json", "package-lock.json"],
-  "contractPaths": ["lib/contracts/**", "fixtures/contracts/**", "tests/conformance/**"],
+  "dependencyFiles": [
+    "package.json",
+    "package-lock.json"
+  ],
+  "contractPaths": [
+    "lib/contracts/**",
+    "fixtures/contracts/**",
+    "tests/conformance/**"
+  ],
   "lanes": {
-    "capture": {
-      "title": "Capture & reconstruction",
-      "task": "HK-002",
-      "branch": "feat/HK-002-risk-proofs",
+    "track-a": {
+      "title": "Track A: generation",
+      "task": "HK-011",
+      "branch": "feat/HK-011-track-a",
       "worktree": "../prometheus-create-capture",
       "owns": [
         "services/capture-agent/**",
@@ -20,7 +27,23 @@
         "fixtures/capture/**",
         "tests/capture/**",
         "tests/reconstruction/**",
-        "docs/changes/HK-002.md"
+        "docs/changes/HK-011.md"
+      ]
+    },
+    "track-b": {
+      "title": "Track B: editor",
+      "task": "HK-012",
+      "branch": "feat/HK-012-track-b",
+      "worktree": "../prometheus-create-editor",
+      "owns": [
+        "app/projects/[projectId]/**",
+        "components/editor/**",
+        "lib/scene/**",
+        "lib/editor/**",
+        "lib/export/**",
+        "tests/editor/**",
+        "tests/scene/**",
+        "docs/changes/HK-012.md"
       ]
     },
     "platform": {
@@ -43,23 +66,6 @@
         "db/**",
         "tests/platform/**",
         "docs/changes/HK-003.md"
-      ]
-    },
-    "editor": {
-      "title": "Editor",
-      "task": "HK-004",
-      "branch": "feat/HK-004-editor",
-      "worktree": "../prometheus-create-editor",
-      "owns": [
-        "app/projects/[projectId]/**",
-        "components/editor/**",
-        "lib/scene/**",
-        "lib/editor/**",
-        "lib/export/**",
-        "tests/editor/**",
-        "tests/scene/**",
-        "docs/changes/HK-004.md",
-        "docs/changes/HK-005.md"
       ]
     }
   }
