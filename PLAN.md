@@ -159,7 +159,7 @@ depends_on: ["CP-014"]
 owner: "One linear agent on production"
 approval: "approved"
 approval_ref: "Cody chat 2026-11-15: compact remaining work until 10:00 A.M.; final two hours stability/polish; sequential agents; light feature checks; Layers and simplified UI/Generate/frame picking required; confirmed left mode rail/right details."
-status: "planned"
+status: "ready_for_review"
 acceptance_gate: "Independent runnable subpasses: A frame/seek fix, B mode rail and contextual toolbar, C Generate flow, D concise copy. Existing capture/generation/edit/save/export works after each commit. No permanent timeline, no dead/duplicate controls, HeroIcons and established style retained. Targeted checks and one quick browser smoke per subpass; full verification belongs to the stability gate."
 cut_fallback: "Deliver the mode rail, context actions, frame selection and concise Generate flow; cut optional animation, hover or layout embellishments. Stop new features at 08:00."
 evidence_ref: "docs/changes/HK-013.md"
@@ -588,4 +588,4 @@ At 08:45–09:30 rehearse the working build, retain representative exports and a
 | 1–6 | Historical | STABLE-V2 local | Existing tasks and ADR-001..005 | Prior agents for Cody | Archived v6 and docs/DECISIONS.md | Full historical intent/evidence retained |
 | 7 | 2026-11-15 | No new release | HK-012 / HK-013 / HK-014; CP-018 / CP-016 / CP-017 | Codex for Cody | Cody's explicit five-hour replan, light checks, sequential agents and confirmed left-rail/right-details layout; CP-020 passes at f317b7f0d2f8 | Finish realistic must-haves before 08:00; protect 08:00–10:00 for stability/polish |
 
-**Next agent:** CP-018 Layers is `ready_for_review` at `f4a254f` (HK-012). Read AGENTS.md, this v7 continuation and docs/changes/HK-013.md, then take **step 2** (CP-016 A, frame selection). No track setup, new backend or repeated CP-020 testing.
+**Next agent:** CP-018 Layers (`f4a254f`, HK-012) and CP-016 A to D (`c56d1d5`, HK-013) are `ready_for_review`. Read AGENTS.md, this v7 continuation and docs/changes/HK-014.md, then take **step 6** (CP-017: one full verify, bounded security and stability triage). No new features.
