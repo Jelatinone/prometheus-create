@@ -13,10 +13,10 @@ schema_version: 2
 project_name: "Prometheus::create"
 event_name: "HackUTA 2026"
 project_status: "ideation"
-plan_version: 4
+plan_version: 5
 approval: "proposed"
 approval_ref: null
-updated_at: "2026-11-14T23:50:00-06:00"
+updated_at: "2026-11-15T01:45:00-06:00"
 timezone: "America/Chicago"
 code_start: "2026-11-14T12:00:00-06:00"
 code_end: "2026-11-15T00:00:00-06:00"
@@ -31,6 +31,39 @@ current_stable_release: null
 **Clock warning:** the end and submission timestamps above conservatively use the supplied opening deck, page 32. The [official website](https://www.hackuta.com/) instead describes a noon-to-noon coding window. These conflict. The feature freeze is our earlier internal cutoff. Until an organizer resolves the discrepancy, produce and submit the early version, stop coding at the earlier cutoff, and treat the second half of the 24-hour schedule as conditional. Do not silently correct AM to PM. H+0 throughout this plan means the official start, not the moment implementation begins; elapsed planning time must be deducted.
 
 ## 1. Product contract
+
+### Current continuation v5: integrated tracks, then manual test, remaining work, UI/UX pass, security pass (2026-11-15)
+
+**Authority:** On 2026-11-15 Cody asked for three things: merge Track A, Track B and the related branches into `production` and keep it clean for Track B to branch from again; revise the plan so that a **UI/UX pass is the last major item and a security pass is the very last item**; and test the merged build by hand himself before work resumes. He also approved the paid layout test (spent $0.05). No push, tag or deployment is authorized. The v4 tracks, seams S1–S5 and the track rule below still apply to the remaining track checkpoints.
+
+**Integrated** (production, merge commits, verified):
+
+| Merge | Brings | Verified |
+| --- | --- | --- |
+| `feat/HK-011-track-a` @ `1a4fc35` | CP-007 splat persistence, CP-008 splat backfill (`attach_splat`) and retry-convergent finishes, CP-009 provider-pose placement, child-jobs decision, multi-instance segmentation | branch verify: 267 tests |
+| `feat/HK-012-track-b` @ `6266d66` | CP-011 Spark splat layer, CP-012 shared transform and dynamic Generate | branch verify by Track B; no conflicts with Track A |
+| `fix/test-signin-once` @ `b807663` | test users sign in once per vitest run (10 → 2 per full run) | branch verify: 237 tests |
+| `codex/fix-agent-skills` @ `c7e433a` | docs-only agent-setup rollout record | n/a |
+| integration commit `6541190` | Generate's "Add to take" levels a batch's placements together (the post-merge wiring HK-012 requested) | **`npm run verify` on merged production + wiring: 284 tests, build passes** (detached worktree `../prometheus-create-integration`) |
+
+Both track branches are fast-forwarded to the integrated `production`, and their agents continue on the same branches and worktrees.
+
+**Order from here:**
+1. **Gate M1: Cody's manual test** of integrated `production`. Nothing below starts until Cody says so. Suggested script:
+   - capture a frame, then Generate with a description that matches 2–3 objects;
+   - add them to the take and check that the layout and sizes are plausible;
+   - Mesh/Splat switch;
+   - move, undo, fork, save and reload;
+   - `attach_splat` for the round table (CP-014 makes this a UI action);
+   - PNG export.
+2. **Track B** resumes CP-013 → CP-014 → CP-015 (CP-015 deferrable). **Track A** may take CP-010 (deferrable) in parallel. Neither track starts new scope without approval.
+3. **CP-016 UI/UX pass** (HK-013): one agent, after the track checkpoints are complete or deferred. It is the last major feature-facing item.
+4. **CP-017 security pass** (HK-014): the very last item, after CP-016. Then the existing release/demo/submission records (CP-006 and later) apply.
+
+Goals redefined slightly:
+- CP-014 now also verifies real multi-object layout. Two live chair jobs with placements already exist in the round-table project, so no new spend is needed.
+- CP-010 and CP-015 stay deferrable.
+- The checkpoint records in §5 carry the statuses.
 
 ### Current continuation v4: Track A and Track B (2026-11-14 23:50)
 
@@ -479,8 +512,10 @@ The first task includes creating the starter because none exists. Toolkit kickof
 | HK-008 | CP-005 | feat/HK-008-motion | Cody | Minimal timeline, animation, optional Rapier, video export | HK-007 | Only after confirmed extra time: short take, basic motion/physics and supported video playback. | planned |
 | HK-009 | CP-005 | feat/HK-009-appearance | Cody | Optional Spark adapter or return-preview adapter, targeted checks | HK-008 | Choose at most one stretch: aligned splats OR duplex FaceTime preview. | planned |
 | HK-010 | CP-006 | chore/HK-010-final | Cody | Release, evidence, video, submission records | HK-008 | Confirmed-window final regression, final artifacts, receipt and rehearsal. | planned |
-| HK-011 | CP-007, CP-008, CP-009, CP-010 | feat/HK-011-track-a | Track A agent (assigned by Cody) | `lanes.json` → `track-a`; docs/changes/HK-011.md | HK-002, HK-004 (merged in production `be482e2`) | Per checkpoint record below; `npm run verify` plus checkpoint evidence in the note. | planned |
-| HK-012 | CP-011, CP-012, CP-013, CP-014, CP-015 | feat/HK-012-track-b | Track B agent (assigned by Cody) | `lanes.json` → `track-b`; docs/changes/HK-012.md | HK-002, HK-004 (merged in production `be482e2`); CP-014 also needs CP-008 | Per checkpoint record below; `npm run verify` plus checkpoint evidence in the note. | planned |
+| HK-011 | CP-007, CP-008, CP-009, CP-010 | feat/HK-011-track-a | Track A agent (assigned by Cody) | `lanes.json` → `track-a`; docs/changes/HK-011.md | HK-002, HK-004 (merged in production `be482e2`) | Per checkpoint record below; `npm run verify` plus checkpoint evidence in the note. | in_progress |
+| HK-012 | CP-011, CP-012, CP-013, CP-014, CP-015 | feat/HK-012-track-b | Track B agent (assigned by Cody) | `lanes.json` → `track-b`; docs/changes/HK-012.md | HK-002, HK-004 (merged in production `be482e2`); CP-014 also needs CP-008 | Per checkpoint record below; `npm run verify` plus checkpoint evidence in the note. | in_progress |
+| HK-013 | CP-016 | feat/HK-013-ux-pass | One agent (assigned by Cody) | App-wide UI/UX: app/**, components/** and their tests; docs/changes/HK-013.md. Behaviour changes in lib/** are proposed in the note first | HK-011, HK-012 | CP-016 record below | planned |
+| HK-014 | CP-017 | chore/HK-014-security-pass | One agent (assigned by Cody) | Repo-wide security review and fixes; docs/changes/HK-014.md; contract or auth-model changes are proposed first | HK-013 | CP-017 record below | planned |
 
 **Tracks A and B (v4, approved 2026-11-14):** HK-011 and HK-012 each span one track's ordered checkpoints on a single branch, under the track rule in §1 "Current continuation v4". The "one owner" text above and the lane replan below are historical for this work.
 
@@ -624,7 +659,7 @@ depends_on: []
 owner: "Track A agent"
 approval: "approved"
 approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
-status: "planned"
+status: "complete"
 acceptance_gate: "Runner tests with a synthetic PLY: valid splat stored (kind splat, under 50 MB, S1 space), output.splatAssetId set, outcome.splatAsset returned; missing or invalid PLY gives a mesh-only success with a warning; no paid call. A numeric S1 check on the recovered round-table PLY against its normalized mesh bounds is recorded. npm run verify passes."
 cut_fallback: "Mesh-only jobs unchanged; record the transform blocker exactly"
 evidence_ref: "docs/changes/HK-011.md"
@@ -640,7 +675,7 @@ depends_on: ["CP-007"]
 owner: "Track A agent"
 approval: "approved"
 approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
-status: "planned"
+status: "complete"
 acceptance_gate: "In private project prj_ba1f1945c81d48ac9aecf6bb01dc07fa the round-table job resolves to a splat asset that downloads from private storage after a restart and parses as S1; fal request count unchanged; npm run verify passes."
 cut_fallback: "Track B uses a local S1 file for CP-014 with the gap recorded"
 evidence_ref: "docs/changes/HK-011.md"
@@ -656,7 +691,7 @@ depends_on: ["CP-008"]
 owner: "Track A agent"
 approval: "approved"
 approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4 (paid call still needs separate approval)"
-status: "planned"
+status: "complete"
 acceptance_gate: "Either a proposal in HK-011 (API/contract delta, evidence of index-to-mask mapping and relative placement) or a recorded child-jobs-only decision; any live call approved by Cody beforehand and its spend reported; npm run verify passes."
 cut_fallback: "Child jobs only (Track B CP-012 already ships them)"
 evidence_ref: "docs/changes/HK-011.md"
@@ -688,7 +723,7 @@ depends_on: []
 owner: "Track B agent"
 approval: "approved"
 approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
-status: "planned"
+status: "complete"
 acceptance_gate: "Spark version and three 0.187 compatibility recorded; a browser renders a local PLY splat on an object, switches layers, falls back to mesh on a missing or invalid splat; S3 attach unit-tested; npm run verify passes."
 cut_fallback: "Mesh-only view unchanged; record the renderer blocker after one bounded attempt"
 evidence_ref: "docs/changes/HK-012.md"
@@ -704,7 +739,7 @@ depends_on: ["CP-011"]
 owner: "Track B agent"
 approval: "approved"
 approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
-status: "planned"
+status: "complete"
 acceptance_gate: "Translate/rotate/scale, undo, fork and save/reload keep the splat and mesh together with no double normalization; one Generate action tracks 2–3 durable child jobs with real per-job states; partial failure and retry never resubmit a job that has a request ID; npm run verify passes."
 cut_fallback: "Single-object Generate stays; transforms remain mesh-only if splats are unavailable"
 evidence_ref: "docs/changes/HK-012.md"
@@ -730,14 +765,14 @@ evidence_ref: "docs/changes/HK-012.md"
 
 ```yaml
 id: "CP-014"
-objective: "Track B 4: real round-table splat and mesh shown, switched and moved together on real data"
+objective: "Track B 4: real data in the browser: round-table splat via attach_splat aligned with its mesh, and a real multi-object Generate laid out by levelled placements"
 task_ids: ["HK-012"]
-depends_on: ["CP-013", "CP-008"]
+depends_on: ["CP-013", "CP-008", "CP-009"]
 owner: "Track B agent"
 approval: "approved"
 approval_ref: "Cody chat 2026-11-14 23:40 — split PLAN v3 into Tracks A/B; PLAN v4"
 status: "planned"
-acceptance_gate: "After merging production with CP-008, the browser shows the stored round-table splat aligned with its mesh, switches layers, moves both together, saves and reloads; screenshots recorded; no fal call; npm run verify passes."
+acceptance_gate: "On integrated production: attach_splat from the UI gives the round-table object its stored splat, aligned, switchable, moved with its mesh, saved and reloaded; the two existing live chair jobs in the round-table project (job_17892b91012a4fe3a285723eee3c0866, job_072267167d084939a825f393ef380b6e) or a seeded batch are added with levelled placements and look upright and plausibly spaced; screenshots recorded; no fal submit; npm run verify passes."
 cut_fallback: "Show mesh with the splat alignment gap described; no fabricated splat claims"
 evidence_ref: "docs/changes/HK-012.md"
 ```
@@ -756,6 +791,38 @@ status: "planned"
 acceptance_gate: "A 5 s clip matches the playhead-evaluated scene frame by frame at the take rate; no provider calls during export; npm run verify passes."
 cut_fallback: "Defer; PNG at the playhead remains the export"
 evidence_ref: "docs/changes/HK-012.md"
+```
+
+### CP-016
+
+```yaml
+id: "CP-016"
+objective: "UI/UX pass: make the integrated capture → Generate → edit → splat → timeline → export journey coherent, legible and consistent (last major item)"
+task_ids: ["HK-013"]
+depends_on: ["CP-013", "CP-014"]
+owner: "One agent (assigned by Cody)"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-15 — UI/UX pass as the last major item, then the security pass; PLAN v5"
+status: "planned"
+acceptance_gate: "A written journey audit (before/after screenshots) of every editor surface; issues fixed within the established style (serif/vermilion, HeroIcons only, one global element per job); no dead or fabricated controls; real job stages only; keyboard and focus order work; phone-width layout checked; no behaviour or contract change without approval; npm run verify passes; Cody's manual walkthrough accepted."
+cut_fallback: "Fix only issues that block the demo journey; record the rest"
+evidence_ref: "docs/changes/HK-013.md"
+```
+
+### CP-017
+
+```yaml
+id: "CP-017"
+objective: "Security pass: review and fix the integrated app before release (the very last item)"
+task_ids: ["HK-014"]
+depends_on: ["CP-016"]
+owner: "One agent (assigned by Cody)"
+approval: "approved"
+approval_ref: "Cody chat 2026-11-15 — security pass as the last item; PLAN v5"
+status: "planned"
+acceptance_gate: "Documented review of: auth and project ownership on every route (including attach_splat, assets, jobs, ingest); signed-URL lifetimes and private storage; secrets handling (.env.local never printed or committed; server-only keys); provider spend controls (no unauthenticated or repeated paid submits); input validation and size limits; dependency audit (npm audit findings triaged); test-user and rate-limit settings restored; findings fixed or accepted by Cody; npm run verify passes."
+cut_fallback: "Fix high-severity findings; record accepted risks with Cody's approval"
+evidence_ref: "docs/changes/HK-014.md"
 ```
 
 Only Cody can update accepted architecture, integration, and gate status. Follow the toolkit sequence: kickoff records -> plan checkpoint -> implement the assigned checkpoint -> test identified revision -> review integration -> authorized stable promotion -> demo preparation -> submission preflight -> handoff/recap. `ready_for_review` is not `merged`, and a passing test is not proof of deployment or submission.
