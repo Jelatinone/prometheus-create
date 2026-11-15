@@ -13,10 +13,10 @@ schema_version: 2
 project_name: "Prometheus::create"
 event_name: "HackUTA 2026"
 project_status: "ideation"
-plan_version: 2
+plan_version: 3
 approval: "proposed"
 approval_ref: null
-updated_at: "2026-11-14T14:40:00-06:00"
+updated_at: "2026-11-14T23:27:00-06:00"
 timezone: "America/Chicago"
 code_start: "2026-11-14T12:00:00-06:00"
 code_end: "2026-11-15T00:00:00-06:00"
@@ -31,6 +31,45 @@ current_stable_release: null
 **Clock warning:** the end and submission timestamps above conservatively use the supplied opening deck, page 32. The [official website](https://www.hackuta.com/) instead describes a noon-to-noon coding window. These conflict. The feature freeze is our earlier internal cutoff. Until an organizer resolves the discrepancy, produce and submit the early version, stop coding at the earlier cutoff, and treat the second half of the 24-hour schedule as conditional. Do not silently correct AM to PM. H+0 throughout this plan means the official start, not the moment implementation begins; elapsed planning time must be deducted.
 
 ## 1. Product contract
+
+### Current continuation: one agent on production (2026-11-14)
+
+**Authority and precedence:** Cody's current chat explicitly requests merging the V2 work into production without a tag, one agent on one branch, and a revised plan prioritizing Gaussian splats, 2–3 objects, and editor/timeline flow. This approved continuation supersedes the old lane scheduling and splats-after-motion order for the bounded work below. The historical registry and lane definitions remain for compatibility and history; they are not instructions to launch workers or switch worktrees. Work in the root checkout on `production`; no parallel agents. Existing task notes HK-002 (generation) and HK-004 (editor) own the continuation. Shared contracts still require Cody's approval before changes. This is not blanket approval of every older proposed checkpoint, release, or deployment. No push or new tag is authorized here.
+
+**Observed baseline:** production fast-forwarded from `3b28e66` to `a4ad90e`. Capture and real image-to-mesh/editor/save/export work. Two 35-second Chert calls ended cleanly. Final application tree passed full verify (237 JS tests) and 27 Python tests; later density investigation changed documentation only. A 100k-triangle local derivative reduced the round table from 20.95 MB to 2.00 MB in 2.3s, but is not integrated. Cody reports 12% agent usage remaining and expects a Claude handoff in about 30 minutes; this is capacity guidance, not an event deadline extension. Existing unresolved official-clock warning still applies.
+
+#### Objective
+Show and manipulate a small reconstructed scene as splats or meshes, then make image and video output follow a single editor playhead. Preserve the verified capture-to-export journey.
+
+#### Scope and exclusions
+First implement a saved splat/mesh pair for one object, then test 2–3 independently editable objects, then a minimal player. Defer room-wide reconstruction, automatic multiview fusion, physics, remote interactive video streaming and fabricated generation controls. Keep the $10 total fal ceiling; reported spend is about $0.06, not an audited balance. Reuse provider results before any new paid job; no generation per playback frame.
+
+#### Inputs and baseline
+Read HK-002/HK-004 current continuation and handoff first. `finishReconstruction` currently stores only raw/normalized GLB and writes `splatAssetId: null`; provider PLY URLs exist in ignored proof JSON, not durable app assets. Existing SceneObject.splat and job.output.splatAssetId provide initial attachment seams. SAM 3D returns generated splats and meshes together from image/masks; it does not expose a documented saved-splat-to-mesh or evidence-frame fusion input. Generated splats include inferred surfaces and must not be labeled measured/raw depth.
+
+#### Ordered steps
+| Step | Outcome | Task IDs | Owned paths | Dependencies | Verification |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Persist existing provider PLY and add a minimal Spark-backed Splat/Mesh layer switch | HK-002, HK-004 | lib/reconstruction, components/editor, lib/editor, task notes; dependency files if needed | Existing saved provider output; validate PLY before loading | Real PLY renders; reload works from private storage; no new fal job; mesh-only fallback survives missing/invalid splat |
+| 2 | Keep splat and mesh on one object transform and normalization | HK-004 | components/editor, lib/editor, lib/scene | Step 1 | Translate/rotate/scale, undo, fork and save/reload match both layers; no double normalization or duplicated visible surfaces |
+| 3 | Test one frame containing 2–3 objects, then integrate batch Generate UX | HK-002, HK-004 | lib/reconstruction, app/api/reconstruction, components/editor, tests/reconstruction | Clear source frame with separate masks; bounded paid test | Actual individual_glbs/individual_splats, masks and metadata associate correctly; each object moves independently; partial failure and retry do not double-charge |
+| 4 | Add persistent bottom timeline with play/pause, scrub and current-time display; context-aware right pane | HK-004 (HK-008/HK-005 consumers) | components/editor, lib/editor, lib/scene, lib/export, task notes | Steps 1–3; existing rational take time contracts | PNG exports exactly current playhead/view/layer; no separate frame selector; source time and take time remain distinct; scrubbing makes no provider calls |
+| 5 | Only then add a short authored video export and optional cached simplified mesh delivery | HK-004 (HK-005/HK-008 consumers), HK-002 | editor/export/reconstruction paths | Verified deterministic evaluated scene at a frame | 5-second clip matches playhead scene; original asset preserved; visual simplification comparison before defaulting to 100k |
+
+#### Acceptance and verification
+For the next agent, first gate is one real aligned splat/mesh pair, not a full feature suite. Use Spark's Three.js renderer in the browser; inspect installed-version docs and compatibility before adding it. Browser-local rendering avoids introducing a render server without a demonstrated need. Server-side generation/persistence remains asynchronous. Positional replay data describes state; it does not replace rendering. Consider offline server export only if local recording fails the demo requirement.
+
+One scene/take model serves both photo and video: a photo is the currently evaluated frame, a video is a range over authored scene/camera animation. Captured video is source evidence, not automatically a time-varying 3D reconstruction. A static source starts at frame 0 and can be placed into an authored duration. Timeline stays visible; no photo/video project split. Right pane shows Generate settings/status when generating, Objects/Inspector when editing, and source details when inspecting evidence. Layer selection should not prevent moving the same object. Show real queue/running/download stages, not invented percentages. Only expose controls backed by implemented behavior; mesh preview detail can be local postprocessing, not a fake model aggressiveness setting.
+
+Provider multi-object API support is documented, not yet live-tested here. The HTTP adapter currently caps masks at one and the runner picks a combined GLB; widening that limit alone is insufficient. First inspect a bounded provider response and object-index mapping. Prefer one user action with 2–3 tracked single-object child jobs if shared output contracts cannot represent a batch safely; the UI must disclose this and budget each job. Do not infer scene-relative placement from independently centered meshes. Required general checks remain `npm run verify`, focused geometry/scene tests, and an actual browser journey; provider/schema documentation alone is not success evidence.
+
+#### Risks and rollback
+Splat/mesh coordinate mismatch, large PLY downloads/GPU memory, opacity sorting and inferred hidden geometry are the first risks. Preserve full-resolution assets and mesh-only view; toggle only one representation by default. Cache generation by existing request IDs and compatible inputs; do not regenerate on layer switch, scrub or export. Preserve raw source frames separately from inferred geometry. Stop the splat spike after one bounded implementation attempt if it threatens the running demo and hand off the exact blocker. Roll back continuation commits to `a4ad90e`; do not move existing stable tags.
+
+#### Decisions requiring approval
+No questions needed for this planning/merge pass. Directly requested direction (single branch, splat priority, multiple objects, shared timeline) is approved. Spark/local-rendering and the exact interaction details above are implementation recommendations; they do not authorize shared-schema expansion, new hosting costs or remote publication. Confirm the official event window with Cody before any work that would exceed the currently recorded cutoff.
+
+Primary references checked 2026-11-14: [fal SAM 3D schema](https://fal.ai/models/fal-ai/sam-3/3d-objects/api) (multiple masks, individual outputs, metadata), [Spark overview](https://sparkjs.dev/docs/overview/) (Three.js integration, PLY support, object transforms).
 
 ```yaml
 primary_user: "A filmmaker, video editor, or creator who wants to reshape a captured scene; the demo uses a small interior with furniture."

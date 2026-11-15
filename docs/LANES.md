@@ -1,5 +1,7 @@
 # Lanes: parallel agent work
 
+**Current override (Cody, 2026-11-14):** one agent, root checkout, `production` branch. Follow PLAN v3's current continuation and the HK-002/HK-004 handoff. The lane protocol below is historical for this continuation; do not launch lane workers or switch to their older worktrees. Contracts still require explicit approval for changes. This override does not delete or rewrite historical lane ownership records.
+
 Three lanes build on the HK-001 baseline at the same time, each on its own branch and worktree. `lanes.json` is the single source for each lane's task ID, branch, worktree path, and **owned paths**. PLAN.md §5 records the proposed replan; it needs Cody's approval before lanes start.
 
 | Lane | Task | Builds | Hands to |
