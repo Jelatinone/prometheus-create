@@ -155,6 +155,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const [captureOpen, setCaptureOpen] = useState(false);
   const [pane, setPane] = useState<Pane>("objects");
   const [playbackOpen, setPlaybackOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   // Frames captured in this session: the Generate frame list follows new captures.
   const [captureCount, setCaptureCount] = useState(0);
   const [cameraView, setCameraView] = useState(false);
@@ -618,17 +619,17 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   );
 
   return (
-    <div className="fixed inset-0 z-30 overflow-hidden bg-stage text-ink">
+    <div className="editor-shell fixed inset-0 z-30 overflow-hidden bg-stage text-ink">
       {/* Viewport fills the screen; chrome floats over it. */}
       <div ref={viewportEl} className="absolute inset-0" />
       {hint && (
-        <div className="pointer-events-none absolute inset-x-0 top-17 z-40 flex justify-center px-3">
+        <div className="editor-hint pointer-events-none absolute inset-x-0 top-17 z-40 flex justify-center px-3">
           <Toast key={hint} text={hint} />
         </div>
       )}
 
       {/* Project chip: saves, project, take, saved state */}
-      <div className={`absolute top-3 left-3 flex h-11 max-w-[min(560px,calc(100vw-32rem))] items-center gap-1 overflow-hidden px-1.5 max-sm:max-w-[calc(100vw-19.5rem)] ${chrome}`}>
+      <div className={`editor-identity absolute top-3 left-3 flex h-11 max-w-[min(560px,calc(100vw-32rem))] items-center gap-1 overflow-hidden px-1.5 ${chrome}`}>
         {onShowSaves ? (
           <button className={icon} onClick={onShowSaves} title="Saves" aria-label="Back to saves">
             <FolderOpenIcon className="size-5" />
@@ -685,7 +686,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       </div>
 
       {/* Actions (the account button sits to their right on every screen) */}
-      <div className={`absolute top-3 right-15 flex h-11 items-center gap-0.5 px-1.5 ${chrome}`}>
+      <div className={`editor-actions absolute top-3 right-15 flex h-11 items-center gap-0.5 px-1.5 ${chrome}`}>
         <button className={icon} onClick={() => apply(undo)} disabled={!history.past.length} title="Undo (Ctrl+Z)" aria-label="Undo">
           <ArrowUturnLeftIcon className="size-5" />
         </button>
@@ -713,7 +714,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       </div>
 
       {/* Mode rail: picks what the right pane and the bottom actions are about */}
-      <div className={`absolute top-17 left-3 flex flex-col gap-0.5 p-1 ${chrome}`} role="tablist" aria-orientation="vertical" aria-label="Mode">
+      <div className={`editor-modes absolute top-17 left-3 flex flex-col gap-0.5 p-1 ${chrome}`} role="tablist" aria-orientation="vertical" aria-label="Mode">
         {MODES.map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -724,6 +725,8 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             className={toolButton(pane === id)}
             onClick={() => {
               setPane(id);
+              setDetailsOpen(true);
+              setPlaybackOpen(false);
               if (id === "objects" || id === "camera") setCaptureOpen(false);
             }}
             title={label}
@@ -734,7 +737,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         ))}
       </div>
 
-      <Presence show={captureOpen} enter="animate-slide-left" role="complementary" aria-label="Capture drawer" className={`absolute top-17 bottom-20 left-16 z-10 w-[26rem] max-w-[calc(100%-5rem)] overflow-auto p-3 max-sm:bottom-[calc(36vh+7.5rem)] ${chrome}`}>
+      <Presence show={captureOpen} enter="animate-slide-left" role="complementary" aria-label="Capture drawer" className={`editor-capture absolute top-17 bottom-20 left-16 z-10 w-[26rem] max-w-[calc(100%-5rem)] overflow-auto p-3 ${chrome}`}>
           <div className="mb-2 flex items-center justify-between">
             <h2 className="font-serif font-semibold">Capture</h2>
             <button className={icon} onClick={() => setCaptureOpen(false)} aria-label="Close capture">
@@ -745,7 +748,12 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       </Presence>
 
       {/* Details for the current mode */}
-      <div key={pane} id="mode-details" role="tabpanel" aria-labelledby={`mode-${pane}`} className="absolute top-17 right-3 bottom-20 w-80 animate-fade max-sm:top-auto max-sm:bottom-28 max-sm:left-3 max-sm:h-[36vh] max-sm:w-auto">
+      <div key={pane} id="mode-details" role="tabpanel" aria-labelledby={`mode-${pane}`} data-mobile-open={detailsOpen && !captureOpen && !playbackOpen} className="editor-details absolute top-17 right-3 bottom-20 w-80 animate-fade">
+        <div className="editor-details-heading items-center justify-between rounded-t-xl border border-b-0 border-line bg-panel px-3">
+          <span className="font-serif font-semibold">{MODES.find(m => m.id === pane)?.label}</span>
+          <button className={icon} onClick={() => setDetailsOpen(false)} aria-label="Close details"><XMarkIcon className="size-5" /></button>
+        </div>
+        <div className="editor-details-body h-full min-h-0">
         {pane === "camera" && (
           <div className={`h-full overflow-auto ${chrome}`}>
             <CameraPane manifest={present} camera={activeCamera} frame={frame} captures={captures ?? []}
@@ -793,10 +801,11 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             <SourcePane api={api} actor={actor} projectId={projectId} manifest={present} selected={shownObject} />
           </div>
         )}
+        </div>
       </div>
 
       {/* Playback pop-up: play, seek and keys (opened from the bottom toolbar) */}
-      <Presence show={playbackOpen} id="playback" className="absolute bottom-17 left-1/2 w-[min(46rem,calc(100vw-1.5rem))] -translate-x-1/2 max-sm:bottom-28">
+      <Presence show={playbackOpen} id="playback" className="editor-playback absolute bottom-17 left-1/2 w-[min(46rem,calc(100vw-1.5rem))] -translate-x-1/2">
           <Timeline
             rate={present.take.frameRate}
             durationFrames={duration}
@@ -814,7 +823,8 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       </Presence>
 
       {/* Bottom toolbar: actions for the current mode, then playback, then view controls (always there) */}
-      <div className={`absolute bottom-3 left-1/2 flex h-12 max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-0.5 px-1.5 max-sm:h-auto max-sm:w-[calc(100vw-1.5rem)] max-sm:flex-wrap max-sm:justify-center max-sm:py-1 ${chrome}`} role="toolbar" aria-label="Actions and view">
+      <div className={`editor-toolbar absolute bottom-3 left-1/2 flex h-12 max-w-[calc(100vw-1.5rem)] lg:-translate-x-1/2 items-center gap-0.5 px-1.5 ${chrome}`} role="toolbar" aria-label="Actions and view">
+        <div className="editor-context-actions">
         {pane === "objects" && (
           <>
             {TOOLS.map((t) => {
@@ -850,7 +860,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             {selectedObject && (
               <>
                 {sep}
-                <span className="max-w-40 truncate px-1.5 text-sm font-medium" title={selectedObject.name}>
+                <span className="max-w-40 truncate px-1.5 text-sm font-medium max-md:hidden" title={selectedObject.name}>
                   {selectedObject.name}
                 </span>
                 <button
@@ -925,7 +935,9 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             Capture
           </button>
         )}
-        <span className="mx-1.5 h-7 w-px bg-line" aria-hidden />
+        </div>
+        <span className="editor-toolbar-divider mx-1.5 h-7 w-px bg-line" aria-hidden />
+        <div className="editor-view-actions">
         <button
           className={`${labelled} ${playbackOpen ? "bg-accent/15 text-accent" : ""}`}
           onClick={() => setPlaybackOpen((v) => !v)}
@@ -965,6 +977,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         <button className={toolButton(grid)} onClick={() => setGrid((g) => !g)} aria-pressed={grid} title="Grid" aria-label="Grid">
           <Squares2X2Icon className="size-5" />
         </button>
+      </div>
       </div>
 
       {notice && (

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { ProfileMenu } from "@/components/ui/ProfileMenu";
 import { UsageWarning } from "@/components/ui/UsageWarning";
 import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/brand";
@@ -7,6 +7,12 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: PRODUCT_NAME,
   description: PRODUCT_TAGLINE,
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

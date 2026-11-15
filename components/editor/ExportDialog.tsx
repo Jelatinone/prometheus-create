@@ -60,7 +60,7 @@ export function ExportDialog({ takeName, frame, animated, dirty, busy, error, pr
         aria-describedby="export-description"
         aria-busy={busy}
         tabIndex={-1}
-        className="fixed inset-0 m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border border-line bg-panel p-5 text-ink shadow-xl backdrop:bg-ink/25"
+        className="export-dialog fixed inset-0 m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border border-line bg-panel p-5 text-ink shadow-xl backdrop:bg-ink/25"
         onCancel={(e) => { e.preventDefault(); if (!busy) onClose(); }}
         onClick={(e) => {
           if (e.target !== e.currentTarget || busy) return;

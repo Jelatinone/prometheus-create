@@ -20,9 +20,10 @@ export function ProjectTitle({ title, onRename }: { title: string; onRename: (ti
   if (draft === null)
     return (
       <button
-        className="truncate rounded-lg px-1.5 py-1 font-serif font-semibold hover:bg-panel-2 hover:text-accent max-sm:hidden"
+        className="min-w-0 truncate rounded-lg px-1.5 py-1 font-serif font-semibold hover:bg-panel-2 hover:text-accent"
         onClick={() => setDraft(title)}
         title="Rename project"
+        aria-label="Rename project"
       >
         {title}
       </button>
@@ -40,7 +41,7 @@ export function ProjectTitle({ title, onRename }: { title: string; onRename: (ti
         if (e.key === "Enter") void commit();
         if (e.key === "Escape") setDraft(null);
       }}
-      className="h-8.5 w-48 min-w-0 rounded-lg border border-line bg-canvas px-1.5 font-serif font-semibold focus:border-accent focus:outline-none max-sm:hidden"
+      className="h-8.5 w-48 min-w-0 rounded-lg border border-line bg-canvas px-1.5 font-serif font-semibold focus:border-accent focus:outline-none"
       aria-label="Project name"
     />
   );

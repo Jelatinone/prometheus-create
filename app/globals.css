@@ -30,6 +30,104 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Editor groups share the desktop toolbar and become two bounded rows on phones. */
+.editor-context-actions, .editor-view-actions { display: contents; }
+.editor-details-heading { display: none; }
+
+@media (max-width: 1023px) {
+  .editor-shell {
+    --chrome-top: max(12px, env(safe-area-inset-top));
+    --chrome-left: max(12px, env(safe-area-inset-left));
+    --chrome-right: max(12px, env(safe-area-inset-right));
+    --chrome-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .editor-identity {
+    top: var(--chrome-top); left: var(--chrome-left); right: calc(var(--chrome-right) + 52px);
+    width: auto; max-width: none; height: 48px;
+  }
+  .editor-identity > button { flex-shrink: 1; }
+  .editor-identity > :first-child { flex-shrink: 0; }
+  .editor-identity select { flex: 1; width: 0; }
+  .editor-identity [aria-live] { font-size: 0; gap: 0; padding: 0 4px; }
+  .editor-actions {
+    top: calc(var(--chrome-top) + 54px); left: var(--chrome-left); right: auto;
+    height: 48px; max-width: calc(100% - var(--chrome-left) - var(--chrome-right));
+  }
+  .editor-actions button { flex-shrink: 0; }
+  .editor-modes { top: calc(var(--chrome-top) + 110px); left: var(--chrome-left); }
+  .editor-details { top: calc(var(--chrome-top) + 110px); bottom: calc(var(--chrome-bottom) + 106px); right: var(--chrome-right); width: 288px; }
+  .editor-capture {
+    top: calc(var(--chrome-top) + 110px); bottom: calc(var(--chrome-bottom) + 106px);
+    left: calc(var(--chrome-left) + 56px); max-width: calc(100% - var(--chrome-left) - var(--chrome-right) - 56px);
+    overscroll-behavior: contain;
+  }
+  .editor-toolbar {
+    bottom: var(--chrome-bottom); left: var(--chrome-left); right: var(--chrome-right);
+    transform: none; translate: none; width: auto; max-width: none; height: 100px;
+    display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 2px 4px; z-index: 35;
+  }
+  .editor-context-actions, .editor-view-actions {
+    display: flex; flex: 1; align-items: center; gap: 2px; min-width: 0;
+  }
+  .editor-context-actions { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+  .editor-context-actions > *, .editor-view-actions > * { flex-shrink: 0; }
+  .editor-context-actions button { white-space: nowrap; }
+  .editor-toolbar-divider { display: none; }
+  .editor-view-actions { justify-content: center; border-top: 1px solid var(--color-line); }
+  .editor-playback { bottom: calc(var(--chrome-bottom) + 106px); z-index: 30; }
+  .editor-shell > [role="status"], .editor-shell > [role="alert"] {
+    bottom: calc(var(--chrome-bottom) + 110px); width: calc(100% - 24px); max-height: 35dvh; overflow: auto;
+  }
+  .editor-hint { top: calc(var(--chrome-top) + 110px); padding-left: 68px; }
+  .profile-menu { top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); }
+  .saves-header { flex-shrink: 0; gap: 8px; padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left)); }
+  .saves-header > :first-child { padding-right: 48px; }
+  .saves-header > input { height: 44px; }
+  .saves-actions { padding-right: 0; }
+  .saves-page { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+@media (max-width: 767px), (max-width: 1023px) and (max-height: 500px) {
+  .editor-details {
+    display: none; top: auto; left: var(--chrome-left); right: var(--chrome-right); width: auto;
+    height: min(52dvh, calc(100dvh - var(--chrome-top) - var(--chrome-bottom) - 166px)); z-index: 10;
+  }
+  .editor-details[data-mobile-open="true"] { display: flex; flex-direction: column; }
+  .editor-details-heading { display: flex; flex-shrink: 0; min-height: 44px; }
+  .editor-details-body { flex: 1; overflow: hidden; }
+  .editor-details-body > * { border-top-left-radius: 0; border-top-right-radius: 0; }
+  .take-playback { height: auto; min-height: 96px; flex-wrap: wrap; gap: 4px; padding: 4px 8px; }
+  .take-playback [data-testid="take-time"] { flex: 1; width: auto; }
+  .take-playback [data-testid="source-time"] { width: auto; font-size: 10px; }
+  .take-scrubber { order: 10; flex: 1 0 100%; }
+  .take-scrubber input { min-height: 32px; }
+  .saves-page > .grid { padding: 12px; gap: 12px; }
+  .saves-list { flex-shrink: 0; min-height: 160px; max-height: 38dvh; }
+  .saves-page > .grid { display: flex; flex-direction: column; }
+  .saves-page aside { flex-shrink: 0; overflow: visible; }
+  .export-dialog { max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px); padding: 16px; }
+}
+
+@media (max-width: 400px) {
+  .editor-view-actions [aria-label="Playback"] { width: 44px; padding: 0; justify-content: center; }
+  .editor-view-actions [aria-label="Playback"] span { display: none; }
+  .editor-identity > button[aria-label="Rename project"] { max-width: 30%; }
+}
+
+/* A short landscape screen has room beside the header, rather than below it. */
+@media (min-width: 480px) and (max-width: 1023px) and (max-height: 500px) {
+  .editor-modes { top: calc(var(--chrome-top) + 54px); left: auto; right: var(--chrome-right); flex-direction: row; }
+  .editor-details { top: calc(var(--chrome-top) + 110px); height: auto; left: max(30%, 68px); }
+}
+
+/* Preserve browser zoom while avoiding focus-triggered iOS input zoom. */
+@media (pointer: coarse) and (max-width: 1023px) {
+  button, [role="button"], label:has(input[type="file"]) { min-height: 44px; }
+  button:has(svg):not(:has(span)), .editor-modes button, .editor-view-actions button { min-width: 44px; }
+  input:not([type="radio"]):not([type="checkbox"]):not([type="range"]):not([type="file"]), select, textarea { font-size: 16px; min-height: 44px; }
+  button, a, [role="tab"] { touch-action: manipulation; }
+}
+
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
