@@ -76,6 +76,10 @@ import { SourcePane } from "./SourcePane";
 import { Timeline } from "./Timeline";
 import { ExportDialog, type ExportFormat } from "./ExportDialog";
 import { exportProject } from "@/lib/editor/project-archive";
+import type { Observation, Result, TakeManifest } from "@/lib/contracts";
+import { activeCamera as renderCamera, cameraFov, cameraFromView, cameraInterpolation, cameraTrack, chooseCamera, editCamera, moveCameraKey, removeCameraKey, resizeTake, seedCamera, setCameraKey } from "@/lib/editor/camera";
+import { CameraPane, type CaptureChoice } from "./CameraPane";
+import { supportedVideoFormat, videoSize, type VideoFormat, type VideoProgress } from "@/lib/export/video";
 
 interface Props {
   projectId: string;
@@ -132,12 +136,17 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
-  const [pane, setPane] = useState<"objects" | "generate" | "source">("objects");
+  const [pane, setPane] = useState<"objects" | "camera" | "generate" | "source">("objects");
+  const [cameraView, setCameraView] = useState(false);
+  const [captures, setCaptures] = useState<CaptureChoice[] | null>(null);
   const [playhead, setPlayhead] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const exporting = useRef(false);
+  const videoAbort = useRef<AbortController | null>(null);
+  const [videoFormat, setVideoFormat] = useState<VideoFormat | null>(null);
+  const [videoProgress, setVideoProgress] = useState<VideoProgress | null>(null);
   const playheadRef = useRef(0);
   const editTransformRef = useRef<(objectId: string, t: Transform) => void>(() => {});
   const [grid, setGrid] = useState(true);
@@ -234,8 +243,55 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     playheadRef.current = frame;
   }, [frame]);
   useEffect(() => {
-    if (evaluated) viewport.current?.sync(evaluated);
-  }, [evaluated]);
+    if (evaluated) {
+      void viewport.current?.sync(evaluated);
+      viewport.current?.followCamera(cameraView ? renderCamera(evaluated) : null);
+    }
+  }, [evaluated, cameraView]);
+  useEffect(() => {
+    if (present) viewport.current?.showCameraPath(present, pane === "camera");
+  }, [present, pane]);
+
+  useEffect(() => {
+    if (pane !== "camera" || captures !== null) return;
+    let live = true;
+    void (async () => {
+      const frames = await api.request<Observation[]>(actor, "GET", `/api/reconstruction/frames?projectId=${encodeURIComponent(projectId)}`);
+      if (!frames.ok) throw new Error(frames.error.message);
+      const ids = [...new Set(frames.value.map(o => o.sourceId))];
+      const sources = await Promise.all(ids.map(id => api.ingestion.getSource(actor, projectId, id)));
+      const choices: CaptureChoice[] = [];
+      for (const source of sources) {
+        if (!source.ok) throw new Error(source.error.message);
+        choices.push({ source: source.value, observations: frames.value.filter(o => o.sourceId === source.value.id) });
+      }
+      if (live) setCaptures(choices);
+    })().catch(error => {
+      if (live) { setCaptures([]); setNotice({ tone: "bad", text: `Could not read capture timing: ${error instanceof Error ? error.message : String(error)}` }); }
+    });
+    return () => { live = false; };
+  }, [pane, captures, api, actor, projectId]);
+
+  useEffect(() => {
+    if (!exportOpen || !viewport.current || !present?.take.durationFrames) return;
+    let live = true;
+    const canvas = viewport.current.renderer.domElement;
+    void supportedVideoFormat(videoSize(canvas.width, canvas.height), present.take.frameRate).then(format => { if (live) setVideoFormat(format); }).catch(() => { if (live) setVideoFormat(null); });
+    return () => { live = false; };
+  }, [exportOpen, present?.take.durationFrames, present?.take.frameRate]);
+
+  const applyCameraResult = useCallback((result: Result<TakeManifest>) => {
+    if (!result.ok) return setNotice({ tone: "bad", text: result.error.message });
+    setPlaying(false);
+    apply(h => commit(h, result.value));
+  }, [apply]);
+
+  const useCameraView = useCallback((key: boolean) => {
+    const view = viewport.current?.captureView();
+    if (!view) return;
+    setPlaying(false);
+    apply(h => commit(h, cameraFromView(h.present, view, playheadRef.current, key)));
+  }, [apply]);
 
   /** Animated objects change only through keys: an edit sets a key at the playhead. Others edit the scene. */
   const editTransform = useCallback(
@@ -251,11 +307,18 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
 
   /** K / key button: remove the key at the playhead, or set one from the pose on screen. */
   const toggleKey = useCallback(() => {
+    if (pane === "camera") {
+      const cam = evaluated ? renderCamera(evaluated) : null;
+      if (!cam || !present || duration <= 0) return;
+      const track = cameraTrack(present, cam.id);
+      apply(h => commit(h, track?.keyframes.some(k => k.frame === frame) ? removeCameraKey(h.present, cam.id, frame) : setCameraKey(h.present, cam.id, frame, cam.transform, track?.keyframes[0].interpolation)));
+      return;
+    }
     if (!selected || !evaluated || duration <= 0) return;
     const pose = findObject(evaluated, selected)?.transform;
     if (!pose) return;
     apply((h) => commit(h, keyFrames(h.present, selected).includes(frame) ? removeKey(h.present, selected, frame) : setKey(h.present, selected, frame, pose)));
-  }, [selected, evaluated, duration, frame, apply]);
+  }, [selected, evaluated, duration, frame, apply, pane, present]);
 
   // Playback: advance the playhead at the take's frame rate, looping; purely local (no provider or asset calls).
   useEffect(() => {
@@ -414,6 +477,9 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     exporting.current = true;
     setBusy(`Exporting ${format.toUpperCase()}`);
     setExportError(null);
+    setVideoProgress(null);
+    const abort = new AbortController();
+    videoAbort.current = format === "video" ? abort : null;
     try {
       // Let the shared overlay paint before encoding or packing the download.
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
@@ -422,12 +488,16 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`);
         const name = result.value.title.replace(/[^\w\- ]+/g, "").trim() || "prometheus-project";
         download(new Blob([result.value.zip.slice().buffer], { type: "application/zip" }), `${name}.zip`);
+      } else if (format === "video") {
+        if (!videoFormat) throw new Error("No supported video encoder is available in this browser.");
+        const blob = await vp.toVideo(present, videoFormat, abort.signal, setVideoProgress);
+        download(blob, `${slug(present.take.name)}.${videoFormat.extension}`);
       } else {
         await vp.sync(evaluated);
         if (format === "png") {
           vp.select(null);
           const at = present.take.durationFrames > 0 ? `-f${frame}` : "";
-          download(await vp.toPng(), `${slug(present.take.name)}${at}.png`);
+          download(await vp.toPng(evaluated), `${slug(present.take.name)}${at}.png`);
         } else {
           const bytes = await vp.toGlb();
           download(new Blob([bytes.slice().buffer], { type: "model/gltf-binary" }), `${slug(present.take.name)}.glb`);
@@ -435,13 +505,19 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       }
       setExportOpen(false);
     } catch (e) {
-      setExportError(`${format.toUpperCase()} export failed: ${e instanceof Error ? e.message : String(e)}`);
+      setExportError(abort.signal.aborted ? "Video export canceled." : `${format.toUpperCase()} export failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
-      if (format === "png") vp.select(selected);
-      exporting.current = false;
-      setBusy(null);
+      try {
+        if (format === "video") await vp.sync(evaluated);
+        if (format === "png") vp.select(selected);
+        vp.followCamera(cameraView ? renderCamera(evaluated) : null);
+      } finally {
+        videoAbort.current = null;
+        exporting.current = false;
+        setBusy(null);
+      }
     }
-  }, [present, evaluated, busy, dirty, assetDeps, api, projectId, frame, selected]);
+  }, [present, evaluated, busy, dirty, assetDeps, api, projectId, frame, selected, videoFormat, cameraView]);
 
   // Keyboard: tools, frame, undo/redo, delete, save; never while typing.
   useEffect(() => {
@@ -468,7 +544,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       } else if (!mod && !e.altKey) {
         const found = TOOLS.find((x) => x.key.toLowerCase() === k);
         if (found) setTool(found.id);
-        else if (k === "f") viewport.current?.frame();
+        else if (k === "f") { setCameraView(false); viewport.current?.followCamera(null); viewport.current?.frame(); }
         else if (k === "h") setNav((n) => (n === "pan" ? "orbit" : "pan"));
         else if (k === " " && duration > 0) {
           e.preventDefault();
@@ -508,7 +584,8 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const take = present.take;
   const selectedObject = findObject(present, selected);
   const shownObject = evaluated ? findObject(evaluated, selected) : selectedObject;
-  const activeCamera = present.scene.cameras.find((c) => c.id === take.activeCameraId) ?? null;
+  const activeCamera = renderCamera(evaluated ?? present);
+  const cameraKeys = activeCamera ? cameraTrack(present, activeCamera.id)?.keyframes.map(k => k.frame) ?? [] : [];
   const parentName = take.parent ? (loaded.takes.find((t) => t.takeId === take.parent!.takeId)?.name ?? "another take") : null;
   const chrome = "rounded-xl border border-line bg-panel shadow-sm";
   const icon =
@@ -520,7 +597,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const sep = <span className="mx-1 h-5 w-px bg-line" aria-hidden />;
   const loadingOverlay = (
     <LoadingOverlay
-      show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat" || busy === "Loading splat" || !!busy?.startsWith("Exporting ") || Object.values(splatsLoading).some(Boolean)}
+      show={(!!busy && busy !== "Saving") || (pane === "camera" && captures === null) || Object.values(splatsLoading).some(Boolean)}
       className={exportOpen ? "z-50" : ""}
     />
   );
@@ -658,23 +735,35 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           {(
             [
               ["objects", "Objects", CubeIcon],
+              ["camera", "Camera", VideoCameraIcon],
               ["generate", "Generate", SparklesIcon],
               ["source", "Source", PhotoIcon],
             ] as const
-          ).map(([id, label, TabIcon]) => (
+          ).map(([id, label]) => (
             <button
               key={id}
               role="tab"
               aria-selected={pane === id}
               onClick={() => setPane(id)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-sm ${pane === id ? "bg-accent/15 text-accent" : "hover:bg-panel-2 hover:text-accent"}`}
+              className={`flex flex-1 items-center justify-center rounded-lg px-1 py-1.5 text-sm ${pane === id ? "bg-accent/15 text-accent" : "hover:bg-panel-2 hover:text-accent"}`}
             >
-              <TabIcon className="size-4" />
               {label}
             </button>
           ))}
         </div>
         <div className="min-h-0 flex-1" role="tabpanel">
+          {pane === "camera" && <div className={`h-full overflow-auto ${chrome}`}><CameraPane manifest={present} camera={activeCamera} frame={frame} cameraView={cameraView} captures={captures ?? []}
+            onView={setCameraView} onChoose={id => apply(h => commit(h, chooseCamera(h.present, id)))} onUseView={useCameraView}
+            onPose={pose => activeCamera && apply(h => commit(h, editCamera(h.present, activeCamera.id, frame, cleanTransform(pose))))}
+            onFov={degrees => activeCamera && apply(h => commit(h, cameraFov(h.present, activeCamera.id, degrees)))}
+            onDuration={frames => applyCameraResult(resizeTake(present, frames))}
+            onSeek={next => { setPlaying(false); setPlayhead(next); }}
+            onRemove={key => activeCamera && apply(h => commit(h, removeCameraKey(h.present, activeCamera.id, key)))}
+            onMove={(from, to) => activeCamera && applyCameraResult(moveCameraKey(present, activeCamera.id, from, to))}
+            onInterpolation={mode => activeCamera && apply(h => commit(h, cameraInterpolation(h.present, activeCamera.id, mode)))}
+            onSeed={choice => applyCameraResult(seedCamera(present, choice.source, choice.observations))}
+            onRefreshCaptures={() => setCaptures(null)}
+          /></div>}
           {pane === "objects" && (
             <Inspector
           manifest={evaluated ?? present}
@@ -719,8 +808,9 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           playhead={frame}
           playing={playing}
           sourceUs={sourceAt(present, frame)?.us ?? null}
-          keys={selected ? keyFrames(present, selected) : []}
-          canKey={!!selectedObject && duration > 0}
+          keys={pane === "camera" ? cameraKeys : selected ? keyFrames(present, selected) : []}
+          canKey={duration > 0 && (pane === "camera" ? !!activeCamera : !!selectedObject)}
+          keyTarget={pane === "camera" ? "camera" : "object"}
           onPlay={setPlaying}
           onSeek={(f) => { setPlaying(false); setPlayhead(f); }}
           onAnimate={() => apply((h) => commit(h, setDuration(h.present, defaultDurationFrames(h.present.take.frameRate))))}
@@ -795,15 +885,16 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         >
           <HandRaisedIcon className="size-5" />
         </button>
-        <button className={icon} onClick={() => viewport.current?.frame()} title="Frame selection (F)" aria-label="Frame selection">
+        <button className={icon} onClick={() => { setCameraView(false); viewport.current?.followCamera(null); viewport.current?.frame(); }} title="Frame selection (F)" aria-label="Frame selection">
           <ViewfinderCircleIcon className="size-5" />
         </button>
         <button
-          className={icon}
-          onClick={() => activeCamera && viewport.current?.viewThrough(activeCamera)}
+          className={toolButton(cameraView)}
+          onClick={() => setCameraView(v => !v)}
+          aria-pressed={cameraView}
           disabled={!activeCamera}
           title={activeCamera ? `View through ${activeCamera.name}` : "This take has no camera"}
-          aria-label="View through take camera"
+          aria-label={cameraView ? "Switch to free view" : "View through take camera"}
         >
           <VideoCameraIcon className="size-5" />
         </button>
@@ -833,6 +924,10 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       {!exportOpen && loadingOverlay}
       {exportOpen && (
         <ExportDialog takeName={take.name} frame={frame} animated={duration > 0} dirty={dirty} busy={!!busy} error={exportError} progress={loadingOverlay}
+          cameraReady={!!activeCamera} videoLabel={duration > 0 && videoFormat ? `Video (.${videoFormat.extension})` : null}
+          videoDescription={`${(duration / framesPerSecond(take.frameRate)).toFixed(2)} seconds at ${framesPerSecond(take.frameRate).toFixed(2)} fps. Active render camera; current view size (up to 1280 px). No audio.`}
+          progressLabel={videoProgress ? `Rendering frame ${videoProgress.completed} of ${videoProgress.total}` : null}
+          onCancelExport={busy === "Exporting VIDEO" ? () => videoAbort.current?.abort() : undefined}
           onClose={() => { if (!exporting.current) setExportOpen(false); }} onExport={(format) => void exportFile(format)} />
       )}
     </div>

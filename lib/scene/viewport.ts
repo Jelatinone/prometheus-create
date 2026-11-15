@@ -12,16 +12,22 @@ import {
   AmbientLight,
   Box3,
   BoxHelper,
+  BufferGeometry,
   Color,
   DirectionalLight,
   GridHelper,
   Group,
   HemisphereLight,
+  Line,
+  LineBasicMaterial,
   MOUSE,
   type Object3D,
   PerspectiveCamera,
   Raycaster,
+  Mesh,
+  MeshBasicMaterial,
   Scene,
+  SphereGeometry,
   TOUCH,
   Vector2,
   Vector3,
@@ -36,6 +42,9 @@ import type { TakeManifest } from "@/lib/contracts/revision";
 import type { Camera as SceneCamera, SceneObject } from "@/lib/contracts/scene";
 import { checkSplatPly, wantsSplat } from "./splat";
 import { meshExportScene } from "./mesh-export";
+import { activeCamera, cameraTrack, type CameraView } from "@/lib/editor/camera";
+import { evaluateAt } from "@/lib/editor/timeline";
+import { encodeVideo, type VideoFormat, type VideoProgress } from "@/lib/export/video";
 
 export type Tool = "select" | "move" | "rotate" | "scale";
 /** What a left-drag (one-finger drag) does: orbit around the target, or pan the view. Right-drag always pans. */
@@ -59,7 +68,7 @@ export interface ViewportCallbacks {
 type SplatStatus = "none" | "loading" | "settling" | "ready" | "failed";
 
 /** The Spark renderer fields used to tell when a new splat has actually been drawn. */
-type SparkProgress = { sorting: boolean; lastSortTime: number; display?: { mappingVersion: number }; current?: { mappingVersion: number } };
+type SparkProgress = { sorting: boolean; lastSortTime: number; display?: { mappingVersion: number }; current?: { mappingVersion: number }; autoUpdate: boolean; update(options: { scene: Scene; camera: PerspectiveCamera }): Promise<void> };
 const SETTLE_TIMEOUT_MS = 4000;
 
 interface ObjectEntry {
@@ -100,6 +109,10 @@ export class EditorViewport {
   private dragStartScale: Vec3 | null = null;
   private pointerDown: { x: number; y: number } | null = null;
   private disposed = false;
+  private followingCamera = false;
+  private freeView: { view: CameraView; target: Vector3 } | null = null;
+  private exporting = false;
+  private readonly cameraPath = new Group();
 
   constructor(private readonly container: HTMLElement, private readonly cb: ViewportCallbacks) {
     this.renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -115,6 +128,7 @@ export class EditorViewport {
     this.scene.add(sun);
     const grid = new GridHelper(10, 40, 0x8f8a80, 0xb3afa7);
     this.helpers.add(grid);
+    this.helpers.add(this.cameraPath);
     this.scene.add(this.helpers);
 
     this.camera.position.set(1.6, 1.3, 2.4);
@@ -147,8 +161,9 @@ export class EditorViewport {
     this.resize.observe(container);
     this.fit();
     this.renderer.setAnimationLoop(() => {
+      if (this.exporting) return;
       this.settleSplats();
-      this.orbit.update();
+      if (!this.followingCamera) this.orbit.update();
       this.outline?.update();
       this.renderer.render(this.scene, this.camera);
     });
@@ -253,6 +268,104 @@ export class EditorViewport {
     this.orbit.update();
   }
 
+  captureView(): CameraView {
+    return { transform: { ...transformOf(this.camera), scale: [1, 1, 1] }, verticalFovDeg: this.camera.fov, near: this.camera.near, far: this.camera.far };
+  }
+
+  private applyCamera(view: CameraView) {
+    applyTransform(this.camera, { ...view.transform, scale: [1, 1, 1] });
+    this.camera.fov = view.verticalFovDeg;
+    this.camera.near = view.near;
+    this.camera.far = view.far;
+    this.camera.updateProjectionMatrix();
+    this.camera.updateMatrixWorld(true);
+  }
+
+  /** Camera preview never overwrites the free navigation pose or saved camera. */
+  followCamera(cam: SceneCamera | null) {
+    if (cam) {
+      if (!this.followingCamera) this.freeView = { view: this.captureView(), target: this.orbit.target.clone() };
+      this.followingCamera = true;
+      this.orbit.enabled = false;
+      this.applyCamera(cam);
+    } else if (this.followingCamera) {
+      this.followingCamera = false;
+      this.orbit.enabled = true;
+      if (this.freeView) { this.applyCamera(this.freeView.view); this.orbit.target.copy(this.freeView.target); }
+      this.freeView = null;
+      this.orbit.update();
+    }
+    this.cameraPath.visible = !this.followingCamera;
+  }
+
+  showCameraPath(manifest: TakeManifest, show: boolean) {
+    this.cameraPath.traverse(node => {
+      if (node instanceof Mesh || node instanceof Line) {
+        node.geometry.dispose();
+        const materials = Array.isArray(node.material) ? node.material : [node.material];
+        materials.forEach(m => m.dispose());
+      }
+    });
+    this.cameraPath.clear();
+    const cam = activeCamera(manifest);
+    const track = cam ? cameraTrack(manifest, cam.id) : null;
+    if (!show || !cam || !track) return;
+    const points: Vector3[] = [];
+    const last = Math.max(0, manifest.take.durationFrames - 1);
+    for (let i = 0; i <= 120; i++) points.push(new Vector3(...activeCamera(evaluateAt(manifest, last * i / 120))!.transform.position));
+    this.cameraPath.add(new Line(new BufferGeometry().setFromPoints(points), new LineBasicMaterial({ color: SELECT })));
+    for (const key of track.keyframes) {
+      const point = new Mesh(new SphereGeometry(0.035, 8, 6), new MeshBasicMaterial({ color: SELECT }));
+      point.position.set(...key.transform.position);
+      this.cameraPath.add(point);
+    }
+    this.cameraPath.visible = !this.followingCamera;
+  }
+
+  private beginCapture() {
+    if (this.exporting) throw new Error("An export is already running.");
+    const view = this.captureView();
+    const target = this.orbit.target.clone();
+    const enabled = this.orbit.enabled;
+    const helpers = this.helpers.visible;
+    const autoUpdate = this.spark?.autoUpdate;
+    this.exporting = true;
+    this.orbit.enabled = false;
+    this.helpers.visible = false;
+    if (this.spark) this.spark.autoUpdate = false;
+    return () => {
+      this.applyCamera(view);
+      this.orbit.target.copy(target);
+      this.orbit.enabled = enabled;
+      this.helpers.visible = helpers;
+      if (this.spark && autoUpdate !== undefined) this.spark.autoUpdate = autoUpdate;
+      this.exporting = false;
+      this.fit();
+      this.renderer.render(this.scene, this.camera);
+    };
+  }
+
+  private async drawCapture(manifest: TakeManifest, signal?: AbortSignal) {
+    await this.sync(manifest);
+    const cam = activeCamera(manifest);
+    if (!cam) throw new Error("Choose or create a render camera before exporting an image or video.");
+    this.applyCamera(cam);
+    this.scene.updateMatrixWorld(true);
+    const spark = this.spark;
+    if (spark) {
+      const start = performance.now();
+      do {
+        signal?.throwIfAborted();
+        await spark.update({ scene: this.scene, camera: this.camera });
+        if (!spark.sorting && spark.display?.mappingVersion === spark.current?.mappingVersion) break;
+        if (performance.now() - start > 5000) throw new Error("Splat sorting did not settle for this frame. Try the mesh layer.");
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      } while (true);
+      this.settleSplats();
+    }
+    this.renderer.render(this.scene, this.camera);
+  }
+
   setNavigation(mode: Navigation) {
     this.orbit.mouseButtons.LEFT = mode === "pan" ? MOUSE.PAN : MOUSE.ROTATE;
     this.orbit.touches.ONE = mode === "pan" ? TOUCH.PAN : TOUCH.ROTATE;
@@ -263,14 +376,28 @@ export class EditorViewport {
   }
 
   /** PNG of the current view without grid, gizmo or selection outline. */
-  async toPng(): Promise<Blob> {
-    const shown = this.helpers.visible;
-    this.helpers.visible = false;
-    this.renderer.render(this.scene, this.camera);
-    const blob = await new Promise<Blob | null>((resolve) => this.renderer.domElement.toBlob(resolve, "image/png"));
-    this.helpers.visible = shown;
-    if (!blob) throw new Error("the browser could not encode the viewport as PNG");
-    return blob;
+  async toPng(manifest?: TakeManifest): Promise<Blob> {
+    const restore = this.beginCapture();
+    try {
+      if (manifest) await this.drawCapture(manifest);
+      else this.renderer.render(this.scene, this.camera);
+      const blob = await new Promise<Blob | null>((resolve) => this.renderer.domElement.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("the browser could not encode the viewport as PNG");
+      return blob;
+    } finally { restore(); }
+  }
+
+  async toVideo(manifest: TakeManifest, format: VideoFormat, signal?: AbortSignal, progress?: (p: VideoProgress) => void): Promise<Blob> {
+    const restore = this.beginCapture();
+    const snapshot = structuredClone(manifest);
+    try {
+      return await encodeVideo({ canvas: this.renderer.domElement, format, frames: snapshot.take.durationFrames, rate: snapshot.take.frameRate,
+        signal, progress, render: frame => this.drawCapture(evaluateAt(snapshot, frame), signal),
+      });
+    } finally {
+      await this.sync(manifest);
+      restore();
+    }
   }
 
   /** Binary glTF of the visible objects with their manifest transforms (meters, +Y up). */
@@ -402,6 +529,7 @@ export class EditorViewport {
   }
 
   private fit() {
+    if (this.exporting) return;
     const { clientWidth: w, clientHeight: h } = this.container;
     if (!w || !h) return;
     this.renderer.setSize(w, h, false);

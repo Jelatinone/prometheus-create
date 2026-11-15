@@ -20,13 +20,14 @@ interface Props {
   /** Keys of the selected object (empty when nothing is selected or it is not animated). */
   keys: number[];
   canKey: boolean;
+  keyTarget?: "camera" | "object";
   onPlay(playing: boolean): void;
   onSeek(frame: number): void;
   onAnimate(): void;
   onToggleKey(): void;
 }
 
-export function Timeline({ rate, durationFrames, playhead, playing, sourceUs, keys, canKey, onPlay, onSeek, onAnimate, onToggleKey }: Props) {
+export function Timeline({ rate, durationFrames, playhead, playing, sourceUs, keys, canKey, keyTarget = "object", onPlay, onSeek, onAnimate, onToggleKey }: Props) {
   const icon = "grid size-8 place-items-center rounded-lg text-ink hover:bg-panel-2 hover:text-accent disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink";
   const still = durationFrames <= 0;
   const last = Math.max(0, durationFrames - 1);
@@ -42,9 +43,9 @@ export function Timeline({ rate, durationFrames, playhead, playing, sourceUs, ke
       {still ? (
         <>
           <span className="text-sm text-muted">Still take: a single frame. Animate it to scrub, key objects and play.</span>
-          <button className="ml-auto flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm hover:bg-panel-2 hover:text-accent" onClick={onAnimate} title="Make this a 5 s take">
+          <button className="ml-auto flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm hover:bg-panel-2 hover:text-accent" onClick={onAnimate} title="Enable playback; edit duration in the Camera pane">
             <FilmIcon className="size-5" />
-            Animate (5 s)
+            Animate
           </button>
         </>
       ) : (
@@ -81,7 +82,7 @@ export function Timeline({ rate, durationFrames, playhead, playing, sourceUs, ke
             className={`${icon} ${onKey ? "text-accent" : ""}`}
             onClick={onToggleKey}
             disabled={!canKey}
-            title={!canKey ? "Select an object to key it" : onKey ? "Remove this key (K)" : "Set a key from the current pose (K)"}
+            title={!canKey ? `Select a ${keyTarget} to key it` : onKey ? `Remove this ${keyTarget} key (K)` : `Set a ${keyTarget} key from the current pose (K)`}
             aria-label={onKey ? "Remove key" : "Set key"}
             aria-pressed={onKey}
           >
