@@ -68,7 +68,8 @@ import { CapturePanel } from "@/components/capture/CapturePanel";
 import { Inspector } from "./Inspector";
 import { checkSplatPly } from "@/lib/scene/splat";
 import { ReconstructPanel } from "./ReconstructPanel";
-import { reconstructedObject } from "@/lib/editor/reconstruction";
+import { providerSplatFor, reconstructedObject } from "@/lib/editor/reconstruction";
+import { runJob } from "@/lib/editor/batch";
 import { defaultDurationFrames, evaluateAt, framesPerSecond, keyFrames, keyTrackOf, removeKey, setDuration, setKey, sourceAt } from "@/lib/editor/timeline";
 import { SourcePane } from "./SourcePane";
 import { Timeline } from "./Timeline";
@@ -318,6 +319,32 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     [dirty, open],
   );
 
+  /** CP-014: the splat stored with a generated object's job, via attach_splat (resume only; never a provider submit). */
+  const loadGeneratedSplat = useCallback(
+    async (objectId: string) => {
+      const object = historyRef.current ? findObject(historyRef.current.present, objectId) : null;
+      const jobId = object?.provenance.jobId;
+      const sourceId = object?.provenance.sourceIds[0];
+      const observationId = object?.provenance.observationIds[0];
+      if (!object || !jobId || !sourceId || !observationId) return setNotice({ tone: "bad", text: "This object has no generation job to take a splat from." });
+      setBusy("Loading splat");
+      const r = await runJob(
+        (command) => api.request(actor, "POST", "/api/reconstruction", command),
+        { projectId, sourceId, observationId, jobId, action: "attach_splat" },
+        { jobId, stage: "pending" },
+        { onUpdate: () => {} },
+      );
+      setBusy(null);
+      if (r.job.stage !== "done" || !r.outcome) return setNotice({ tone: "bad", text: `Could not load the splat: ${r.job.error ?? "the splat job did not finish"}` });
+      const splat = providerSplatFor(object, r.outcome as Parameters<typeof providerSplatFor>[1]);
+      if (!splat.ok) return setNotice({ tone: "bad", text: `${splat.error.message}.` });
+      setSplatFallbacks((m) => ({ ...m, [objectId]: null }));
+      apply((h) => commit(h, attachSplat(h.present, objectId, splat.value.assetId)));
+      setNotice({ tone: "ok", text: "Generated splat attached and shown. Save to keep it." });
+    },
+    [api, actor, projectId, apply],
+  );
+
   const attachSplatFile = useCallback(
     async (objectId: string, file: File) => {
       const bytes = new Uint8Array(await file.arrayBuffer());
@@ -478,7 +505,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       {/* Viewport fills the screen; chrome floats over it. */}
       <div ref={viewportEl} className="absolute inset-0" />
       <LoadingOverlay
-        show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat" || Object.values(splatsLoading).some(Boolean)}
+        show={busy === "Loading" || busy === "Forking" || busy === "Uploading mesh" || busy === "Uploading splat" || busy === "Loading splat" || Object.values(splatsLoading).some(Boolean)}
       />
       {present.scene.objects.length === 0 && (
         <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-muted">
@@ -637,6 +664,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           onVisible={(id, v) => apply((h) => commit(h, setObjectVisible(h.present, id, v)))}
           onSplatLayer={(id, on) => apply((h) => commit(h, setSplatEnabled(h.present, id, on)))}
           onAttachSplat={(id, file) => void attachSplatFile(id, file)}
+          onLoadGeneratedSplat={(id) => void loadGeneratedSplat(id)}
           splatFallback={selectedObject ? (splatFallbacks[selectedObject.id] ?? null) : null}
         />
           )}

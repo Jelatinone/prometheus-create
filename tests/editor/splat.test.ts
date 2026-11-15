@@ -95,3 +95,20 @@ describe("placement seam (Track A CP-009, applied after the merge)", () => {
     expect(standing.ok && standing.value.transform.position).toEqual([0, 0.45, 0]);
   });
 });
+
+describe("provider splat for a generated object (CP-014)", () => {
+  it("attaches only a finished splat whose mesh is this object's mesh", async () => {
+    const { providerSplatFor } = await import("@/lib/editor/reconstruction");
+    const box = findObject(original(), BOX)!;
+    const meshAsset = { id: box.geometry.assetId } as Asset;
+    const splatAsset = { id: "ast_round_table_splat", kind: "splat", projectId: "prj_fixture_demo" } as Asset;
+    const job = { state: "succeeded", projectId: "prj_fixture_demo" };
+    const outcome = (over: Record<string, unknown>) => ({ job, meshAsset, splatAsset, ...over }) as unknown as ReconstructionOutcome;
+    const ok = providerSplatFor(box, outcome({}));
+    expect(ok.ok && ok.value).toEqual({ assetId: "ast_round_table_splat", enabled: true, validForGeometryRevision: 1 });
+    const code = (r: { ok: boolean; error?: { code: string } }) => (r.ok ? "ok" : r.error!.code);
+    expect(code(providerSplatFor(box, outcome({ meshAsset: { id: "ast_some_other_mesh" } })))).toBe("STALE_REVISION");
+    expect(code(providerSplatFor(box, outcome({ splatAsset: null })))).toBe("MISSING_ASSET");
+    expect(code(providerSplatFor(box, outcome({ job: { ...job, state: "running" } })))).toBe("INVALID_TRANSITION");
+  });
+});
