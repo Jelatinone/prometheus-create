@@ -3,7 +3,7 @@ import { TakeManifest, type Observation, type Result, type Source, type Transfor
 import { MemoryBackend } from "@/lib/reference/memory-backend";
 import { activeCamera, cameraFromView, cameraTrack, captureTiming, removeCameraKey, resizeTake, seedCamera, setCameraKey } from "@/lib/editor/camera";
 import { commit, eulerDegToQuat, startHistory, undo } from "@/lib/editor/model";
-import { evaluateAt, poseAt } from "@/lib/editor/timeline";
+import { evaluateAt, poseAt, setKey } from "@/lib/editor/timeline";
 import { forkTake, loadTake, saveTake } from "@/lib/editor/session";
 import { loadFixture } from "../helpers/fixtures";
 
@@ -112,5 +112,16 @@ describe("capture timing and genuine camera estimates", () => {
     expect(seeded.take.durationFrames).toBe(211);
     expect(TakeManifest.safeParse(seeded).success).toBe(true);
     expect(activeCamera(setCameraKey(seeded, cam.id, 20, pose(3)))!.origin).toBe("user");
+  });
+
+  it("extending a take from capture estimates preserves the existing object's held final pose", () => {
+    let initial = value(resizeTake(base(), 60));
+    const object = initial.scene.objects[0];
+    initial = setKey(initial, object.id, 30, { ...object.transform, position: [2, 1, 0] });
+    const estimate: NonNullable<Observation["camera"]> = { verticalFovDeg: 50, aspect: 16 / 9, pose: pose(0), status: "estimated", method: "fixture-camera" };
+    const seeded = value(seedCamera(initial, source(), [observation(0, estimate), observation(7_000_000, estimate)]));
+    expect(seeded.take.durationFrames).toBe(211);
+    expect(evaluateAt(seeded, 180).scene.objects[0].transform.position).toEqual([2, 1, 0]);
+    expect(TakeManifest.safeParse(seeded).success).toBe(true);
   });
 });

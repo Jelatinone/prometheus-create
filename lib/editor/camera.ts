@@ -152,8 +152,10 @@ export function seedCamera(manifest: TakeManifest, source: Source, observations:
     const frame = Math.max(0, Math.round((observation.sourceTimeUs - startUs) * fps / 1_000_000));
     keys.set(frame, { frame, transform: cloneJson(observation.camera!.pose), interpolation: "smooth" });
   }
-  const copy = cloneJson(manifest);
-  copy.take.durationFrames = Math.max(copy.take.durationFrames, timing?.frames ?? 0, ...[...keys.keys()].map(f => f + 1));
+  const duration = Math.max(manifest.take.durationFrames, timing?.frames ?? 0, ...[...keys.keys()].map(f => f + 1));
+  const resized = resizeTake(manifest, duration);
+  if (!resized.ok) return resized;
+  const copy = resized.value;
   const cam: Camera = { id: newId("camera"), name: "Capture camera", verticalFovDeg: estimate.verticalFovDeg, near: 0.01, far: 200, transform: cloneJson(estimate.pose), origin: "source_estimate", observationId: first.id };
   copy.scene.cameras.push(cam);
   copy.take.activeCameraId = cam.id;

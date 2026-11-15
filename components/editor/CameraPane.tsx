@@ -106,7 +106,7 @@ export function CameraPane(props: Props) {
           {captures.map((c, i) => <option key={c.source.id} value={c.source.id}>Capture {i + 1} · {c.source.media.kind.replaceAll("_", " ")}</option>)}
         </select>
         <button className={`${button} mt-2 w-full`} disabled={!timing} onClick={() => timing && props.onDuration(timing.frames)}>Use captured length{timing ? ` (${(timing.frames / fps).toFixed(2)} s)` : ""}</button>
-        <p className="mt-1 text-muted">{timing?.label ?? "A still image has no clip duration."}</p>
+        <p className="mt-1 text-muted">{timing?.label ?? (choice.source.media.kind === "image" ? "A still image has no clip duration." : "Not enough recorded timing to determine a length.")}</p>
         <button className={`${button} mt-2 w-full`} disabled={!estimates} onClick={() => props.onSeed(choice)}>Use capture camera estimates</button>
         <p className="mt-1 text-muted">{estimates ? `${estimates} recorded camera estimate(s).` : "No recorded camera poses. Camera motion stays authored."}</p>
       </>}
