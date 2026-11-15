@@ -28,6 +28,14 @@ export const CALL_SECONDS = 35;
 const SCENE_MODEL = "fal-ai/vggt-1b";
 const ROOM_EXTENT_M = 5;
 
+/** Scene splat density: more points and finer voxels look sharper but take longer to build and load. */
+export const SCENE_DETAIL = {
+  light: { maxPoints: 150_000, voxelFraction: 1 / 350 },
+  standard: { maxPoints: 300_000, voxelFraction: 1 / 500 },
+  dense: { maxPoints: 600_000, voxelFraction: 1 / 750 },
+} as const;
+export type SceneDetail = keyof typeof SCENE_DETAIL;
+
 export type CallState = { state: "idle" | "calling" | "building" | "done" | "failed"; message: string; projectId?: string; at: number };
 
 const holder = globalThis as typeof globalThis & { __facetimeCall?: CallState };
@@ -50,6 +58,7 @@ export function startCall(args: {
   projectId: string;
   origin: string;
   sceneSplat: boolean;
+  detail?: SceneDetail;
 }): Result<CallState> {
   const busy = callState();
   if (busy.state === "calling" || busy.state === "building") return err("RESOURCE_LIMIT", "a FaceTime capture is already running; wait for it to finish");
@@ -69,7 +78,7 @@ export function startCall(args: {
     if (code !== 0) return setState({ state: "failed", message: `The call ended with an error (exit ${code}). Frames received so far are in the project.`, projectId: args.projectId });
     if (!args.sceneSplat) return setState({ state: "done", message: "Call finished. Its frames are in Generate.", projectId: args.projectId });
     setState({ state: "building", message: "Call finished. Building the scene splat (a cold start can take a few minutes)…", projectId: args.projectId });
-    void buildSceneFromCall(args.backend, args.actor, args.projectId, started)
+    void buildSceneFromCall(args.backend, args.actor, args.projectId, started, args.detail ?? "standard")
       .then((r) => setState(r.ok ? { state: "done", message: r.value, projectId: args.projectId } : { state: "failed", message: `Scene splat failed: ${r.error.message}`, projectId: args.projectId }))
       .catch((e) => setState({ state: "failed", message: `Scene splat failed: ${e instanceof Error ? e.message : String(e)}`, projectId: args.projectId }));
   });
@@ -101,10 +110,10 @@ async function waitFor(fal: ReturnType<typeof createLiveFalQueue>, input: Record
   return out.data ?? out;
 }
 
-export async function buildSceneFromCall(backend: PostgresBackend, actor: NonNullable<Actor>, projectId: string, since: number): Promise<Result<string>> {
+export async function buildSceneFromCall(backend: PostgresBackend, actor: NonNullable<Actor>, projectId: string, since: number, detail: SceneDetail = "standard"): Promise<Result<string>> {
   const frames = await callFrames(backend, actor, projectId, since);
   if (frames.length < 2) return err("NOT_FOUND", "the call produced fewer than two frames");
-  const ply = await sceneSplatPly(backend, actor, projectId, frames);
+  const ply = await sceneSplatPly(backend, actor, projectId, frames, detail);
   if (!ply.ok) return ply;
   const deps = { assets: backend.assets, blobs: serverBlobs(backend, actor), actor };
   const splat = await storeProjectAsset(deps, projectId, ply.value, { kind: "splat", mimeType: "application/octet-stream", origin: "provider" });
@@ -114,7 +123,8 @@ export async function buildSceneFromCall(backend: PostgresBackend, actor: NonNul
 }
 
 /** The levelled, roughly room-sized S1 splat for one capture's frames (paid VGGT call; nothing stored). */
-export async function sceneSplatPly(backend: PostgresBackend, actor: NonNullable<Actor>, projectId: string, frames: Observation[]): Promise<Result<Uint8Array>> {
+export async function sceneSplatPly(backend: PostgresBackend, actor: NonNullable<Actor>, projectId: string, frames: Observation[], detail: SceneDetail = "standard"): Promise<Result<Uint8Array>> {
+  const density = SCENE_DETAIL[detail];
   const deps = { assets: backend.assets, blobs: serverBlobs(backend, actor), actor };
   const fal = createLiveFalQueue();
   const { default: sharp } = await import("sharp");
@@ -127,12 +137,12 @@ export async function sceneSplatPly(backend: PostgresBackend, actor: NonNullable
     urls.push(await fal.upload(new Uint8Array(cropped), "image/jpeg", `scene-${i}.jpg`));
   }
   if (urls.length < 2) return err("NOT_FOUND", "the call's frames could not be read");
-  const out = await waitFor(fal, { image_urls: urls, export_point_cloud: true, max_points: 300_000, confidence_percentile: 35 });
+  const out = await waitFor(fal, { image_urls: urls, export_point_cloud: true, max_points: density.maxPoints, confidence_percentile: 35 });
   const cloudUrl = (out.point_cloud as { url?: string } | undefined)?.url;
   if (!cloudUrl) return err("PROVIDER_ERROR", "VGGT returned no point cloud");
   const glb = (await fal.download(cloudUrl)).bytes;
   const ply = pointsToS1Splat(pointsFromGlb(glb), {
-    voxelFraction: 1 / 500,
+    voxelFraction: density.voxelFraction,
     targetExtent: ROOM_EXTENT_M,
     levelByPlane: true,
   });

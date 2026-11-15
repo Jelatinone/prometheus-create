@@ -9,6 +9,7 @@ const StartCall = z.strictObject({
   projectId: ProjectId,
   code: z.string().min(1).max(200),
   sceneSplat: z.boolean().default(false),
+  detail: z.enum(["light", "standard", "dense"]).default("standard"),
 });
 
 /** Start a FaceTime capture into a project; gated by the server-side CALL_ACCESS_CODE. */
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
     const header = request.headers.get("authorization");
     const accessToken = header?.match(/^Bearer\s+(\S+)$/i)?.[1] ?? (await createSessionClient(requestCookieJar(request)).auth.getSession()).data.session?.access_token;
     if (!accessToken) return respond(err("UNAUTHORIZED", "sign in again to start a call"));
-    const started = startCall({ backend, actor, accessToken, projectId: body.value.projectId, origin: new URL(request.url).origin, sceneSplat: body.value.sceneSplat });
+    const started = startCall({ backend, actor, accessToken, projectId: body.value.projectId, origin: new URL(request.url).origin, sceneSplat: body.value.sceneSplat, detail: body.value.detail });
     return respond(started, started.ok ? 202 : undefined);
   } catch (error) {
     console.error("[api] POST /api/capture/call failed:", error);

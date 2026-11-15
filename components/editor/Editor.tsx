@@ -902,21 +902,17 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         )}
         {pane === "camera" && (
           <>
-            <button className={labelled} disabled={cameraView} onClick={() => poseCameraFromView(false)} title={cameraView ? "Switch to free view first" : "Move the render camera to the current free view"}>
+            <button className={icon} disabled={cameraView} onClick={() => poseCameraFromView(false)} title={cameraView ? "Switch to free view first" : "Align to view: move the render camera to the current free view"} aria-label="Align to view">
               <ArrowDownOnSquareIcon className="size-5" />
-              Align to view
             </button>
-            <button className={labelled} disabled={cameraView} onClick={() => poseCameraFromView(true)} title={cameraView ? "Switch to free view first" : "Set a camera key at the playhead from the current free view"}>
+            <button className={icon} disabled={cameraView} onClick={() => poseCameraFromView(true)} title={cameraView ? "Switch to free view first" : "Key from view: set a camera key at the playhead from the current free view"} aria-label="Key from view">
               <KeyIcon className="size-5" />
-              Key from view
             </button>
-            <button className={labelled} disabled={!captureTimingNow} onClick={() => captureTimingNow && applyCameraResult(resizeTake(present, captureTimingNow.frames))} title={captureTimingNow ? "Make the take as long as the chosen capture" : "The chosen capture has no usable length"}>
+            <button className={icon} aria-label="Capture length" disabled={!captureTimingNow} onClick={() => captureTimingNow && applyCameraResult(resizeTake(present, captureTimingNow.frames))} title={captureTimingNow ? "Make the take as long as the chosen capture" : "The chosen capture has no usable length"}>
               <ClockIcon className="size-5" />
-              Capture length
             </button>
-            <button className={labelled} disabled={!captureChoice || !captureEstimates} onClick={() => captureChoice && applyCameraResult(seedCamera(present, captureChoice.source, captureChoice.observations))} title={captureEstimates ? "Key the render camera from the capture's recorded camera poses" : "The chosen capture has no recorded camera poses"}>
+            <button className={icon} aria-label="Follow capture" disabled={!captureChoice || !captureEstimates} onClick={() => captureChoice && applyCameraResult(seedCamera(present, captureChoice.source, captureChoice.observations))} title={captureEstimates ? "Key the render camera from the capture's recorded camera poses" : "The chosen capture has no recorded camera poses"}>
               <VideoCameraIcon className="size-5" />
-              Follow capture
             </button>
           </>
         )}

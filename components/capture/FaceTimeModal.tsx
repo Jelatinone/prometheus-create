@@ -23,7 +23,8 @@ export function FaceTimeModal({ open, onClose, api, actor, projectId, onSceneRea
   onSceneReady(): void;
 }) {
   const [code, setCode] = useState("");
-  const [sceneSplat, setSceneSplat] = useState(false);
+  const [sceneSplat, setSceneSplat] = useState(true);
+  const [detail, setDetail] = useState<"light" | "standard" | "dense">("standard");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState<CallState | null>(null);
@@ -41,7 +42,7 @@ export function FaceTimeModal({ open, onClose, api, actor, projectId, onSceneRea
   async function start() {
     setSending(true);
     setError("");
-    const r = await api.request<CallState>(actor, "POST", "/api/capture/call", { projectId, code: code.trim(), sceneSplat });
+    const r = await api.request<CallState>(actor, "POST", "/api/capture/call", { projectId, code: code.trim(), sceneSplat, detail });
     setSending(false);
     if (!r.ok) return setError(r.error.message);
     setStatus(r.value);
@@ -79,6 +80,16 @@ export function FaceTimeModal({ open, onClose, api, actor, projectId, onSceneRea
                 <span className="block text-xs text-muted">Walls and floor as the camera saw them, from all call frames (extra paid step; can take a few minutes).</span>
               </span>
             </label>
+            {sceneSplat && (
+              <label className="mt-3 flex items-center justify-between gap-3 text-sm">
+                Scene detail
+                <select value={detail} onChange={(e) => setDetail(e.target.value as typeof detail)} className="h-8 rounded-lg border border-line bg-canvas px-2 text-sm" aria-label="Scene detail">
+                  <option value="light">Light (fastest, phones)</option>
+                  <option value="standard">Standard</option>
+                  <option value="dense">Dense (sharper, slower)</option>
+                </select>
+              </label>
+            )}
             {error && <p role="alert" className="mt-3 text-sm text-bad">{error}</p>}
             <button
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2 font-medium text-canvas hover:bg-accent disabled:cursor-not-allowed disabled:bg-muted"

@@ -281,6 +281,21 @@ export function ReconstructPanel({ api, actor, projectId, takeId, onApply, captu
   }
   useImperativeHandle(findRef, () => ({ findAll: () => void findAll() }));
 
+  // Find objects runs by itself the first time a frame is shown here (once per frame, remembered in this browser).
+  useEffect(() => {
+    if (!frame || saved?.batch.finds.length) return;
+    const key = `prometheus:autofind:${frame.id}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, "1");
+    } catch {
+      return;
+    }
+    const timer = setTimeout(() => void findAll(), 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frame?.id]);
+
   /** CP-031: rebuild one found object from four frames of the same capture (paid, ~$0.04). */
   async function fromVideo(o: FoundObject) {
     const s = savedRef.current;
