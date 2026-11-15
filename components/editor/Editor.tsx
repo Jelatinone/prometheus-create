@@ -640,7 +640,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       )}
 
       {/* Project chip: saves, project, take, saved state */}
-      <div className={`absolute top-3 left-3 flex h-11 max-w-[min(560px,calc(100vw-32rem))] items-center gap-1 px-1.5 ${chrome}`}>
+      <div className={`absolute top-3 left-3 flex h-11 max-w-[min(560px,calc(100vw-32rem))] items-center gap-1 overflow-hidden px-1.5 max-sm:max-w-[calc(100vw-19.5rem)] ${chrome}`}>
         {onShowSaves ? (
           <button className={icon} onClick={onShowSaves} title="Saves" aria-label="Back to saves">
             <FolderOpenIcon className="size-5" />
@@ -650,7 +650,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
             <FolderOpenIcon className="size-5" />
           </Link>
         )}
-        <span className="truncate px-1 font-serif font-semibold" title={loaded.project.title}>
+        <span className="truncate px-1 font-serif font-semibold max-sm:hidden" title={loaded.project.title}>
           {loaded.project.title}
         </span>
         {sep}
@@ -697,11 +697,11 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
         {sep}
         <button className={labelled} onClick={() => void save()} disabled={!dirty || !!busy} title="Save a new revision (Ctrl+S)">
           <CloudArrowUpIcon className="size-5" />
-          Save
+          <span className="max-sm:sr-only">Save</span>
         </button>
         <button className={labelled} onClick={() => void fork()} disabled={!!busy} title="Fork: copy the saved revision into a new take">
           <Square2StackIcon className="size-5" />
-          Fork
+          <span className="max-sm:sr-only">Fork</span>
         </button>
         {sep}
         <button className={labelled} disabled={!!busy || Object.values(splatsLoading).some(Boolean)} onClick={() => {
@@ -710,7 +710,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
           setExportOpen(true);
         }} aria-haspopup="dialog" title="Export image, 3D scene or project">
           <ArrowDownTrayIcon className="size-5" />
-          Export
+          <span className="max-sm:sr-only">Export</span>
         </button>
       </div>
 
@@ -737,7 +737,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       </div>
 
       {captureOpen && (
-        <aside className={`absolute top-17 bottom-20 left-16 z-10 w-[26rem] max-w-[calc(100%-5rem)] overflow-auto p-3 ${chrome}`}>
+        <aside className={`absolute top-17 bottom-20 left-16 z-10 w-[26rem] max-w-[calc(100%-5rem)] overflow-auto p-3 max-sm:bottom-[calc(36vh+7.5rem)] ${chrome}`}>
           <div className="mb-2 flex items-center justify-between">
             <h2 className="font-serif font-semibold">Capture</h2>
             <button className={icon} onClick={() => setCaptureOpen(false)} aria-label="Close capture">
@@ -749,7 +749,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       )}
 
       {/* Details for the current mode */}
-      <div id="mode-details" role="tabpanel" aria-labelledby={`mode-${pane}`} className="absolute top-17 right-3 bottom-20 w-80">
+      <div id="mode-details" role="tabpanel" aria-labelledby={`mode-${pane}`} className="absolute top-17 right-3 bottom-20 w-80 max-sm:top-auto max-sm:bottom-28 max-sm:left-3 max-sm:h-[36vh] max-sm:w-auto">
         {pane === "camera" && (
           <div className={`h-full overflow-auto ${chrome}`}>
             <CameraPane manifest={present} camera={activeCamera} frame={frame} captures={captures ?? []}
@@ -803,7 +803,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
 
       {/* Playback pop-up: play, seek and keys (opened from the bottom toolbar) */}
       {playbackOpen && (
-        <div id="playback" className="absolute bottom-17 left-1/2 w-[min(46rem,calc(100vw-1.5rem))] -translate-x-1/2">
+        <div id="playback" className="absolute bottom-17 left-1/2 w-[min(46rem,calc(100vw-1.5rem))] -translate-x-1/2 max-sm:bottom-28">
           <Timeline
             rate={present.take.frameRate}
             durationFrames={duration}
@@ -822,7 +822,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
       )}
 
       {/* Bottom toolbar: actions for the current mode, then playback, then view controls (always there) */}
-      <div className={`absolute bottom-3 left-1/2 flex h-12 max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-0.5 px-1.5 ${chrome}`} role="toolbar" aria-label="Actions and view">
+      <div className={`absolute bottom-3 left-1/2 flex h-12 max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-0.5 px-1.5 max-sm:h-auto max-sm:w-[calc(100vw-1.5rem)] max-sm:flex-wrap max-sm:justify-center max-sm:py-1 ${chrome}`} role="toolbar" aria-label="Actions and view">
         {pane === "objects" && (
           <>
             {TOOLS.map((t) => {
