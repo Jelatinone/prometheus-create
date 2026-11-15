@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ProfileMenu } from "@/components/ui/ProfileMenu";
+import { UsageWarning } from "@/components/ui/UsageWarning";
 import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/brand";
 import "./globals.css";
 
@@ -14,6 +15,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="min-h-dvh antialiased">
         {children}
         <ProfileMenu />
+        {/* USAGE_WARNING=on shows a first-visit paid-API notice (read when the app is built). */}
+        {process.env.USAGE_WARNING === "on" && <UsageWarning />}
       </body>
     </html>
   );

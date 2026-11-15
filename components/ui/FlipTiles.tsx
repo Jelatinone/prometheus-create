@@ -17,7 +17,7 @@ export function FlipTiles() {
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
       <div className="grid auto-rows-[5rem] grid-cols-[repeat(auto-fill,minmax(5rem,1fr))] gap-px">
         {Array.from({ length: TILES }, (_, i) => {
-          const duration = 9 + scatter(i, 1) * 14; // 9 to 23 s per cycle
+          const duration = 16 + scatter(i, 1) * 20; // 16 to 36 s per cycle (slower, calmer)
           return (
             <span
               key={i}
