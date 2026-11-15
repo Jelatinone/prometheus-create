@@ -197,8 +197,7 @@ export function Editor({ projectId, actor, userLabel }: Props) {
       setNotice({ tone: "info", text: "Save or undo your changes first: a fork copies the saved revision." });
       return;
     }
-    const name = window.prompt("Name for the new take", nextTakeName(loaded.takes));
-    if (name === null) return;
+    const name = nextTakeName(loaded.takes);
     setBusy("Forking");
     const r = await forkTake(api.projects, actor, { projectId, takeId: loaded.revision.takeId, revision: loaded.revision.number }, name);
     setBusy(null);
@@ -337,7 +336,7 @@ export function Editor({ projectId, actor, userLabel }: Props) {
   const button = "rounded border border-line bg-panel px-2.5 py-1 text-sm hover:border-accent hover:text-accent disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink";
 
   return (
-    <div className="relative grid h-dvh grid-rows-[auto_1fr_auto] overflow-hidden bg-canvas text-ink">
+    <div className="fixed inset-0 z-30 grid grid-rows-[auto_1fr_auto] overflow-hidden bg-canvas text-ink">
       {/* Top bar */}
       <header className="flex flex-wrap items-center gap-2 border-b border-line bg-panel px-3 py-2">
         <Link href="/projects" className="font-semibold hover:text-accent" title="All projects">
@@ -410,7 +409,7 @@ export function Editor({ projectId, actor, userLabel }: Props) {
       {notice && (
         <div
           role={notice.tone === "bad" ? "alert" : "status"}
-          className={`absolute left-1/2 top-14 z-20 flex max-w-2xl -translate-x-1/2 items-start gap-3 rounded border bg-panel px-3 py-2 text-sm shadow ${
+          className={`absolute bottom-12 left-1/2 z-40 flex max-w-2xl -translate-x-1/2 items-start gap-3 rounded border bg-panel px-3 py-2 text-sm shadow ${
             notice.tone === "bad" ? "border-bad text-bad" : notice.tone === "ok" ? "border-ok text-ok" : "border-line text-ink"
           }`}
         >

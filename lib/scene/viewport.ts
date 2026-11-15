@@ -223,7 +223,7 @@ export class EditorViewport {
     const root = new Scene();
     root.name = "Prometheus::create take";
     for (const { group } of this.objects.values()) if (group.visible) root.add(group.clone(true));
-    const out = await new GLTFExporter().parseAsync(root, { binary: true, onlyVisible: true });
+    const out = await new GLTFExporter().parseAsync(root, { binary: true, onlyVisible: true, trs: true });
     if (!(out instanceof ArrayBuffer)) throw new Error("GLB export did not produce binary output");
     return new Uint8Array(out);
   }
