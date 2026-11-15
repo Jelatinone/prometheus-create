@@ -39,6 +39,8 @@ Central checkout `production` at `23ba9c9`; toolkit index pin `d34da50829c5ded6c
 
 ### Ordered steps
 
+**Authorized maintenance continuation (2026-11-14):** Cody requested a bounded pre-merge cleanup while workers are paused, keeping every lane separate and creating no stable point. Plan: synchronize capture's ignored local environment into the central, platform and editor checkouts with backups and validation; document a laptop demo procedure in `docs/LOCAL_DEMO.md`; inspect package resolution in ignored scratch files only; record exact evidence and commit central documentation separately. Worker feature fixes and their evidence stay in their own task notes and branches. No deployment, tunnel activation, provider call, merge, production update or tag is part of this continuation.
+
 | Step | Outcome | Task IDs | Owned paths | Dependencies | Verification |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Dependency-free adapter preview/check/sync with guarded legacy migration | HK-001 | scripts/agent-skills.mjs, scripts/lib/agent-skills.mjs, tests/agent-skills.test.ts | None | Missing source and collision fail before writes; repeated sync unchanged |
