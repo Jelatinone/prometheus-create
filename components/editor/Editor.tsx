@@ -59,7 +59,6 @@ import {
   setObjectTransform,
   attachSplat,
   setObjectVisible,
-  setSplatEnabled,
   startHistory,
   undo,
   type History,
@@ -153,6 +152,8 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
   const [notice, setNotice] = useState<Notice>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [faceTimeOpen, setFaceTimeOpen] = useState(false);
+  /** A scene splat is being built for this project (whole-video ingest); its progress is shown as a notice. */
+  const [sceneBuilding, setSceneBuilding] = useState(false);
   const [pane, setPane] = useState<Pane>("objects");
   const [playbackOpen, setPlaybackOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -431,6 +432,27 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
     },
     [assetDeps, projectId, apply],
   );
+
+  /** Whole-video ingest: build the scene splat in the background and show its progress. */
+  const startScene = useCallback(
+    async (sourceId: string) => {
+      const r = await api.request<{ message: string }>(actor, "POST", "/api/capture/scene", { projectId, sourceId });
+      if (!r.ok) return setNotice({ tone: "bad", text: `Scene splat not started: ${r.error.message}` });
+      setSceneBuilding(true);
+      setNotice({ tone: "info", text: r.value.message });
+    },
+    [api, actor, projectId],
+  );
+  useEffect(() => {
+    if (!sceneBuilding) return;
+    const timer = setInterval(async () => {
+      const r = await api.request<{ state: string; message: string }>(actor, "GET", "/api/capture/call");
+      if (!r.ok || r.value.state === "building") return;
+      setSceneBuilding(false);
+      setNotice(r.value.state === "done" ? { tone: "ok", text: r.value.message, conflict: true } : { tone: "bad", text: r.value.message });
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [sceneBuilding, api, actor]);
 
   const importGlb = useCallback(
     async (file: File) => {
@@ -744,7 +766,7 @@ export function Editor({ projectId, actor, onShowSaves, onDirtyChange, onReady }
               <XMarkIcon className="size-5" />
             </button>
           </div>
-          <CapturePanel ingestor={ingestor} onEntry={(entry) => { if (entry.ok) setCaptureCount((n) => n + 1); }} onStartFaceTime={() => setFaceTimeOpen(true)} />
+          <CapturePanel ingestor={ingestor} onEntry={(entry) => { if (entry.ok) setCaptureCount((n) => n + 1); }} onStartFaceTime={() => setFaceTimeOpen(true)} onVideoIngested={(sourceId) => void startScene(sourceId)} />
       </Presence>
 
       {/* Details for the current mode */}

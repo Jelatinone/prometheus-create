@@ -36,6 +36,8 @@ export interface CapturePanelProps {
   onEntry?: (entry: CaptureEntry) => void;
   /** Opens the access-code modal that starts a FaceTime capture (demo machine). */
   onStartFaceTime?: () => void;
+  /** A whole video was ingested (frames across its length): the editor may build a scene splat from it. */
+  onVideoIngested?: (sourceId: string) => void;
 }
 
 const TABS: { id: CaptureTab; label: string }[] = [
@@ -97,7 +99,10 @@ function FilePicker({ label, accept, capture, disabled, onFile }: { label: strin
   );
 }
 
-export function CapturePanel({ ingestor, faceTime = DEFAULT_FACETIME, onEntry, onStartFaceTime }: CapturePanelProps) {
+/** Frames taken across a loaded video (whole-video ingest). */
+const VIDEO_FRAMES = 8;
+
+export function CapturePanel({ ingestor, faceTime = DEFAULT_FACETIME, onEntry, onStartFaceTime, onVideoIngested }: CapturePanelProps) {
   const [tab, setTab] = useState<CaptureTab>("upload");
   const [busy, setBusy] = useState(false);
   const [entries, setEntries] = useState<CaptureEntry[]>([]);
@@ -242,6 +247,21 @@ export function CapturePanel({ ingestor, faceTime = DEFAULT_FACETIME, onEntry, o
       clip.current = { source: reg.value.source, sequence: 0, url };
       setClipInfo({ name: file.name, ...meta.value });
       setScrubUs(0);
+      // Whole-video ingest: frames across the clip, so nobody has to pick one by hand.
+      const video = clipVideo.current;
+      if (!video) return;
+      let kept = 0;
+      for (let k = 0; k < VIDEO_FRAMES; k++) {
+        const at = await seekVideo(video, Math.round((meta.value.durationUs * (k + 0.5)) / VIDEO_FRAMES));
+        if (!at.ok) continue;
+        const frame = await grabVideoFrame(video);
+        if (!frame.ok) continue;
+        const sequence = clip.current.sequence++;
+        const result = await ingestor.ingestFrame(clip.current.source, frame.value, { sequence, sourceTimeUs: at.value, capturedAt: null, mode: "evidence" });
+        record(`Video frame #${sequence} @ ${(at.value / 1e6).toFixed(2)}s`, result);
+        if (result.ok) kept++;
+      }
+      if (kept >= 2) onVideoIngested?.(clip.current.source.id);
     });
 
   const captureClipFrame = () =>

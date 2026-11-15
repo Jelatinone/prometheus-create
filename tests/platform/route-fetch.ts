@@ -25,6 +25,7 @@ import * as projects from "@/app/api/projects/route";
 import * as reconstruction from "@/app/api/reconstruction/route";
 import * as reconstructionFrames from "@/app/api/reconstruction/frames/route";
 import * as captureCall from "@/app/api/capture/call/route";
+import * as captureScene from "@/app/api/capture/scene/route";
 
 export const PLATFORM_ORIGIN = "http://platform.test";
 
@@ -36,6 +37,7 @@ export const ROUTE_FILES = {
   "/api/reconstruction": reconstruction,
   "/api/reconstruction/frames": reconstructionFrames,
   "/api/capture/call": captureCall,
+  "/api/capture/scene": captureScene,
   "/api/projects": projects,
   "/api/projects/[projectId]": projectById,
   "/api/projects/[projectId]/takes": takes,

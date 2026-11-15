@@ -85,6 +85,21 @@ export function startCall(args: {
   return ok(setState({ state: "calling", message: `Calling now. Answer FaceTime and slowly sweep the room for about ${CALL_SECONDS} seconds.`, projectId: args.projectId }));
 }
 
+/** Build the scene splat for one existing capture (e.g. an uploaded video) in the background. */
+export function startSceneBuild(args: { backend: PostgresBackend; actor: NonNullable<Actor>; projectId: string; sourceId: string; detail?: SceneDetail }): Result<CallState> {
+  const busy = callState();
+  if (busy.state === "calling" || busy.state === "building") return err("RESOURCE_LIMIT", "a capture or scene build is already running; wait for it to finish");
+  const state = setState({ state: "building", message: "Building the scene splat from this video (a cold start can take a few minutes)…", projectId: args.projectId });
+  void (async () => {
+    const listed = await args.backend.ingestion.listObservations(args.actor, args.projectId, args.sourceId);
+    if (!listed.ok) return setState({ state: "failed", message: `Scene splat failed: ${listed.error.message}`, projectId: args.projectId });
+    const frames = listed.value.filter((o) => o.mode === "evidence").sort((a, b) => a.sourceTimeUs - b.sourceTimeUs);
+    const r = await buildSceneFromFrames(args.backend, args.actor, args.projectId, frames, args.detail ?? "standard");
+    setState(r.ok ? { state: "done", message: r.value, projectId: args.projectId } : { state: "failed", message: `Scene splat failed: ${r.error.message}`, projectId: args.projectId });
+  })().catch((e) => setState({ state: "failed", message: `Scene splat failed: ${e instanceof Error ? e.message : String(e)}`, projectId: args.projectId }));
+  return ok(state);
+}
+
 /** Frames of the newest capture that started after `since` (the call just made). */
 async function callFrames(backend: PostgresBackend, actor: NonNullable<Actor>, projectId: string, since: number): Promise<Observation[]> {
   const { rows } = await backend.pool.query<{ doc: unknown }>(
@@ -111,8 +126,11 @@ async function waitFor(fal: ReturnType<typeof createLiveFalQueue>, input: Record
 }
 
 export async function buildSceneFromCall(backend: PostgresBackend, actor: NonNullable<Actor>, projectId: string, since: number, detail: SceneDetail = "standard"): Promise<Result<string>> {
-  const frames = await callFrames(backend, actor, projectId, since);
-  if (frames.length < 2) return err("NOT_FOUND", "the call produced fewer than two frames");
+  return buildSceneFromFrames(backend, actor, projectId, await callFrames(backend, actor, projectId, since), detail);
+}
+
+async function buildSceneFromFrames(backend: PostgresBackend, actor: NonNullable<Actor>, projectId: string, frames: Observation[], detail: SceneDetail): Promise<Result<string>> {
+  if (frames.length < 2) return err("NOT_FOUND", "the capture has fewer than two frames");
   const ply = await sceneSplatPly(backend, actor, projectId, frames, detail);
   if (!ply.ok) return ply;
   const deps = { assets: backend.assets, blobs: serverBlobs(backend, actor), actor };
